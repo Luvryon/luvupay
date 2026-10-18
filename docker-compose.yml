@@ -1,0 +1,59 @@
+# Local "production-shaped" stack: Postgres + Redis + web + queue worker + scheduler + mail catcher.
+# Real PayPal sandbox calls need PAYPAL_* in .env and a public URL for webhooks (e.g. a tunnel).
+services:
+  app:
+    build: .
+    env_file: .env
+    environment: &env
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: luvupay
+      DB_USERNAME: luvupay
+      DB_PASSWORD: luvupay
+      REDIS_HOST: redis
+      CACHE_STORE: redis
+      QUEUE_CONNECTION: redis
+      SESSION_DRIVER: redis
+      MAIL_MAILER: smtp
+      MAIL_HOST: mailpit
+      MAIL_PORT: 1025
+      MAIL_ENCRYPTION: ""
+      APP_ENV: local
+      APP_DEBUG: "true"
+    ports: ["8000:8000"]
+    depends_on: { postgres: { condition: service_healthy }, redis: { condition: service_started } }
+    command: sh -c "php artisan migrate --force && php artisan octane:start --server=frankenphp --host=0.0.0.0 --port=8000"
+
+  worker:
+    build: .
+    env_file: .env
+    environment: *env
+    depends_on: [app]
+    command: php artisan queue:work redis --queue=financial,webhooks,default --tries=5 --timeout=90 --sleep=1 --max-time=3600
+    restart: unless-stopped
+
+  scheduler:
+    build: .
+    env_file: .env
+    environment: *env
+    depends_on: [app]
+    command: php artisan schedule:work
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    environment: { POSTGRES_DB: luvupay, POSTGRES_USER: luvupay, POSTGRES_PASSWORD: luvupay }
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U luvupay"], interval: 5s, retries: 10 }
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes: [redisdata:/data]
+
+  mailpit:
+    image: axllent/mailpit
+    ports: ["8025:8025"]      # inbox UI: http://localhost:8025 — verification codes land here
+
+volumes: { pgdata: {}, redisdata: {} }

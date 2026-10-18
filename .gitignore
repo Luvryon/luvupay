@@ -1,0 +1,104 @@
+# === Dependencies & build ===
+/node_modules
+/vendor
+/public/build
+/public/hot
+/public/storage
+/bootstrap/cache/*.php
+!/bootstrap/cache/.gitignore
+
+# === Environment & secrets (NEVER commit .env) ===
+.env
+.env.*
+!.env.example
+!.env.testing.example
+**/.env
+**/.env.*
+!**/.env.example
+.env.backup
+.env.production
+.env.local
+.env.*.local
+.env.sandbox
+.env.staging
+.env.live
+.env.testing
+.env.development
+
+# Laravel encryption / service keys
+/storage/*.key
+/storage/oauth-*.key
+/storage/pail
+*.pem
+*.p12
+*.pfx
+*.key
+!/**/*.key.example
+id_rsa*
+id_ed25519*
+*.keystore
+
+# Credentials & cloud
+auth.json
+credentials.json
+service-account*.json
+*-service-account.json
+.aws/
+.azure/
+.gcloud/
+secrets/
+**/secrets/
+
+# API dumps / exports that may contain PII
+/storage/app/private/
+/storage/app/*.sqlite
+/storage/app/*.sqlite-journal
+*.sqlite
+*.sql
+!/database/schema/**/*.sql
+dump*.sql
+backup*.sql
+
+# Logs & caches
+/storage/logs/*
+!/storage/logs/.gitignore
+/storage/framework/cache/*
+!/storage/framework/cache/.gitignore
+/storage/framework/sessions/*
+!/storage/framework/sessions/.gitignore
+/storage/framework/views/*
+!/storage/framework/views/.gitignore
+/storage/framework/testing/*
+!/storage/framework/testing/.gitignore
+npm-debug.log
+yarn-error.log
+pnpm-debug.log
+.phpunit.result.cache
+.phpunit.cache
+/.phpunit.cache
+
+# IDE / OS
+/.idea
+/.vscode
+/.fleet
+/.nova
+/.zed
+/.phpactor.json
+Homestead.json
+Homestead.yaml
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# Local tooling
+/docker-compose.override.yml
+.php-cs-fixer.cache
+.eslintcache
+coverage/
+.nyc_output/
+
+# Temporary / agent artifacts (do not publish)
+/artifacts/
+*.zip
+!docs/**/*.zip

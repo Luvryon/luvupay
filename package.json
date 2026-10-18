@@ -1,0 +1,22 @@
+{
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "build": "vite build",
+        "dev": "vite --host",
+        "build:css": "tailwindcss -i resources/css/site.css -o public/css/app.css --minify",
+        "watch:css": "tailwindcss -i resources/css/site.css -o public/css/app.css --watch",
+        "build:ui": "tailwindcss -i resources/css/ui.css -o public/css/ui.css --minify",
+        "watch:ui": "tailwindcss -i resources/css/ui.css -o public/css/ui.css --watch"
+    },
+    "devDependencies": {
+        "@tailwindcss/cli": "^4.0.0",
+        "@tailwindcss/vite": "^4.0.0",
+        "alpinejs": "^3.14.1",
+        "axios": "^1.8.2",
+        "concurrently": "^9.0.1",
+        "laravel-vite-plugin": "^1.2.0",
+        "tailwindcss": "^4.0.0",
+        "vite": "^6.2.4"
+    }
+}

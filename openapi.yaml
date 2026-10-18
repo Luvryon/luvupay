@@ -1,0 +1,28 @@
+openapi: 3.1.0
+info: { title: LuvuPay API, version: 1.0.0, description: "Bearer API key (lp_live_…). All POST/DELETE money endpoints require Idempotency-Key (8-255 chars). Every response carries X-Request-Id." }
+servers: [{ url: http://localhost:8000/api/v1 }]
+security: [{ bearer: [] }]
+components:
+  securitySchemes: { bearer: { type: http, scheme: bearer } }
+  parameters:
+    IdempotencyKey: { name: Idempotency-Key, in: header, required: true, schema: { type: string, minLength: 8, maxLength: 255 } }
+  responses:
+    Unauthorized: { description: Invalid or missing API key }
+    Forbidden: { description: "insufficient_scope — key lacks the required scope" }
+    Conflict: { description: request_in_progress (same Idempotency-Key still running) }
+    Unprocessable: { description: idempotency_key_reused (different body) or validation error }
+    TooMany: { description: Per-merchant rate limit exceeded }
+paths:
+  /subscriptions:
+    post: { summary: Create subscription, description: "scope: subscriptions:write", parameters: [{ $ref: "#/components/parameters/IdempotencyKey" }], responses: { "201": { description: Created }, "403": { $ref: "#/components/responses/Forbidden" }, "409": { $ref: "#/components/responses/Conflict" }, "422": { $ref: "#/components/responses/Unprocessable" } } }
+  /transactions/{transaction}/second-chance:
+    post: { summary: Trigger Second Chance, description: "scope: second-chance:write", parameters: [{ name: transaction, in: path, required: true, schema: { type: string, format: uuid } }, { $ref: "#/components/parameters/IdempotencyKey" }], responses: { "200": { description: Split started }, "403": { $ref: "#/components/responses/Forbidden" }, "409": { description: not_eligible / window_closed } } }
+  /resale-listings:
+    get: { summary: List resale listings, description: "scope: resale:read | resale:write", responses: { "200": { description: OK } } }
+    post: { summary: Create listing, description: "scope: resale:write", parameters: [{ $ref: "#/components/parameters/IdempotencyKey" }], responses: { "201": { description: Created } } }
+  /resale-listings/{listing}: { delete: { summary: Cancel listing, description: "scope: resale:write", parameters: [{ name: listing, in: path, required: true, schema: { type: string } }, { $ref: "#/components/parameters/IdempotencyKey" }], responses: { "200": { description: Cancelled } } } }
+  /resale-listings/{listing}/checkout: { post: { summary: Reserve + create PayPal order, description: "scope: resale:write", parameters: [{ name: listing, in: path, required: true, schema: { type: string } }, { $ref: "#/components/parameters/IdempotencyKey" }], responses: { "200": { description: Order created } } } }
+  /resale-listings/{listing}/complete: { post: { summary: Capture + settle, description: "scope: resale:write", parameters: [{ name: listing, in: path, required: true, schema: { type: string } }, { $ref: "#/components/parameters/IdempotencyKey" }], responses: { "200": { description: Sold }, "402": { description: payment_failed } } } }
+  /export: { get: { summary: Export data, description: "scope: export:read", responses: { "200": { description: OK } } } }
+  /ai/churn-prediction: { post: { summary: Churn prediction, description: "scope: ai:read", responses: { "200": { description: OK } } } }
+  /webhooks/paypal: { post: { security: [], summary: "Inbound PayPal webhook (signature-verified, stored, processed async)", responses: { "200": { description: "accepted | duplicate | ignored" }, "400": { description: invalid_signature } } } }

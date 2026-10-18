@@ -1,0 +1,277 @@
+{
+  "info": {
+    "name": "LuvuPay API",
+    "description": "Merchant & platform API for LuvuPay \u2014 subscriptions, second-chance, resale, dashboard, webhooks.\n\nSet collection variables: base_url, api_key.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000"
+    },
+    {
+      "key": "api_key",
+      "value": ""
+    },
+    {
+      "key": "subscription_id",
+      "value": ""
+    },
+    {
+      "key": "listing_id",
+      "value": ""
+    },
+    {
+      "key": "transaction_id",
+      "value": ""
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "function uuidv4(){return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,function(c){var r=Math.random()*16|0,v=c==='x'?r:(r&0x3|0x8);return v.toString(16);});}",
+          "if (['POST','PUT','PATCH','DELETE'].includes(pm.request.method)) {",
+          "  pm.request.headers.upsert({key:'Idempotency-Key', value: uuidv4()});",
+          "}",
+          "const key = pm.collectionVariables.get('api_key');",
+          "if (key && !pm.request.url.getPath().includes('/webhooks/paypal') && !pm.request.url.getPath().includes('/health')) {",
+          "  pm.request.headers.upsert({key:'Authorization', value: 'Bearer ' + key});",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/v1/health"
+          }
+        },
+        {
+          "name": "Liveness /up",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/up"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Dashboard (session cookie)",
+      "item": [
+        {
+          "name": "Summary",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/dashboard/summary"
+          }
+        },
+        {
+          "name": "Transactions",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/dashboard/transactions"
+          }
+        },
+        {
+          "name": "Set project",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"My Product\",\n  \"plan\": \"Premium\",\n  \"environment\": \"sandbox\",\n  \"description\": \"Demo project\"\n}"
+            },
+            "url": "{{base_url}}/api/v1/dashboard/project"
+          }
+        },
+        {
+          "name": "Resale listings",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/dashboard/resale-listings"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Demo simulator",
+      "item": [
+        {
+          "name": "Simulate checkout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"display_name\": \"Sarah Johnson\",\n  \"email\": \"sarah@example.com\"\n}"
+            },
+            "url": "{{base_url}}/api/v1/dashboard/demo/checkout"
+          }
+        },
+        {
+          "name": "Missed-cancel decision",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"choice\": \"renew\"\n}"
+            },
+            "url": "{{base_url}}/api/v1/dashboard/demo/decision"
+          }
+        },
+        {
+          "name": "Webhook logs",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/dashboard/demo/webhook-logs"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Subscriptions",
+      "item": [
+        {
+          "name": "Create subscription",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_email\": \"user@example.com\",\n  \"plan\": \"premium\",\n  \"amount_minor\": 2000,\n  \"currency\": \"USD\"\n}"
+            },
+            "url": "{{base_url}}/api/v1/subscriptions"
+          }
+        },
+        {
+          "name": "Get subscription",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/subscriptions/{{subscription_id}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Second Chance",
+      "item": [
+        {
+          "name": "Trigger second chance",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": "{{base_url}}/api/v1/transactions/{{transaction_id}}/second-chance"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Resale / Marketplace",
+      "item": [
+        {
+          "name": "List listings",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/resale/listings"
+          }
+        },
+        {
+          "name": "Create listing",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"subscription_id\": \"{{subscription_id}}\",\n  \"price_minor\": 1500,\n  \"currency\": \"USD\"\n}"
+            },
+            "url": "{{base_url}}/api/v1/resale/listings"
+          }
+        },
+        {
+          "name": "Checkout listing",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"buyer_email\": \"buyer@example.com\"\n}"
+            },
+            "url": "{{base_url}}/api/v1/resale/listings/{{listing_id}}/checkout"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Webhooks",
+      "item": [
+        {
+          "name": "PayPal webhook (unsigned sample)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event_type\": \"PAYMENT.CAPTURE.COMPLETED\",\n  \"resource\": {}\n}"
+            },
+            "url": "{{base_url}}/api/v1/webhooks/paypal"
+          }
+        }
+      ]
+    }
+  ]
+}

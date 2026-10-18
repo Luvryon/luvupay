@@ -1,0 +1,117 @@
+/*
+ * LuvuPay UI — console + public-app design system (Tailwind v4).
+ * Build:  npm run build:ui   →  public/css/ui.css   (committed; no runtime CDN, no inline <style>)
+ * Not used by welcome / login / register (those keep public/css/app.css).
+ */
+@import "tailwindcss";
+@source "../views";
+@source "../../public/js/dashboard.js";
+@source "../../public/js/marketplace.js";
+
+@theme {
+    --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+
+    --color-canvas: #060912;
+    --color-surface: #0b1020;
+    --color-raised: #111833;
+    --color-edge: rgb(255 255 255 / 0.08);
+    --color-ink: #e6e9f2;
+    --color-muted: #8b94a8;
+    --color-faint: #5d667c;
+    --color-line: rgb(255 255 255 / 0.08);   /* legacy alias used by older docs markup */
+
+    --color-brand: #8b5cf6;
+    --color-brand-soft: #c4b5fd;
+    --color-ok: #34d399;
+    --color-warn: #fbbf24;
+    --color-bad: #fb7185;
+    --color-info: #38bdf8;
+
+    --animate-toast-in: toast-in .22s ease-out both;
+    --animate-toast-out: toast-out .3s ease-in both;
+    --animate-flash: row-flash 1.3s ease-out;
+    --animate-rise: rise .35s ease-out both;
+
+    @keyframes toast-in { from { opacity: 0; transform: translateY(-8px) scale(.98); } to { opacity: 1; transform: none; } }
+    @keyframes toast-out { to { opacity: 0; transform: translateX(16px); } }
+    @keyframes row-flash { from { background-color: rgb(52 211 153 / .28); } to { background-color: transparent; } }
+    @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+}
+
+@layer base {
+    html { color-scheme: dark; -webkit-text-size-adjust: 100%; }
+    body {
+        @apply bg-canvas text-ink font-sans antialiased;
+        background-image:
+            radial-gradient(1100px 520px at 8% -8%, rgb(139 92 246 / .13), transparent 55%),
+            radial-gradient(900px 480px at 100% 0%, rgb(52 211 153 / .07), transparent 50%);
+        background-attachment: fixed;
+    }
+    [x-cloak] { display: none !important; }
+    ::selection { background: rgb(139 92 246 / .45); }
+    :focus-visible { outline: 2px solid var(--color-brand-soft); outline-offset: 2px; border-radius: .375rem; }
+    a { @apply text-brand-soft hover:text-white; }
+    code, kbd, samp, pre { font-family: var(--font-mono); }
+    * { scrollbar-width: thin; scrollbar-color: rgb(255 255 255 / .18) transparent; }
+    @media (prefers-reduced-motion: reduce) {
+        *, ::before, ::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+    }
+}
+
+/* ------------------------------------------------------------------ prose (docs, legal) */
+@layer components {
+    .prose-ui, .prose-dark { @apply text-[0.95rem] leading-7 text-slate-300; }
+    .prose-ui h1, .prose-dark h1 { @apply text-3xl font-bold tracking-tight text-white mb-4; }
+    .prose-ui h2, .prose-dark h2 { @apply text-xl font-semibold tracking-tight text-white mt-10 mb-3 pb-2 border-b border-edge; }
+    .prose-ui h3, .prose-dark h3 { @apply text-base font-semibold text-white mt-7 mb-2; }
+    .prose-ui p, .prose-dark p { @apply my-3; }
+    .prose-ui ul, .prose-dark ul { @apply my-3 list-disc pl-6 space-y-1.5; }
+    .prose-ui ol, .prose-dark ol { @apply my-3 list-decimal pl-6 space-y-1.5; }
+    .prose-ui a, .prose-dark a { @apply underline decoration-brand/40 underline-offset-2 hover:decoration-brand-soft; }
+    .prose-ui code, .prose-dark code { @apply rounded-md bg-white/6 px-1.5 py-0.5 text-[0.82em] text-brand-soft; }
+    .prose-ui pre, .prose-dark pre { @apply my-4 overflow-x-auto rounded-xl border border-edge bg-black/40 p-4 text-[0.8rem] leading-6 text-slate-300; }
+    .prose-ui pre code, .prose-dark pre code { @apply bg-transparent p-0 text-inherit; }
+    .prose-ui table, .prose-dark table { @apply my-4 w-full text-left text-sm; }
+    .prose-ui th, .prose-dark th { @apply border-b border-edge px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted; }
+    .prose-ui td, .prose-dark td { @apply border-b border-edge/60 px-3 py-2 align-top; }
+    .prose-ui blockquote, .prose-dark blockquote { @apply my-4 border-l-2 border-brand/60 pl-4 text-slate-400; }
+    .prose-ui strong, .prose-dark strong { @apply text-white; }
+}
+
+/* ------------------------------------------------------------------ legacy class names still present in long-form docs */
+@layer components {
+    .lp-btn { @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold no-underline transition; }
+    .lp-btn-primary { @apply bg-brand text-white shadow-lg shadow-brand/25 hover:bg-violet-500 hover:text-white; }
+    .lp-btn-outline { @apply border border-edge bg-white/4 text-ink hover:bg-white/8 hover:text-white; }
+    .lead { @apply text-lg leading-relaxed text-slate-400; }
+    .not-prose, .not-prose * { text-decoration: none; }
+}
+
+/* ------------------------------------------------------------------ AG Grid (vendored quartz) */
+.ag-theme-quartz {
+    --ag-background-color: #0b1020;
+    --ag-foreground-color: #e6e9f2;
+    --ag-header-background-color: #0f1630;
+    --ag-header-foreground-color: #9aa3b8;
+    --ag-odd-row-background-color: rgb(255 255 255 / .015);
+    --ag-border-color: rgb(255 255 255 / .08);
+    --ag-secondary-border-color: rgb(255 255 255 / .06);
+    --ag-row-hover-color: rgb(139 92 246 / .09);
+    --ag-selected-row-background-color: rgb(139 92 246 / .18);
+    --ag-input-focus-border-color: #8b5cf6;
+    --ag-font-family: var(--font-sans);
+    --ag-font-size: 13px;
+    --ag-wrapper-border-radius: 12px;
+    --ag-popup-shadow: 0 12px 40px rgb(0 0 0 / .5);
+}
+.ag-theme-quartz .ag-row.row-flash { animation: row-flash 1.3s ease-out; }
+.ag-theme-quartz .ag-overlay-no-rows-center { color: var(--color-muted); }
+
+/* ------------------------------------------------------------------ printable invoice */
+.invoice-sheet { background: #fff; color: #0f172a; }
+@media print {
+    body { background: #fff !important; }
+    .no-print { display: none !important; }
+    .invoice-sheet { box-shadow: none !important; border: 0 !important; }
+}
