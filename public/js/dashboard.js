@@ -515,10 +515,18 @@
           var res = await request('POST', 'demo/' + path, body || {});
           this.simMsgOk = res.ok;
           this.simMsg = res.ok ? (res.data.message || 'Done') : (res.data.message || res.data.error || ('HTTP ' + res.status));
+          if (!res.ok) {
+            var err = res.data.message || res.data.error || ('HTTP ' + res.status);
+            this.pushToast(err, '⚠️');
+            if (res.status === 403 && (res.data.error === 'paypal_not_connected' || String(err).indexOf('PayPal') !== -1)) {
+              this.pushToast('Open Settings → PayPal, or set LUVUPAY_PAYMENT_DRIVER=mock', '⚠️');
+            }
+          }
           return res.ok ? res.data : null;
         } catch (e) {
           this.simMsgOk = false;
           this.simMsg = 'Network error';
+          this.pushToast('Network error calling demo/' + path, '⚠️');
           return null;
         } finally {
           this.simBusy = null;

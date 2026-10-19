@@ -12,7 +12,7 @@ return new class extends Migration
             $table->uuid('id')->primary();
             $table->foreignUuid('merchant_id')->constrained('merchants')->cascadeOnDelete();
             $table->foreignUuid('subscription_id')->nullable()->constrained('subscriptions')->nullOnDelete();
-            $table->foreignUuid('parent_transaction_id')->nullable()->constrained('transactions')->nullOnDelete();
+            $table->uuid('parent_transaction_id')->nullable()->index();
             $table->foreignUuid('charity_wallet_id')->nullable()->constrained('charity_wallets')->nullOnDelete();
             $table->string('type', 32);
             $table->string('status', 32)->default('pending');

@@ -15,6 +15,9 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->singleton(NebiusAIContract::class, NebiusClient::class);
+
+        // Force Neon-aware Postgres connector (XAMPP / old libpq without SNI)
+        $this->app->bind('db.connector.pgsql', \App\Database\NeonPostgresConnector::class);
     }
 
     public function boot(): void

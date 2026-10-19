@@ -11,12 +11,28 @@ return new class extends Migration
         if (! Schema::hasTable('merchant_users')) {
             return;
         }
-        // Argon2id hashes are ~96+ chars; column was 12 (OTP plain length only).
-        DB::statement('ALTER TABLE merchant_users MODIFY email_verification_code VARCHAR(255) NULL');
+
+        $driver = Schema::getConnection()->getDriverName();
+
+        if ($driver === 'pgsql') {
+            DB::statement('ALTER TABLE merchant_users ALTER COLUMN email_verification_code TYPE VARCHAR(255)');
+        } elseif (in_array($driver, ['mysql', 'mariadb'], true)) {
+            DB::statement('ALTER TABLE merchant_users MODIFY email_verification_code VARCHAR(255) NULL');
+        }
     }
 
     public function down(): void
     {
-        DB::statement('ALTER TABLE merchant_users MODIFY email_verification_code VARCHAR(12) NULL');
+        if (! Schema::hasTable('merchant_users')) {
+            return;
+        }
+
+        $driver = Schema::getConnection()->getDriverName();
+
+        if ($driver === 'pgsql') {
+            DB::statement('ALTER TABLE merchant_users ALTER COLUMN email_verification_code TYPE VARCHAR(12)');
+        } elseif (in_array($driver, ['mysql', 'mariadb'], true)) {
+            DB::statement('ALTER TABLE merchant_users MODIFY email_verification_code VARCHAR(12) NULL');
+        }
     }
 };
