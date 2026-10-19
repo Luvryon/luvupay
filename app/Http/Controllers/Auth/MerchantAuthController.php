@@ -71,7 +71,7 @@ class MerchantAuthController
                     'api_key_hash' => $keyData['hash'],
                     'publishable_key' => $keyData['publishable'],
                     'allowed_origins' => [],
-                    'is_active' => true,
+                    'is_active' => 'true',
                 ]);
 
                 $user = MerchantUser::registerOwner($merchant, $data['name'], $email, $data['password']);
@@ -83,7 +83,7 @@ class MerchantAuthController
                     'url' => 'https://example.com/webhooks/luvupay',
                     'secret' => 'whsec_'.Str::random(32),
                     'events' => ['entitlement.transfer'],
-                    'is_active' => false,
+                    'is_active' => 'false',
                 ]);
 
                 $this->sendVerificationEmail($user, $code);   // throws -> everything above is rolled back
