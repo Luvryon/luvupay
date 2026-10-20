@@ -189,6 +189,8 @@
       decisionResultLog: '',
       decisionLogs: [],
       decisionCustomer: '',
+      userPreviewStep: 1,
+      showUserPreview: true,
       /** Demo mode for Missed-Cancellation choices: 'mock' (instant) | 'paypal' (sandbox latency / real API) */
       apiMode: 'mock',
       paypalConnecting: false,
@@ -205,6 +207,8 @@
       seedProjectName: '',
 
       walletWithdrawing: false,
+      paypalConnected: false,
+      dualViewOpen: false,
 
       // AI Insights — derived from real ledger / summary (never invented)
       aiInsights: [],
@@ -353,9 +357,17 @@
                 return String(t.lifecycle || '').toUpperCase().indexOf('RETAIN') !== -1;
               }).length;
 
-          // Real ledger only — $0.00 when empty, never "—" / invented numbers
+          // Wallet funded by completed charges + resale (server-side ledger math)
+          var walletMinor = Number(summary.wallet_balance_minor != null ? summary.wallet_balance_minor : summary.available_balance_minor);
+          if (!walletMinor && walletMinor !== 0) {
+            walletMinor = chargeVolumeMinor; // fallback: all completed charges sit in wallet until withdrawn
+          }
+          this.walletBalanceMinor = Math.max(0, walletMinor || 0);
+          this.paypalConnected = !!(summary.integrations && (summary.integrations.paypal_merchant_connected || summary.integrations.paypal));
+
+          // Revenue Saved = retention formula only (never fall back to gross charge volume)
           this.kpi = {
-            revenueSaved: money(revenueSavedMinor > 0 ? revenueSavedMinor : chargeVolumeMinor, c),
+            revenueSaved: money(revenueSavedMinor, c),
             chargebacks: String(chargebacks),
             subscriptions: String(activeSubs),
             charity: money(charityMinor, c),
@@ -484,25 +496,35 @@
       // ---- Merchant Wallet · PayPal Payouts (real sandbox)
       withdrawToPayPal: async function () {
         if (this.walletWithdrawing || this.walletBalanceMinor <= 0) return;
+        // Gate: must connect merchant PayPal in Settings first
+        if (!this.paypalConnected) {
+          this.pushToast('Connect PayPal in Settings before withdrawing.', '⚠️');
+          try { window.location.href = '/settings'; } catch (e) {}
+          return;
+        }
         this.walletWithdrawing = true;
         var amountMinor = this.walletBalanceMinor;
         var amount = money(amountMinor, 'USD');
         try {
-          var res = await request('POST', 'wallet/withdraw', { amount_minor: amountMinor });
+          var res = await request('POST', 'wallet/withdraw', { amount_minor: amountMinor, payout_type: 'merchant_withdrawal' });
           if (res && res.ok) {
             this.walletBalanceMinor = 0;
-            this.pushToast(amount + ' sent to your linked PayPal Sandbox account.', '💸');
+            this.pushToast(amount + ' sent to your linked PayPal account.', '💸');
             if (res.data && res.data.batch_id) {
               this.pushToast('PayPal batch: ' + res.data.batch_id, '🔗');
             }
+            await this.load();
           } else {
-            // Fallback for demo if endpoint not ready: still clear and note sandbox
-            this.walletBalanceMinor = 0;
-            this.pushToast(amount + ' queued for PayPal Sandbox payout (demo fallback).', '💸');
+            var err = (res && res.data && (res.data.message || res.data.error)) || ('HTTP ' + (res && res.status));
+            if (res && res.status === 403) {
+              this.pushToast('Connect PayPal in Settings first.', '⚠️');
+              try { window.location.href = '/settings'; } catch (e2) {}
+            } else {
+              this.pushToast(err || 'Withdraw failed', '⚠️');
+            }
           }
         } catch (e) {
-          this.walletBalanceMinor = 0;
-          this.pushToast(amount + ' queued for PayPal Sandbox payout.', '💸');
+          this.pushToast('Network error during withdraw', '⚠️');
         } finally {
           this.walletWithdrawing = false;
         }
@@ -619,6 +641,8 @@
         this.decisionOutcomeLabel = '';
         this.decisionResultLog = '';
         this.decisionLogs = [];
+        this.userPreviewStep = 1;
+        this.showUserPreview = true;
         this.preview = { phase: 'grace', name: customer, email: (row && row.email) || 'sarah.j@example.com', product: product, status: 'GRACE PERIOD', trust_score: 64, churn_risk: 'high', ai_nudge: null, spinning: true, certificate_code: null };
 
         await sleep(450);
@@ -650,6 +674,7 @@
         if (this.decisionBusy || this.decisionOutcome) return;
         this.decisionBusy = true;
         this.paypalConnecting = false;
+        this.userPreviewStep = 2; // phone preview → success
         var product = PROJECT.product;
         var labels = {
           renew: ['[User] Retried ' + product + ' payment.', 'green', 'Renewed — ACTIVE', '[PayPal] Payment retry successful for ' + product + '. Status: ACTIVE.', 'ACTIVE'],

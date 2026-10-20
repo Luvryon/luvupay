@@ -117,22 +117,61 @@ final class DashboardApiController
         }
 
         $chargeVolume = $sum('charge');
-        // Prefer explicit retention ledger rows; otherwise sum amounts on AI-RETAINED lifecycle (real demo + live).
+
+        /*
+         | Revenue Saved (hackathon formula)
+         | A) Partial refund / store credit → cash retained (e.g. $10 of $20)
+         | B) Marketplace resale → merchant transfer/platform fee from resale
+         | C) Charity split → avoided PayPal chargeback penalty (~$15 = 1500 minor)
+         */
         $revenueSaved = $sum('merchant_retention');
+        $CHARGEBACK_AVOIDED_MINOR = 1500; // $15 typical PayPal chargeback fee avoided
         if ($revenueSaved === 0) {
             foreach ($recent as $r) {
                 $meta = json_decode($r->metadata ?? '{}', true) ?: [];
                 $life = strtoupper((string) ($meta['lifecycle'] ?? ''));
-                if ($life === 'AI-RETAINED' || ! empty($meta['smart_convert']['chargeback_prevented'] ?? null)) {
-                    $revenueSaved += abs((int) $r->amount_minor);
+                $sc = $meta['smart_convert'] ?? [];
+                $path = strtolower((string) ($sc['path'] ?? $meta['retention_path'] ?? $meta['choice'] ?? ''));
+
+                // Explicit minor if engine stored it
+                if (isset($sc['revenue_retained_minor'])) {
+                    $revenueSaved += abs((int) $sc['revenue_retained_minor']);
+                    continue;
+                }
+                if (isset($meta['revenue_saved_minor'])) {
+                    $revenueSaved += abs((int) $meta['revenue_saved_minor']);
+                    continue;
+                }
+
+                // Path C — charity / chargeback prevented
+                if (! empty($sc['chargeback_prevented']) || str_contains($path, 'charity') || str_contains($path, 'donate')) {
+                    $revenueSaved += $CHARGEBACK_AVOIDED_MINOR;
+                    continue;
+                }
+                // Path B — resale fee to merchant
+                if ($life === 'RESOLD' || $life === 'PENDING RESALE' || str_contains($path, 'resale') || $r->type === 'resale_sale') {
+                    // Prefer fee fields; else ~10% of amount as transfer fee
+                    $fee = (int) ($sc['fee_minor'] ?? $meta['merchant_fee_minor'] ?? max(100, (int) round(abs((int) $r->amount_minor) * 0.10)));
+                    $revenueSaved += abs($fee);
+                    continue;
+                }
+                // Path A — partial refund / store credit / AI-retained
+                if ($life === 'AI-RETAINED' || $life === 'SMART-CONVERTED' || str_contains($path, 'credit') || str_contains($path, 'partial') || str_contains($path, 'refund')) {
+                    $retained = (int) ($sc['store_credit_minor'] ?? $meta['retained_minor'] ?? (int) round(abs((int) $r->amount_minor) * 0.5));
+                    $revenueSaved += abs($retained);
                 }
             }
         }
-        // Platform gross from completed charges (what merchants call "revenue" on the overview)
-        if ($revenueSaved === 0 && $chargeVolume > 0) {
-            // Not "saved from churn" yet — still expose charge volume separately; keep revenue_saved as retained only.
-            $revenueSaved = 0;
+
+        // Also count completed resale_sale fees not already in loop
+        $resaleFees = (int) DB::table('transactions')->where('merchant_id', $m)
+            ->where('status', 'completed')
+            ->whereIn('type', ['resale_payout', 'resale_fee', 'merchant_fee'])
+            ->sum('amount_minor');
+        if ($resaleFees > 0 && $revenueSaved === 0) {
+            $revenueSaved += abs($resaleFees);
         }
+
         $charity = abs($sum('charity_payout'));
         if ($charity === 0) {
             $charity = (int) DB::table('transactions')->where('merchant_id', $m)
@@ -143,12 +182,31 @@ final class DashboardApiController
         $denom = max(1, $retained + $churned);
         $churnRate = round(($churned / $denom) * 100, 1);
 
+
+        // Merchant wallet available = completed subscription charges + resale credits − withdrawals
+        $withdrawn = (int) DB::table('transactions')->where('merchant_id', $m)
+            ->where('status', 'completed')
+            ->where(function ($q) {
+                $q->whereIn('type', ['payout', 'merchant_withdrawal', 'withdrawal', 'user_payout'])
+                    ->orWhere('type', 'like', '%withdraw%');
+            })->sum(DB::raw('ABS(amount_minor)'));
+        $walletIn = abs($chargeVolume) + abs($resaleVolume);
+        // Resale payouts to original subscribers are not merchant wallet
+        $resalePayoutOut = (int) DB::table('transactions')->where('merchant_id', $m)
+            ->where('status', 'completed')
+            ->where('type', 'resale_payout')
+            ->sum(DB::raw('ABS(amount_minor)'));
+        $walletBalance = max(0, $walletIn - $withdrawn - abs($resalePayoutOut));
+
         return response()->json([
             'integrations' => [
                 'paypal' => trim((string) config('services.paypal.client_id', '')) !== ''
                     && trim((string) config('services.paypal.secret', '')) !== '',
                 'paypal_mode' => config('services.paypal.mode', 'sandbox'),
                 'payment_driver' => config('luvupay.payment.driver', 'mock'),
+                'paypal_merchant_connected' => (bool) (DB::table('merchants')->where('id', $m)->value('paypal_merchant_id')
+                    ?: DB::table('merchants')->where('id', $m)->value('paypal_email')
+                    ?: session('paypal_connected')),
                 'nebius' => (bool) config('nebius.enabled', true)
                     && trim((string) config('nebius.api_key', '')) !== '',
             ],
@@ -170,6 +228,8 @@ final class DashboardApiController
             'marketplace_volume_minor' => $resaleVolume,
             'charity_impact_minor' => $charity,
             'total_revenue_saved_minor' => $revenueSaved,
+            'wallet_balance_minor' => $walletBalance,
+            'available_balance_minor' => $walletBalance,
         ]);
     }
 

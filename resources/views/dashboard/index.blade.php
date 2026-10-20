@@ -46,8 +46,10 @@
                     <p class="dim" style="max-width:460px">Funded by resale fees and retention splits. Withdrawals go out as PayPal Payouts to recipients on your allow-list (Settings).</p>
                 </div>
                 <div class="act">
-                    <button type="button" class="c-btn c-btn-light" x-on:click="withdrawToPayPal()" x-bind:disabled="walletWithdrawing || walletBalanceMinor <= 0"><span x-text="walletWithdrawing ? 'Sending…' : 'Withdraw to PayPal'"></span></button>
-                    <span class="dim" style="color:#7ee2b8" x-show="walletBalanceMinor <= 0" x-cloak>Balance is clear. It refills on the next resale or retention.</span>
+                    <button type="button" class="c-btn c-btn-light" x-show="paypalConnected" x-on:click="withdrawToPayPal()" x-bind:disabled="walletWithdrawing || walletBalanceMinor <= 0"><span x-text="walletWithdrawing ? 'Sending…' : 'Withdraw to PayPal'"></span></button>
+                    <a href="{{ route('settings') }}" class="c-btn c-btn-light" x-show="!paypalConnected" x-cloak>Connect PayPal to withdraw</a>
+                    <span class="dim" style="color:#7ee2b8" x-show="walletBalanceMinor <= 0 && paypalConnected" x-cloak>Balance is clear. It refills on the next charge, resale, or retention.</span>
+                    <span class="dim" x-show="!paypalConnected" x-cloak>Link PayPal in Settings to enable withdrawals.</span>
                 </div>
             </div>
             <div class="c-card" aria-label="Insights">
@@ -171,6 +173,14 @@
             <p class="mb-4 text-sm text-muted">
                 H-7 → Day H flow for <span class="font-semibold text-white" x-text="decisionCustomer"></span>.
             </p>
+            <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <p class="text-[11px] font-semibold uppercase tracking-wider text-muted">Dual-view simulator · backend + user UX</p>
+                <button type="button" class="text-xs font-semibold text-brand-soft hover:underline"
+                        x-on:click="showUserPreview = !showUserPreview"
+                        x-text="showUserPreview ? 'Hide user perspective' : '👁️ View User Perspective'"></button>
+            </div>
+            <div class="grid gap-4 lg:grid-cols-[1fr_280px]">
+              <div class="min-w-0">
 
             {{-- Demo Mode toggle --}}
             <div class="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-edge bg-black/30 px-4 py-3">
@@ -220,6 +230,35 @@
                 <p class="font-semibold text-ok" x-text="decisionOutcomeLabel"></p>
                 <p class="mt-1 text-xs text-muted" x-text="decisionResultLog"></p>
             </div>
+              </div>{{-- end backend column --}}
+
+              {{-- User perspective (mobile frame) --}}
+              <div x-show="showUserPreview" x-cloak class="mx-auto" style="width:260px">
+                <div class="rounded-[1.75rem] border border-slate-300 bg-slate-50 p-3 shadow-inner" style="min-height:420px">
+                  <div class="mb-3 text-center">
+                    <span class="inline-block rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">🔒 Sandbox Authenticated Session</span>
+                  </div>
+                  <p class="mb-2 text-center text-xs font-semibold text-slate-700" x-text="decisionCustomer || 'Subscriber'"></p>
+
+                  {{-- Step 1: payment failed --}}
+                  <div x-show="userPreviewStep === 1" class="rounded-xl border border-amber-200 bg-white p-3 shadow-sm">
+                    <p class="text-xs font-semibold text-amber-800">Payment failed</p>
+                    <p class="mt-1 text-[11px] leading-relaxed text-slate-600">You have 48 hours to claim a 20% partial refund, resell remaining access, or donate unused value.</p>
+                    <div class="mt-3 grid grid-cols-2 gap-2">
+                      <button type="button" class="rounded-lg bg-purple-600 py-2 text-[10px] font-semibold text-white" x-on:click="userPreviewStep = 2; choose('resale')">Resell Access</button>
+                      <button type="button" class="rounded-lg bg-pink-500 py-2 text-[10px] font-semibold text-white" x-on:click="userPreviewStep = 2; choose('cancel')">Donate</button>
+                    </div>
+                  </div>
+
+                  {{-- Step 2: success --}}
+                  <div x-show="userPreviewStep === 2" x-cloak class="rounded-xl border border-emerald-200 bg-white p-4 text-center shadow-sm">
+                    <p class="text-2xl">✅</p>
+                    <p class="mt-2 text-xs font-semibold text-emerald-700">Action successful</p>
+                    <p class="mt-1 text-[11px] text-slate-500">Merchant dashboard & ledger updated.</p>
+                  </div>
+                </div>
+              </div>
+            </div>{{-- end dual grid --}}
         </div>
     </x-ui.modal>
 
