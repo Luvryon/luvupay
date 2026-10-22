@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
-class MerchantPanelController
+class MerchantPanelController extends Controller
 {
     public function onboarding()
     {
@@ -26,7 +26,9 @@ class MerchantPanelController
         $merchant = $this->resolveMerchant($request);
         $recipients = $merchant ? PaypalPayoutRecipient::query()->where('merchant_id', $merchant->id)->orderByDesc('created_at')->get() : collect();
         $endpoints = $merchant ? WebhookEndpoint::query()->where('merchant_id', $merchant->id)->get() : collect();
-        return view('merchant.settings', compact('merchant', 'recipients', 'endpoints'));
+        $project = \App\Support\MerchantProject::current();
+
+        return view('merchant.settings', compact('merchant', 'recipients', 'endpoints', 'project'));
     }
 
     public function analytics(Request $request)

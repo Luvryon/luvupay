@@ -2,9 +2,13 @@
 
 namespace App\Support;
 
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+
 /**
  * Project a merchant manages in the console.
- * Empty name until merchant creates one. Feature flags control post-grace options.
+ * Persisted in merchants.project_json (primary) + session (cache).
  */
 final class MerchantProject
 {
@@ -24,21 +28,9 @@ final class MerchantProject
 
     public static function current(): self
     {
-        $stored = session('merchant_project');
+        $stored = self::loadPayload();
         if (is_array($stored) && trim((string) ($stored['name'] ?? '')) !== '') {
-            return new self(
-                (string) $stored['name'],
-                (string) ($stored['plan'] ?? 'Premium'),
-                max(100, (int) ($stored['price_minor'] ?? 2000)),
-                strtoupper((string) ($stored['currency'] ?? 'USD')),
-                (string) ($stored['interval'] ?? 'month'),
-                max(0, (int) ($stored['active_subscribers'] ?? 0)),
-                (($stored['environment'] ?? 'sandbox') === 'production') ? 'production' : 'sandbox',
-                (string) ($stored['description'] ?? ''),
-                (bool) ($stored['marketplace_resale'] ?? false),
-                (bool) ($stored['charity_split'] ?? false),
-                max(0, min(10000, (int) ($stored['partial_refund_bps'] ?? 2000))),
-            );
+            return self::fromPayload($stored);
         }
 
         return new self('', 'Premium', 2000, 'USD', 'month', 0, 'sandbox', '', false, false, 2000);
@@ -52,11 +44,7 @@ final class MerchantProject
     /** @param  array<string, mixed>  $data */
     public static function store(array $data): self
     {
-        $existing = session('merchant_project');
-        if (! is_array($existing)) {
-            $existing = [];
-        }
-
+        $existing = self::loadPayload() ?: [];
         $name = trim((string) ($data['name'] ?? $existing['name'] ?? ''));
         if ($name === '') {
             throw new \InvalidArgumentException('Project name is required.');
@@ -75,9 +63,20 @@ final class MerchantProject
             'charity_split' => (bool) ($data['charity_split'] ?? $existing['charity_split'] ?? false),
             'partial_refund_bps' => max(0, min(10000, (int) ($data['partial_refund_bps'] ?? $existing['partial_refund_bps'] ?? 2000))),
         ]);
+
+        // Session cache (same browser)
         session(['merchant_project' => $payload]);
 
-        return self::current();
+        // Durable store on merchant row (survives new sessions / servers)
+        $merchantId = self::merchantId();
+        if ($merchantId && Schema::hasColumn('merchants', 'project_json')) {
+            DB::table('merchants')->where('id', $merchantId)->update([
+                'project_json' => json_encode($payload),
+                'updated_at' => now(),
+            ]);
+        }
+
+        return self::fromPayload($payload);
     }
 
     public function product(): string
@@ -99,7 +98,7 @@ final class MerchantProject
             : $this->price();
     }
 
-    /** @return array<string, scalar|bool> */
+    /** @return array<string, mixed> */
     public function toArray(): array
     {
         return [
@@ -113,11 +112,65 @@ final class MerchantProject
             'active_subscribers' => $this->activeSubscribers,
             'environment' => $this->environment,
             'description' => $this->description,
-            'is_set' => $this->isSet(),
             'marketplace_resale' => $this->marketplaceResale,
             'charity_split' => $this->charitySplit,
             'partial_refund_bps' => $this->partialRefundBps,
-            'partial_refund_pct' => (int) round($this->partialRefundBps / 100),
+            'is_set' => $this->isSet(),
         ];
+    }
+
+    /** @param  array<string, mixed>  $stored */
+    private static function fromPayload(array $stored): self
+    {
+        return new self(
+            (string) $stored['name'],
+            (string) ($stored['plan'] ?? 'Premium'),
+            max(100, (int) ($stored['price_minor'] ?? 2000)),
+            strtoupper((string) ($stored['currency'] ?? 'USD')),
+            (string) ($stored['interval'] ?? 'month'),
+            max(0, (int) ($stored['active_subscribers'] ?? 0)),
+            (($stored['environment'] ?? 'sandbox') === 'production') ? 'production' : 'sandbox',
+            (string) ($stored['description'] ?? ''),
+            (bool) ($stored['marketplace_resale'] ?? false),
+            (bool) ($stored['charity_split'] ?? false),
+            max(0, min(10000, (int) ($stored['partial_refund_bps'] ?? 2000))),
+        );
+    }
+
+    /** @return array<string, mixed>|null */
+    private static function loadPayload(): ?array
+    {
+        // Prefer DB (durable)
+        $merchantId = self::merchantId();
+        if ($merchantId && Schema::hasColumn('merchants', 'project_json')) {
+            $raw = DB::table('merchants')->where('id', $merchantId)->value('project_json');
+            if (is_string($raw) && $raw !== '') {
+                $decoded = json_decode($raw, true);
+                if (is_array($decoded) && trim((string) ($decoded['name'] ?? '')) !== '') {
+                    // refresh session cache
+                    session(['merchant_project' => $decoded]);
+
+                    return $decoded;
+                }
+            }
+        }
+
+        $stored = session('merchant_project');
+
+        return is_array($stored) ? $stored : null;
+    }
+
+    private static function merchantId(): ?string
+    {
+        try {
+            $user = Auth::guard('merchant_web')->user();
+            if ($user && ! empty($user->merchant_id)) {
+                return (string) $user->merchant_id;
+            }
+        } catch (\Throwable $e) {
+            //
+        }
+
+        return null;
     }
 }

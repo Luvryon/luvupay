@@ -378,6 +378,16 @@ final class DemoCheckoutController
         $merchantSent = false;
         $error = null;
         $amountLabel = number_format($amountMinor / 100, 2).' '.$currency;
+        // Merchant branding for invoice email
+        $merchantRow = DB::table('merchants')->where('id', $merchantId)->first(['name', 'logo_path', 'email']);
+        $merchantBrand = $merchantRow->name ?? 'Merchant';
+        $logoUrl = null;
+        if (! empty($merchantRow->logo_path)) {
+            $logoUrl = rtrim((string) config('app.url'), '/').'/storage/'.$merchantRow->logo_path;
+        }
+        $logoHtml = $logoUrl
+            ? '<img src="'.e($logoUrl).'" alt="'.e($merchantBrand).'" width="120" style="display:block;max-width:120px;height:auto;margin:0 auto 12px;border:0" />'
+            : '';
         $invNum = null;
         try {
             $invNum = DB::table('invoices')->where('transaction_id', $txId)->value('invoice_number');
@@ -399,7 +409,9 @@ final class DemoCheckoutController
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="padding:32px 16px">
     <tr><td align="center">
       <table role="presentation" width="100%" style="max-width:560px;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;overflow:hidden">
-        <tr><td style="padding:24px 28px;background:#5b3df5">
+        <tr><td style="padding:24px 28px;background:#5b3df5;text-align:center">
+          {$logoHtml}
+
           <p style="margin:0;font-size:12px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:rgba(255,255,255,0.9)">LuvuPay</p>
           <h1 style="margin:6px 0 0;font-size:22px;color:#fff">Payment confirmed</h1>
         </td></tr>

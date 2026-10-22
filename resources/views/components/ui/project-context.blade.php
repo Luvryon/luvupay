@@ -92,6 +92,22 @@
             </div>
             <div class="modal-foot">
                 <button type="button" class="c-btn" x-on:click="close()">Cancel</button>
+                
+                <div class="field" style="display:grid;gap:10px;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--bg)">
+                    <p class="label" style="margin:0">Post-grace options</p>
+                    <label style="display:flex;gap:10px;align-items:flex-start;cursor:pointer">
+                        <input type="checkbox" x-model="form.marketplace_resale" style="margin-top:3px;accent-color:var(--brand)" />
+                        <span><strong style="font-size:.9rem">Marketplace Resale</strong><span style="display:block;font-size:.8rem;color:var(--muted)">Let users sell remaining days after grace.</span></span>
+                    </label>
+                    <label style="display:flex;gap:10px;align-items:flex-start;cursor:pointer">
+                        <input type="checkbox" x-model="form.charity_split" style="margin-top:3px;accent-color:var(--brand)" />
+                        <span><strong style="font-size:.9rem">Charity Split</strong><span style="display:block;font-size:.8rem;color:var(--muted)">Let users donate residual value to charity.</span></span>
+                    </label>
+                    <div>
+                        <label class="label" for="np-refund">Partial refund offer (%)</label>
+                        <input id="np-refund" class="input" type="number" min="0" max="100" x-model.number="form.partial_refund_pct" />
+                    </div>
+                </div>
                 <button type="button" class="c-btn c-btn-brand" x-bind:disabled="!resolvedName || creating" x-on:click="createProject()">
                     <span x-text="creating ? 'Creating…' : 'Create project'"></span>
                 </button>

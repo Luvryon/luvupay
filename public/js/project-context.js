@@ -19,7 +19,7 @@
       currentName: initialName,
       hasProject: hasInitial,
       currentEnv: initialEnv,
-      form: { nameSelect: '', nameCustom: '', description: '', env: 'sandbox' },
+      form: { nameSelect: '', nameCustom: '', description: '', env: 'sandbox', marketplace_resale: true, charity_split: true, partial_refund_pct: 20 },
       nameOpen: false,
       envOpen: false,
       nameOptions: [
@@ -77,6 +77,9 @@
               description: this.form.description || '',
               environment: env,
               plan: 'Premium',
+              marketplace_resale: !!this.form.marketplace_resale,
+              charity_split: !!this.form.charity_split,
+              partial_refund_bps: Math.round((Number(this.form.partial_refund_pct) || 20) * 100),
             }),
           });
           if (!res.ok) throw new Error('Failed to save project');

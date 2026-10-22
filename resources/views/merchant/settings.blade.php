@@ -114,6 +114,11 @@
                 </div>
             </section>
 
+            <script type="application/json" id="project-features-seed">@json([
+    'marketplace_resale' => $project->marketplaceResale ?? false,
+    'charity_split' => $project->charitySplit ?? false,
+    'partial_refund_bps' => $project->partialRefundBps ?? 2000,
+])</script>
             <section class="c-card" id="project" x-data="projectFeatures()" x-init="init()">
                 <div class="c-head">
                     <div>
@@ -230,6 +235,7 @@
 </div>
 
 @push('scripts')
+<script src="/js/project-features.js" defer></script>
 <script src="/js/settings-spy.js" defer></script>
 <style>
   .snav { position: sticky; top: 80px; align-self: start; }
