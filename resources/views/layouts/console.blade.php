@@ -253,6 +253,45 @@
 @keyframes luvuIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
 </style>
 
+
+<style id="toastify-luvu">
+/* react-toastify-inspired */
+.Toastify{position:fixed;z-index:99999;pointer-events:none}
+.Toastify--top-right{top:1rem;right:1rem;display:flex;flex-direction:column;gap:10px;width:min(100vw - 2rem, 360px)}
+.Toastify__toast{pointer-events:auto;display:flex;align-items:flex-start;gap:12px;min-height:56px;padding:14px 16px;border-radius:10px;background:#fff;color:#1a1a1a;box-shadow:0 4px 12px rgba(0,0,0,.12),0 1px 3px rgba(0,0,0,.08);border-left:4px solid #5b3df5;font-size:14px;line-height:1.4;animation:Toastify__slideIn .35s ease}
+.Toastify__toast--success{border-left-color:#07bc0c}
+.Toastify__toast--error{border-left-color:#e74c3c}
+.Toastify__toast--warning{border-left-color:#f1c40f}
+.Toastify__toast--info{border-left-color:#3498db}
+.Toastify__toast-icon{font-size:18px;line-height:1;flex-shrink:0;margin-top:1px}
+.Toastify__toast-body{flex:1;font-weight:500}
+.Toastify__close{border:0;background:transparent;color:#999;cursor:pointer;font-size:16px;line-height:1;padding:0 0 0 8px}
+.Toastify__toast--leaving{opacity:0;transform:translate3d(110%,0,0);transition:.35s ease}
+@keyframes Toastify__slideIn{from{transform:translate3d(110%,0,0);opacity:0}to{transform:none;opacity:1}}
+</style>
+
+
+<style id="luvu-toast-css">
+.lt-root{position:fixed;top:1rem;right:1rem;z-index:100000;display:flex;flex-direction:column;gap:12px;width:min(100vw - 2rem,380px);pointer-events:none}
+.lt-toast{pointer-events:auto;display:grid;grid-template-columns:40px 1fr auto;gap:12px;align-items:start;padding:14px 14px 14px 12px;border-radius:14px;background:#fff;border:1px solid #e8ecf1;box-shadow:0 12px 40px rgba(15,23,42,.12),0 2px 8px rgba(15,23,42,.06);opacity:0;transform:translate3d(24px,0,0);transition:opacity .28s ease,transform .28s ease}
+.lt-toast.lt-in{opacity:1;transform:none}
+.lt-toast.lt-out{opacity:0;transform:translate3d(28px,0,0)}
+.lt-icon{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;font-size:15px;font-weight:700;color:#fff;flex-shrink:0}
+.lt-toast--success .lt-icon{background:linear-gradient(135deg,#10b981,#059669)}
+.lt-toast--error .lt-icon{background:linear-gradient(135deg,#ef4444,#dc2626)}
+.lt-toast--warning .lt-icon{background:linear-gradient(135deg,#f59e0b,#d97706)}
+.lt-toast--info .lt-icon{background:linear-gradient(135deg,#6366f1,#4f46e5)}
+.lt-body{min-width:0;padding-top:2px}
+.lt-title{font-size:.875rem;font-weight:650;color:#0f172a;letter-spacing:-0.01em;line-height:1.35}
+.lt-msg{margin-top:4px;font-size:.8125rem;color:#64748b;line-height:1.45}
+.lt-action{display:inline-flex;margin-top:10px;padding:6px 12px;border-radius:8px;font-size:.75rem;font-weight:600;text-decoration:none;border:0;cursor:pointer;background:#0f172a;color:#fff}
+.lt-action:hover{background:#1e293b}
+.lt-toast--info .lt-action{background:#4f46e5}
+.lt-toast--warning .lt-action{background:#d97706}
+.lt-close{border:0;background:transparent;color:#94a3b8;font-size:18px;line-height:1;cursor:pointer;padding:2px 4px;border-radius:6px}
+.lt-close:hover{background:#f1f5f9;color:#475569}
+</style>
+
 </head>
 <body class="console-light" x-data="{ drawer: false }" x-on:keydown.escape.window="drawer = false">
 <a href="#main" class="sr-only">Skip to content</a>
@@ -288,12 +327,12 @@
                     <button type="button" class="ns-trigger" id="luvupay-search-btn" aria-label="Open search">
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
                         <span>Search…</span>
-                        <kbd>Ctrl&nbsp;K</kbd>
+                        <kbd>Ctrl&nbsp;+&nbsp;K</kbd>
                     </button>
                     <div class="ns-panel" id="luvupay-search-panel" hidden>
                         <div class="ns-row">
                             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-                            <input type="search" id="luvupay-search-input" placeholder="Search pages and actions…" autocomplete="off" />
+                            <input type="search" id="luvupay-search-input" placeholder="Search pages, docs, subscribers…" autocomplete="off" />
                             <kbd id="luvupay-search-esc" style="cursor:pointer">Esc</kbd>
                         </div>
                         <ul class="ns-list" id="luvupay-search-list"></ul>
@@ -315,6 +354,23 @@
 
 
 @stack('scripts')
+
+
+@php
+    $__obMerchant = Auth::guard('merchant_web')->user()?->merchant;
+    $__obProject = \App\Support\MerchantProject::current();
+    $__obHasProject = $__obProject->isSet();
+    $__obHasPaypal = filled($__obMerchant?->paypal_merchant_id ?? null);
+    $__obDriver = (string) config('luvupay.payment.driver', 'mock');
+@endphp
+<div id="luvu-onboarding" hidden
+     data-has-project="{{ $__obHasProject ? '1' : '0' }}"
+     data-has-paypal="{{ $__obHasPaypal ? '1' : '0' }}"
+     data-payment-driver="{{ $__obDriver }}"></div>
+
+
+<script src="/js/toast.js?v={{ @filemtime(public_path('js/toast.js')) }}" defer></script>
+<script src="/js/onboarding-track.js?v={{ @filemtime(public_path('js/onboarding-track.js')) }}" defer></script>
 
 <script src="/js/console-search.js" defer></script>
 <script src="/js/alpine.min.js" defer></script>

@@ -248,7 +248,41 @@
           if (root) pname = (root.getAttribute('data-name') || '').trim();
         }
         if (!pname) {
-          this.pushToast('Create a project first (top of the page), then run Simulate 30 days', '⚠️');
+          if (window.LuvuToast) {
+            window.LuvuToast.warning(
+              'Create a project first',
+              'Simulate 30 days needs an active project at the top of the page.',
+              {
+                id: 'need-project-sim',
+                action: {
+                  label: 'Create project',
+                  onClick: function () {
+                    var b = document.querySelector('#project-context button');
+                    if (b) b.click();
+                  },
+                },
+              }
+            );
+          } else {
+            this.pushToast('Create a project first (top of the page), then run Simulate 30 days', '⚠️');
+          }
+          return;
+        }
+        // PayPal required when driver=paypal
+        var ob = document.getElementById('luvu-onboarding');
+        if (ob && ob.getAttribute('data-payment-driver') === 'paypal' && ob.getAttribute('data-has-paypal') !== '1') {
+          if (window.LuvuToast) {
+            window.LuvuToast.info(
+              'Connect PayPal Sandbox',
+              'Payment driver is paypal. Link your Sandbox merchant in Settings before Simulate.',
+              {
+                id: 'need-paypal-sim',
+                action: { label: 'Open Settings', href: '/settings#paypal' },
+              }
+            );
+          } else {
+            this.pushToast('Connect PayPal in Settings first', '⚠️');
+          }
           return;
         }
         this.seedProjectName = pname;
@@ -487,6 +521,11 @@
 
       // ---- feedback
       pushToast: function (message, icon) {
+        if (window.LuvuToast) {
+          var type = (icon === '⚠️' || icon === '!') ? 'error' : (icon === '⏳' ? 'warning' : 'success');
+          window.LuvuToast.notify({ type: type, title: message, duration: 4500 });
+          return;
+        }
         var id = Date.now() + Math.random();
         var self = this;
         this.toasts = this.toasts.concat([{ id: id, message: message, icon: icon || '✅', leaving: false }]);

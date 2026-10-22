@@ -146,10 +146,20 @@ final class DemoCheckoutController
         });
 
         // Real PayPal Sandbox OAuth (shows in Developer → API calls)
-        $paypalSandbox = $this->pingPayPalSandbox($txId, $paypalRef, $currency, $amountMinor);
+        $paypalSandbox = ['ok' => false, 'skipped' => true];
+        try {
+            $paypalSandbox = $this->pingPayPalSandbox($txId, $paypalRef, $currency, $amountMinor);
+        } catch (\Throwable $e) {
+            $paypalSandbox = ['ok' => false, 'error' => $e->getMessage()];
+        }
 
         // Emails: subscriber + merchant (real SMTP if MAIL_MAILER=smtp)
-        $emailResult = $this->sendCheckoutEmails($merchantId, $email, $first, $product, $amountMinor, $currency, $paypalRef, $txId);
+        $emailResult = ['user_sent' => false, 'merchant_sent' => false, 'error' => null];
+        try {
+            $emailResult = $this->sendCheckoutEmails($merchantId, $email, $first, $product, $amountMinor, $currency, $paypalRef, $txId);
+        } catch (\Throwable $e) {
+            $emailResult['error'] = $e->getMessage();
+        }
 
         $row = $this->formatRow($txId);
         try {

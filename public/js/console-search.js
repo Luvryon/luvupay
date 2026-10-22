@@ -1,53 +1,57 @@
+/**
+ * Console command palette — Ctrl+K / Cmd+K
+ * Targets: #luvupay-search-btn, #luvupay-search-panel, #luvupay-search-input, #luvupay-search-list
+ */
 (function () {
   'use strict';
+
   var STATIC = [
-    { title: 'Dashboard', href: '/dashboard', group: 'Console', keywords: 'home overview ledger kpi' },
-    { title: 'Wallet & Transactions', href: '/wallet', group: 'Console', keywords: 'balance withdraw payout money' },
-    { title: 'Subscriptions', href: '/subscriptions', group: 'Console', keywords: 'customers crm active churn' },
-    { title: 'Marketplace', href: '/marketplace', group: 'Console', keywords: 'resale listings buy sell' },
-    { title: 'Settings', href: '/settings', group: 'Console', keywords: 'paypal logo api webhook project features' },
+    { title: 'Dashboard', href: '/dashboard', group: 'Console', keywords: 'home overview ledger' },
+    { title: 'Wallet & Transactions', href: '/wallet', group: 'Console', keywords: 'balance withdraw money' },
+    { title: 'Subscriptions', href: '/subscriptions', group: 'Console', keywords: 'customers crm churn' },
+    { title: 'Marketplace', href: '/marketplace', group: 'Console', keywords: 'resale listings' },
+    { title: 'Settings', href: '/settings', group: 'Console', keywords: 'paypal logo api webhook' },
     { title: 'Analytics', href: '/analytics', group: 'Console', keywords: 'charts revenue' },
-    { title: 'Team', href: '/team', group: 'Console', keywords: 'members invite' },
-    { title: 'Status', href: '/status', group: 'Console', keywords: 'health uptime' },
-    { title: 'Docs — Overview', href: '/docs', group: 'Docs', keywords: 'documentation guide' },
-    { title: 'Docs — API reference', href: '/docs/api', group: 'Docs', keywords: 'rest endpoints auth scopes' },
-    { title: 'Docs — Postman', href: '/docs/postman', group: 'Docs', keywords: 'collection import' },
-    { title: 'Privacy', href: '/privacy', group: 'Legal', keywords: 'privacy policy data' },
-    { title: 'Terms', href: '/terms', group: 'Legal', keywords: 'terms of service' },
+    { title: 'Team', href: '/team', group: 'Console', keywords: 'invite members' },
+    { title: 'Status', href: '/status', group: 'Console', keywords: 'health' },
+    { title: 'Docs overview', href: '/docs', group: 'Docs', keywords: 'documentation' },
+    { title: 'API reference', href: '/docs/api', group: 'Docs', keywords: 'rest endpoints auth' },
+    { title: 'Postman collection', href: '/docs/postman', group: 'Docs', keywords: 'import collection' },
+    { title: 'Sandbox guide', href: '/docs/sandbox', group: 'Docs', keywords: 'paypal demo' },
+    { title: 'Privacy policy', href: '/privacy', group: 'Legal', keywords: 'privacy data' },
+    { title: 'Terms of service', href: '/terms', group: 'Legal', keywords: 'terms legal' },
   ];
 
   function norm(s) { return String(s || '').toLowerCase(); }
 
   function filterStatic(q) {
     q = norm(q).trim();
-    if (!q) return STATIC.slice(0, 12);
+    if (!q) return STATIC.slice();
     return STATIC.filter(function (item) {
-      var hay = norm(item.title + ' ' + item.group + ' ' + (item.keywords || ''));
-      return hay.indexOf(q) !== -1;
-    }).slice(0, 20);
+      return norm(item.title + ' ' + item.group + ' ' + (item.keywords || '')).indexOf(q) !== -1;
+    });
   }
 
-  function render(list, q) {
-    var box = document.getElementById('luvupay-search-results');
+  function render(list) {
+    var box = document.getElementById('luvupay-search-list');
     if (!box) return;
     if (!list.length) {
-      box.innerHTML = '<p class="px-3 py-4 text-sm text-slate-500">No matches for “' + (q || '') + '”</p>';
+      box.innerHTML = '<li class="ns-empty">No matches</li>';
       return;
     }
     var html = '';
-    var group = '';
+    var last = '';
     list.forEach(function (item) {
-      if (item.group !== group) {
-        group = item.group;
-        html += '<p class="px-3 pt-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">' + group + '</p>';
+      if (item.group !== last) {
+        last = item.group;
+        html += '<li class="ns-empty" style="text-align:left;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:8px 12px 4px">' + last + '</li>';
       }
-      html += '<a class="block px-3 py-2 text-sm text-slate-800 hover:bg-slate-50" href="' + item.href + '">' +
-        '<span class="font-medium">' + item.title + '</span></a>';
+      html += '<li><a href="' + item.href + '"><span>' + item.title + '</span><span class="ns-meta">' + (item.group || '') + '</span></a></li>';
     });
     box.innerHTML = html;
   }
 
-  function searchMerchant(q) {
+  function searchSubscribers(q) {
     q = norm(q).trim();
     if (q.length < 2) return Promise.resolve([]);
     return fetch('/api/v1/dashboard/subscriptions', {
@@ -56,8 +60,7 @@
     }).then(function (r) { return r.json(); }).then(function (j) {
       var rows = (j && j.data) ? j.data : [];
       return rows.filter(function (row) {
-        var hay = norm((row.display_name || '') + ' ' + (row.email || '') + ' ' + (row.status || ''));
-        return hay.indexOf(q) !== -1;
+        return norm((row.display_name || '') + ' ' + (row.email || '') + ' ' + (row.status || '')).indexOf(q) !== -1;
       }).slice(0, 8).map(function (row) {
         return {
           title: (row.display_name || row.email || 'Subscriber') + ' · ' + (row.status || ''),
@@ -78,20 +81,20 @@
     function open() {
       panel.hidden = false;
       if (btn) btn.style.visibility = 'hidden';
-      render(filterStatic(''), '');
+      render(filterStatic(''));
       setTimeout(function () { input.focus(); }, 10);
     }
     function close() {
       panel.hidden = true;
       if (btn) btn.style.visibility = '';
       input.value = '';
-      render(filterStatic(''), '');
+      render(filterStatic(''));
     }
     async function onInput() {
       var q = input.value;
       var base = filterStatic(q);
-      var extra = await searchMerchant(q);
-      render(base.concat(extra), q);
+      var extra = await searchSubscribers(q);
+      render(base.concat(extra));
     }
 
     if (btn) btn.addEventListener('click', function (e) { e.preventDefault(); open(); });
@@ -103,7 +106,7 @@
     document.addEventListener('keydown', function (e) {
       if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) {
         e.preventDefault();
-        open();
+        if (panel.hidden) open(); else close();
       }
       if (e.key === 'Escape' && !panel.hidden) close();
     });
