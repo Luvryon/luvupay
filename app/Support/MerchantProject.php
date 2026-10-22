@@ -7,18 +7,18 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Project a merchant manages in the console.
- * Persisted in merchants.project_json (primary) + session (cache).
+ * Per-merchant project. Empty until Create project.
+ * Source of truth: merchants.project_json (then session cache).
  */
 final class MerchantProject
 {
     public function __construct(
-        public readonly string $name,
-        public readonly string $plan,
-        public readonly int $priceMinor,
-        public readonly string $currency,
-        public readonly string $interval,
-        public readonly int $activeSubscribers,
+        public readonly string $name = '',
+        public readonly string $plan = 'Premium',
+        public readonly int $priceMinor = 2000,
+        public readonly string $currency = 'USD',
+        public readonly string $interval = 'month',
+        public readonly int $activeSubscribers = 0,
         public readonly string $environment = 'sandbox',
         public readonly string $description = '',
         public readonly bool $marketplaceResale = false,
@@ -28,12 +28,12 @@ final class MerchantProject
 
     public static function current(): self
     {
-        $stored = self::loadPayload();
-        if (is_array($stored) && trim((string) ($stored['name'] ?? '')) !== '') {
-            return self::fromPayload($stored);
+        $payload = self::loadPayload();
+        if ($payload && trim((string) ($payload['name'] ?? '')) !== '') {
+            return self::fromPayload($payload);
         }
 
-        return new self('', 'Premium', 2000, 'USD', 'month', 0, 'sandbox', '', false, false, 2000);
+        return new self;
     }
 
     public function isSet(): bool
@@ -50,7 +50,7 @@ final class MerchantProject
             throw new \InvalidArgumentException('Project name is required.');
         }
 
-        $payload = array_merge($existing, [
+        $payload = [
             'name' => $name,
             'plan' => (string) ($data['plan'] ?? $existing['plan'] ?? 'Premium'),
             'price_minor' => max(100, (int) ($data['price_minor'] ?? $existing['price_minor'] ?? 2000)),
@@ -62,18 +62,22 @@ final class MerchantProject
             'marketplace_resale' => (bool) ($data['marketplace_resale'] ?? $existing['marketplace_resale'] ?? false),
             'charity_split' => (bool) ($data['charity_split'] ?? $existing['charity_split'] ?? false),
             'partial_refund_bps' => max(0, min(10000, (int) ($data['partial_refund_bps'] ?? $existing['partial_refund_bps'] ?? 2000))),
-        ]);
+        ];
 
-        // Session cache (same browser)
         session([self::sessionKey() => $payload]);
 
-        // Durable store on merchant row (survives new sessions / servers)
         $merchantId = self::merchantId();
-        if ($merchantId && Schema::hasColumn('merchants', 'project_json')) {
-            DB::table('merchants')->where('id', $merchantId)->update([
-                'project_json' => json_encode($payload),
-                'updated_at' => now(),
-            ]);
+        if ($merchantId) {
+            try {
+                if (Schema::hasColumn('merchants', 'project_json')) {
+                    DB::table('merchants')->where('id', $merchantId)->update([
+                        'project_json' => json_encode($payload),
+                        'updated_at' => now(),
+                    ]);
+                }
+            } catch (\Throwable $e) {
+                report($e);
+            }
         }
 
         return self::fromPayload($payload);
@@ -81,7 +85,7 @@ final class MerchantProject
 
     public function product(): string
     {
-        return $this->name === '' ? '' : $this->name.' '.$this->plan;
+        return $this->name === '' ? '' : trim($this->name.' '.$this->plan);
     }
 
     public function price(): string
@@ -140,40 +144,35 @@ final class MerchantProject
     /** @return array<string, mixed>|null */
     private static function loadPayload(): ?array
     {
-        // Prefer DB (durable)
         $merchantId = self::merchantId();
-        if ($merchantId && Schema::hasColumn('merchants', 'project_json')) {
-            $raw = DB::table('merchants')->where('id', $merchantId)->value('project_json');
-            if (is_string($raw) && $raw !== '') {
-                $decoded = json_decode($raw, true);
-                if (is_array($decoded) && trim((string) ($decoded['name'] ?? '')) !== '') {
-                    // refresh session cache
-                    session([self::sessionKey() => $decoded]);
+        if ($merchantId) {
+            try {
+                if (Schema::hasColumn('merchants', 'project_json')) {
+                    $raw = DB::table('merchants')->where('id', $merchantId)->value('project_json');
+                    if (is_string($raw) && $raw !== '') {
+                        $decoded = json_decode($raw, true);
+                        if (is_array($decoded) && trim((string) ($decoded['name'] ?? '')) !== '') {
+                            session([self::sessionKey() => $decoded]);
 
-                    return $decoded;
+                            return $decoded;
+                        }
+                    }
                 }
+            } catch (\Throwable $e) {
+                // column missing before migrate — ignore
             }
         }
 
         $stored = session(self::sessionKey());
-        if (! is_array($stored)) {
-            // legacy key migration once
-            $legacy = session('merchant_project');
-            if (is_array($legacy) && self::merchantId()) {
-                session([self::sessionKey() => $legacy]);
-                session()->forget('merchant_project');
-                $stored = $legacy;
-            }
-        }
 
-        return is_array($stored) ? $stored : null;
+        return is_array($stored) && trim((string) ($stored['name'] ?? '')) !== '' ? $stored : null;
     }
 
     private static function sessionKey(): string
     {
         $id = self::merchantId();
 
-        return $id ? 'merchant_project_'.$id : 'merchant_project';
+        return $id ? 'merchant_project_'.$id : 'merchant_project_anon';
     }
 
     private static function merchantId(): ?string

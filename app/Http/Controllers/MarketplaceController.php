@@ -269,8 +269,4 @@ final class MarketplaceController extends Controller
         return $domain === '' ? '***' : mb_substr($local, 0, 1).'***@'.$domain;
     }
 
-    private function seedDefaults(): void
-    {
-        // Intentionally empty — listings come only from real resale_listings / marketplace_listings rows.
     }
-}

@@ -1,59 +1,28 @@
-{{-- Public pages share the single white theme with layouts.site --}}
 <!DOCTYPE html>
-<html lang="en" class="h-full scroll-smooth">
+<html lang="en">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>@yield('title', 'LuvuPay')</title>
-    <meta name="description" content="@yield('meta_description', 'Ethical subscription infrastructure — one API for second chances, resale and audit-ready money movement.')">
-    @include('partials.assets')
-    @stack('head')
+    <link rel="stylesheet" href="/css/app.css">
+    <style>
+      body{margin:0;font-family:Inter,system-ui,sans-serif;background:#f8fafc;color:#0f172a}
+      .pub-nav{display:flex;align-items:center;justify-content:space-between;max-width:960px;margin:0 auto;padding:20px 24px}
+      .pub-nav a{color:#64748b;text-decoration:none;font-size:.9rem;margin-left:16px}
+      .pub-nav a:hover{color:#0f172a}
+      .pub-brand{font-weight:700;color:#0f172a;text-decoration:none;font-size:1.05rem}
+      .pub-main{max-width:720px;margin:0 auto;padding:24px 24px 64px}
+    </style>
 </head>
-<body class="flex min-h-full flex-col bg-white text-ink antialiased" x-data="{ mobile: false }">
-
-    <x-site.navbar />
-
-    <div class="flex-1">
-        @hasSection('guides')
-            <div class="mx-auto grid max-w-7xl gap-12 px-5 py-10 sm:px-8 lg:grid-cols-[230px_1fr]">
-                <aside class="lg:sticky lg:top-24 lg:self-start">
-                    <p class="mb-3 px-3 text-xs font-semibold text-muted">Guides</p>
-                    <nav class="space-y-0.5" aria-label="Guides">
-                        @foreach([
-                            ['/docs', 'Overview'],
-                            ['/docs/cookbook', 'Integration cookbook'],
-                            ['/docs/sandbox', 'PayPal sandbox'],
-                            ['/docs/api', 'API reference'],
-                            ['/docs/webhooks', 'Webhooks'],
-                            ['/docs/resale-money', 'Resale money flow'],
-                            ['/docs/ai', 'AI layer'],
-                            ['/docs/security', 'Security'],
-                            ['/docs/legal', 'Legal'],
-                            ['/docs/errors', 'Errors'],
-                            ['/docs/postman', 'Postman'],
-                            ['/privacy', 'Privacy'],
-                            ['/terms', 'Terms'],
-                            ['/support', 'Support'],
-                        ] as [$href, $label])
-                            <a href="{{ $href }}"
-                               class="guide-link {{ request()->is(trim($href, '/')) || request()->is(trim($href, '/').'/*') ? 'active' : '' }}">
-                                {{ $label }}
-                            </a>
-                        @endforeach
-                    </nav>
-                    @yield('guides')
-                </aside>
-                <div class="prose-site min-w-0 max-w-3xl">
-                    @yield('content')
-                </div>
-            </div>
-        @else
-            @yield('content')
-        @endif
+<body>
+<nav class="pub-nav">
+    <a class="pub-brand" href="/">LuvuPay</a>
+    <div>
+        <a href="{{ route('privacy') }}">Privacy</a>
+        <a href="{{ route('terms') }}">Terms</a>
+        <a href="/login">Sign in</a>
     </div>
-
-    <x-site.footer />
-
-    @stack('scripts')
+</nav>
+<main class="pub-main">@yield('content')</main>
 </body>
 </html>

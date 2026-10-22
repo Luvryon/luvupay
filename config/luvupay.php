@@ -73,7 +73,7 @@ return [
     'observability' => ['metrics_token' => env('METRICS_TOKEN')],
 
     // Hackathon / local demo only. Never enable in production.
-    'demo_simulator' => (bool) env('LUVUPAY_DEMO_SIMULATOR', env('APP_ENV') !== 'production'),
+    'demo_simulator' => filter_var(env('LUVUPAY_DEMO_SIMULATOR', true), FILTER_VALIDATE_BOOLEAN),
 
     'queues' => ['default' => 'default', 'financial' => 'financial', 'webhooks' => 'webhooks'],
 ];

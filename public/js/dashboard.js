@@ -272,14 +272,17 @@
         this.loadingSeed = true;
         this.seedModalOpen = false;
         var self = this;
+        var okCount = 0, failCount = 0;
         try {
           self.pushToast('Sending ' + rows.length + ' checkouts to PayPal Sandbox for ' + (self.seedProjectName || 'project') + '…', '⏳');
           for (var i = 0; i < rows.length; i++) {
             var n = rows[i];
             try {
-              await self.sim('checkout', { display_name: n.name, email: n.email }, 'seed');
-              await sleep(500);
-            } catch (e) {}
+              var out = await self.sim('checkout', { display_name: n.name, email: n.email }, 'seed');
+              if (!out) { failCount++; }
+              else { okCount++; }
+              await sleep(400);
+            } catch (e) { failCount++; }
           }
           await self.load();
           self.walletBalanceMinor = 0;
