@@ -24,8 +24,16 @@ class MerchantPanelController extends Controller
     public function settings(Request $request)
     {
         $merchant = $this->resolveMerchant($request);
-        $recipients = $merchant ? PaypalPayoutRecipient::query()->where('merchant_id', $merchant->id)->orderByDesc('created_at')->get() : collect();
-        $endpoints = $merchant ? WebhookEndpoint::query()->where('merchant_id', $merchant->id)->get() : collect();
+        $recipients = collect();
+        $endpoints = collect();
+        try {
+            if ($merchant) {
+                $recipients = PaypalPayoutRecipient::query()->where('merchant_id', $merchant->id)->orderByDesc('created_at')->get();
+                $endpoints = WebhookEndpoint::query()->where('merchant_id', $merchant->id)->get();
+            }
+        } catch (\Throwable $e) {
+            report($e);
+        }
         $project = \App\Support\MerchantProject::current();
 
         return view('merchant.settings', compact('merchant', 'recipients', 'endpoints', 'project'));

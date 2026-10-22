@@ -1,61 +1,102 @@
 (function () {
   'use strict';
-  var ITEMS = [
-    { label: 'Overview', href: '/dashboard', group: 'Workspace' },
-    { label: 'Wallet & Transactions', href: '/wallet', group: 'Workspace' },
-    { label: 'Subscriptions', href: '/subscriptions', group: 'Workspace' },
-    { label: 'Analytics', href: '/analytics', group: 'Workspace' },
-    { label: 'Team', href: '/team', group: 'Account' },
-    { label: 'Security', href: '/security', group: 'Account' },
-    { label: 'Settings', href: '/settings', group: 'Account' },
-    { label: 'Marketplace', href: '/marketplace', group: 'Resources' },
-    { label: 'Documentation', href: '/docs', group: 'Resources' },
-    { label: 'System status', href: '/status', group: 'Resources' }
+  var STATIC = [
+    { title: 'Dashboard', href: '/dashboard', group: 'Console', keywords: 'home overview ledger kpi' },
+    { title: 'Wallet & Transactions', href: '/wallet', group: 'Console', keywords: 'balance withdraw payout money' },
+    { title: 'Subscriptions', href: '/subscriptions', group: 'Console', keywords: 'customers crm active churn' },
+    { title: 'Marketplace', href: '/marketplace', group: 'Console', keywords: 'resale listings buy sell' },
+    { title: 'Settings', href: '/settings', group: 'Console', keywords: 'paypal logo api webhook project features' },
+    { title: 'Analytics', href: '/analytics', group: 'Console', keywords: 'charts revenue' },
+    { title: 'Team', href: '/team', group: 'Console', keywords: 'members invite' },
+    { title: 'Status', href: '/status', group: 'Console', keywords: 'health uptime' },
+    { title: 'Docs — Overview', href: '/docs', group: 'Docs', keywords: 'documentation guide' },
+    { title: 'Docs — API reference', href: '/docs/api', group: 'Docs', keywords: 'rest endpoints auth scopes' },
+    { title: 'Docs — Postman', href: '/docs/postman', group: 'Docs', keywords: 'collection import' },
+    { title: 'Privacy', href: '/privacy', group: 'Legal', keywords: 'privacy policy data' },
+    { title: 'Terms', href: '/terms', group: 'Legal', keywords: 'terms of service' },
   ];
 
-  function ready(fn) {
-    if (document.readyState !== 'loading') fn();
-    else document.addEventListener('DOMContentLoaded', fn);
+  function norm(s) { return String(s || '').toLowerCase(); }
+
+  function filterStatic(q) {
+    q = norm(q).trim();
+    if (!q) return STATIC.slice(0, 12);
+    return STATIC.filter(function (item) {
+      var hay = norm(item.title + ' ' + item.group + ' ' + (item.keywords || ''));
+      return hay.indexOf(q) !== -1;
+    }).slice(0, 20);
   }
 
-  ready(function () {
-    var btn = document.getElementById('luvupay-search-btn');
-    var panel = document.getElementById('luvupay-search-panel');
-    var input = document.getElementById('luvupay-search-input');
-    var list = document.getElementById('luvupay-search-list');
-    var esc = document.getElementById('luvupay-search-esc');
-    if (!btn || !panel || !input || !list) return;
-
-    function render(q) {
-      q = (q || '').trim().toLowerCase();
-      var rows = !q ? ITEMS : ITEMS.filter(function (i) {
-        return i.label.toLowerCase().indexOf(q) !== -1 || i.group.toLowerCase().indexOf(q) !== -1;
-      });
-      if (!rows.length) {
-        list.innerHTML = '<li class="ns-empty">No results</li>';
-        return;
-      }
-      list.innerHTML = rows.map(function (i) {
-        return '<li><a href="' + i.href + '"><span>' + i.label + '</span><span class="ns-meta">' + i.group + '</span></a></li>';
-      }).join('');
+  function render(list, q) {
+    var box = document.getElementById('luvupay-search-results');
+    if (!box) return;
+    if (!list.length) {
+      box.innerHTML = '<p class="px-3 py-4 text-sm text-slate-500">No matches for “' + (q || '') + '”</p>';
+      return;
     }
+    var html = '';
+    var group = '';
+    list.forEach(function (item) {
+      if (item.group !== group) {
+        group = item.group;
+        html += '<p class="px-3 pt-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">' + group + '</p>';
+      }
+      html += '<a class="block px-3 py-2 text-sm text-slate-800 hover:bg-slate-50" href="' + item.href + '">' +
+        '<span class="font-medium">' + item.title + '</span></a>';
+    });
+    box.innerHTML = html;
+  }
+
+  function searchMerchant(q) {
+    q = norm(q).trim();
+    if (q.length < 2) return Promise.resolve([]);
+    return fetch('/api/v1/dashboard/subscriptions', {
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+    }).then(function (r) { return r.json(); }).then(function (j) {
+      var rows = (j && j.data) ? j.data : [];
+      return rows.filter(function (row) {
+        var hay = norm((row.display_name || '') + ' ' + (row.email || '') + ' ' + (row.status || ''));
+        return hay.indexOf(q) !== -1;
+      }).slice(0, 8).map(function (row) {
+        return {
+          title: (row.display_name || row.email || 'Subscriber') + ' · ' + (row.status || ''),
+          href: '/subscriptions',
+          group: 'Subscribers',
+        };
+      });
+    }).catch(function () { return []; });
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    var panel = document.getElementById('luvupay-search-panel');
+    var btn = document.getElementById('luvupay-search-btn');
+    var input = document.getElementById('luvupay-search-input');
+    var esc = document.getElementById('luvupay-search-esc');
+    if (!panel || !input) return;
 
     function open() {
       panel.hidden = false;
-      btn.style.visibility = 'hidden';
-      render(input.value);
+      if (btn) btn.style.visibility = 'hidden';
+      render(filterStatic(''), '');
       setTimeout(function () { input.focus(); }, 10);
     }
     function close() {
       panel.hidden = true;
-      btn.style.visibility = '';
+      if (btn) btn.style.visibility = '';
       input.value = '';
-      render('');
+      render(filterStatic(''), '');
+    }
+    async function onInput() {
+      var q = input.value;
+      var base = filterStatic(q);
+      var extra = await searchMerchant(q);
+      render(base.concat(extra), q);
     }
 
-    btn.addEventListener('click', function (e) { e.preventDefault(); open(); });
+    if (btn) btn.addEventListener('click', function (e) { e.preventDefault(); open(); });
     if (esc) esc.addEventListener('click', close);
-    input.addEventListener('input', function () { render(input.value); });
+    input.addEventListener('input', onInput);
     input.addEventListener('keydown', function (e) {
       if (e.key === 'Escape') { e.preventDefault(); close(); }
     });
@@ -70,6 +111,5 @@
       var root = document.getElementById('luvupay-search');
       if (!panel.hidden && root && !root.contains(e.target)) close();
     });
-    render('');
   });
 })();

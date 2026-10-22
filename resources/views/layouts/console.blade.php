@@ -243,6 +243,16 @@
       .dd-item:hover{background:var(--bg)}.dd-item.on{background:var(--brand-50);color:var(--brand);font-weight:600}
       .toast-pop{position:fixed;top:16px;right:16px;z-index:200;padding:14px 18px;border-radius:12px;background:#fff;border:1px solid #bfe7d4;color:#0b6b47;font-size:.9rem;font-weight:600;box-shadow:0 12px 32px rgba(20,21,26,.18)}
     </style>
+
+<style id="toastify-luvu">
+.luvu-toasts{position:fixed;top:1rem;right:1rem;z-index:99999;display:flex;flex-direction:column;gap:10px;pointer-events:none;max-width:min(100vw - 2rem,380px)}
+.luvu-toast{pointer-events:auto;display:flex;align-items:flex-start;gap:12px;padding:14px 16px;border-radius:12px;background:#fff;border:1px solid #e6e7ed;box-shadow:0 12px 40px rgba(15,23,42,.12);color:#16171d;font-size:14px;line-height:1.45;animation:luvuIn .28s ease}
+.luvu-toast.leaving{opacity:0;transform:translateX(12px);transition:.3s ease}
+.luvu-toast .ico{font-size:18px;line-height:1}
+.luvu-toast .msg{flex:1;font-weight:500}
+@keyframes luvuIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+</style>
+
 </head>
 <body class="console-light" x-data="{ drawer: false }" x-on:keydown.escape.window="drawer = false">
 <a href="#main" class="sr-only">Skip to content</a>

@@ -31,10 +31,6 @@ final class MarketplaceController extends Controller
     {
         $this->market->releaseExpired();
 
-        // Demo-only sample cards; never invent listings in a real deployment.
-        if (config('luvupay.demo_simulator') && DB::table('marketplace_listings')->count() === 0) {
-            $this->seedDefaults();
-        }
 
         $rows = DB::table('marketplace_listings')
             ->where('status', 'active')
@@ -275,36 +271,6 @@ final class MarketplaceController extends Controller
 
     private function seedDefaults(): void
     {
-        $seed = [
-            ['StreamFlix', 'streamflix', '🎬', 15, 2000, 1000, '4K sci-fi binge pack — perfect for a long weekend marathon.'],
-            ['MusicPro', 'musicpro', '🎧', 22, 1200, 650, 'Hi-fi family plan seat. AI-priced under market for fast fill.'],
-            ['DesignAI', 'designai', '🎨', 9, 3000, 1400, 'Pro seats with priority GPU queue for a design sprint.'],
-            ['FitLife', 'fitlife', '💪', 18, 1600, 800, 'Live classes + meal plans. Remaining cycle transfers today.'],
-            ['CloudDrive', 'clouddrive', '☁️', 27, 1000, 500, '2TB vault leftover. Encrypted handoff via LuvuPay.'],
-            ['NewsDaily', 'newsdaily', '📰', 12, 800, 350, 'Ad-free journalism pass for mid-week deep reads.'],
-            ['GamePass Ultra', 'gamepass', '🎮', 20, 1800, 900, 'Day-one releases unlocked. Residual time must move.'],
-            ['LangNeo', 'langneo', '🗣️', 14, 2200, 1100, 'Conversation AI tutor seat for exam season.'],
-        ];
-        $now = now();
-        foreach ($seed as [$name, $key, $emoji, $days, $orig, $price, $desc]) {
-            DB::table('marketplace_listings')->insert([
-                'id' => (string) Str::uuid(),
-                'app_key' => $key,
-                'app_name' => $name,
-                'title' => $emoji.' '.$name.' — '.$days.' days left',
-                'description' => $desc,
-                'seller_email' => 'seed@marketplace.luvupay.local',
-                'days_remaining' => $days,
-                'original_price_minor' => $orig,
-                'price_minor' => $price,
-                'currency' => 'USD',
-                'status' => 'active',
-                'verified_at' => $now,
-                'emoji' => $emoji,
-                'metadata' => json_encode(['seed' => true]),
-                'created_at' => $now,
-                'updated_at' => $now,
-            ]);
-        }
+        // Intentionally empty — listings come only from real resale_listings / marketplace_listings rows.
     }
 }

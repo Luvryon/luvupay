@@ -65,7 +65,7 @@ final class MerchantProject
         ]);
 
         // Session cache (same browser)
-        session(['merchant_project' => $payload]);
+        session([self::sessionKey() => $payload]);
 
         // Durable store on merchant row (survives new sessions / servers)
         $merchantId = self::merchantId();
@@ -148,16 +148,32 @@ final class MerchantProject
                 $decoded = json_decode($raw, true);
                 if (is_array($decoded) && trim((string) ($decoded['name'] ?? '')) !== '') {
                     // refresh session cache
-                    session(['merchant_project' => $decoded]);
+                    session([self::sessionKey() => $decoded]);
 
                     return $decoded;
                 }
             }
         }
 
-        $stored = session('merchant_project');
+        $stored = session(self::sessionKey());
+        if (! is_array($stored)) {
+            // legacy key migration once
+            $legacy = session('merchant_project');
+            if (is_array($legacy) && self::merchantId()) {
+                session([self::sessionKey() => $legacy]);
+                session()->forget('merchant_project');
+                $stored = $legacy;
+            }
+        }
 
         return is_array($stored) ? $stored : null;
+    }
+
+    private static function sessionKey(): string
+    {
+        $id = self::merchantId();
+
+        return $id ? 'merchant_project_'.$id : 'merchant_project';
     }
 
     private static function merchantId(): ?string

@@ -59,6 +59,7 @@ Route::middleware($console)->group(function () {
     Route::prefix('api/v1/dashboard')->name('dashboard.api.')->middleware('throttle:120,1')->group(function () {
         Route::get('summary', [DashboardApiController::class, 'summary'])->name('summary');
         Route::get('transactions', [DashboardApiController::class, 'transactions'])->name('transactions');
+        Route::get('subscriptions', [DashboardApiController::class, 'subscriptions'])->name('subscriptions');
         Route::get('resale-listings', [DashboardApiController::class, 'resaleListings'])->name('resale');
         Route::get('audit-logs', [DashboardApiController::class, 'auditLogs'])->middleware('merchant.can:exports.read')->name('audit');
         Route::post('wallet/withdraw', [\App\Http\Controllers\PayoutController::class, 'executePayout'])->middleware('throttle:10,1')->name('wallet.withdraw');

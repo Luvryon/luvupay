@@ -47,7 +47,7 @@
                         <p style="margin:0;font-size:.9rem;color:var(--muted)">Not connected. Paste your PayPal Sandbox <strong>Merchant ID</strong> (from developer.paypal.com → Sandbox → Accounts), or use one-click demo connect.</p>
                     @endif
 
-                    <form method="post" action="{{ route('oauth.paypal.sandbox-connect') }}" class="stack-sm" style="margin-top:12px">
+                    <form method="post" action="{{ \Illuminate\Support\Facades\Route::has('oauth.paypal.sandbox-connect') ? route('oauth.paypal.sandbox-connect') : url('/oauth/paypal/sandbox-connect') }}" class="stack-sm" style="margin-top:12px">
                         @csrf
                         <input type="hidden" name="confirm" value="1" />
                         <div class="field">
@@ -57,7 +57,7 @@
                         </div>
                         <div style="display:flex;flex-wrap:wrap;gap:10px">
                             <button type="submit" class="c-btn c-btn-brand">Connect with Merchant ID</button>
-                            <a href="{{ route('oauth.paypal.redirect') }}" class="c-btn">Connect via OAuth</a>
+                            <a href="{{ \Illuminate\Support\Facades\Route::has('oauth.paypal.redirect') ? route('oauth.paypal.redirect') : url('/oauth/paypal/redirect') }}" class="c-btn">Connect via OAuth</a>
                         </div>
                     </form>
                 </div>
@@ -115,9 +115,9 @@
             </section>
 
             <script type="application/json" id="project-features-seed">@json([
-    'marketplace_resale' => $project->marketplaceResale ?? false,
-    'charity_split' => $project->charitySplit ?? false,
-    'partial_refund_bps' => $project->partialRefundBps ?? 2000,
+    'marketplace_resale' => ($project->marketplaceResale ?? false),
+    'charity_split' => ($project->charitySplit ?? false),
+    'partial_refund_bps' => ($project->partialRefundBps ?? 2000),
 ])</script>
             <section class="c-card" id="project" x-data="projectFeatures()" x-init="init()">
                 <div class="c-head">

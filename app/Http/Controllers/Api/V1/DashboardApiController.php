@@ -347,6 +347,42 @@ final class DashboardApiController
         return str_replace("'", '', $text);
     }
 
+
+    public function subscriptions(Request $request): JsonResponse
+    {
+        $m = $this->merchantId($request);
+        $rows = DB::table('subscriptions')->where('merchant_id', $m)
+            ->orderByDesc('created_at')->limit(self::LIMIT)
+            ->get(['id', 'email', 'merchant_user_id', 'status', 'amount_minor', 'currency', 'provider',
+                'current_period_start', 'current_period_end', 'next_billing_at', 'metadata', 'created_at']);
+
+        return response()->json(['data' => $rows->map(function ($r) {
+            $meta = json_decode($r->metadata ?? '{}', true) ?: [];
+            $status = strtolower((string) $r->status);
+            $label = match (true) {
+                in_array($status, ['active', 'trialing'], true) => 'Active',
+                in_array($status, ['past_due', 'grace'], true) => 'At Risk',
+                str_contains($status, 'retain') || (($meta['lifecycle'] ?? '') === 'AI-RETAINED') => 'AI-Retained',
+                in_array($status, ['cancelled', 'churned', 'expired'], true) => 'Churned',
+                default => ucfirst($status),
+            };
+
+            return [
+                'id' => $r->id,
+                'email' => $r->email,
+                'display_name' => $meta['display_name'] ?? $r->email,
+                'project' => $meta['product'] ?? \App\Support\MerchantProject::current()->product(),
+                'plan' => number_format(((int) $r->amount_minor) / 100, 2).' '.($r->currency ?: 'USD').'/mo',
+                'status' => $label,
+                'status_raw' => $status,
+                'amount_minor' => (int) $r->amount_minor,
+                'ltv_minor' => (int) $r->amount_minor, // single period until we accumulate
+                'next_billing_at' => $r->next_billing_at,
+                'created_at' => $r->created_at,
+            ];
+        })->values()]);
+    }
+
     private function merchantId(Request $request): string
     {
         $id = $request->attributes->get('merchant_id');

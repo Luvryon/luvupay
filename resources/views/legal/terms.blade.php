@@ -1,56 +1,30 @@
-@extends('layouts.site')
-@section('title', 'Terms of Service · LuvuPay')
-@section('meta_description', 'LuvuPay terms of service for merchant customers: service description, responsibilities, acceptable use, fees, and limitation of liability.')
-@section('guides')
-{{-- sidebar from layout --}}
-@endsection
+@extends('layouts.console')
+@section('title', 'Terms of Service')
+@section('heading', 'Terms of Service')
 @section('content')
-<p class="text-sm font-semibold tracking-wide uppercase text-brand-600 mb-2">Legal</p>
-<h1>Terms of Service</h1>
-<p class="text-sm text-muted">Last updated: October 2026</p>
-<p class="lead text-muted">By creating a merchant account or calling the LuvuPay API you agree to these terms as a business customer of a payment-facilitation technology service.</p>
+<article class="legal-doc c-card" style="max-width:720px;margin:0 auto;padding:40px 36px;background:#fff;color:#0f172a;border:1px solid #e2e8f0;border-radius:16px">
+  <h1 style="margin:0 0 8px;font-size:1.75rem;font-weight:700;letter-spacing:-0.02em">Terms of Service</h1>
+  <p style="margin:0 0 28px;font-size:0.875rem;color:#64748b">Last updated October 2026</p>
+  <div class="legal-body" style="font-size:0.95rem;line-height:1.7;color:#334155">
+    
+<p>By using LuvuPay you agree to these terms.</p>
+<h2>Service</h2>
+<p>LuvuPay provides subscription retention, marketplace resale tooling, and payout orchestration. Sandbox features are for testing only.</p>
+<h2>Merchants</h2>
+<p>You are responsible for your products, pricing, customer communications, and compliance with PayPal and local law.</p>
+<h2>Acceptable use</h2>
+<p>No illegal content, abuse of the API, or attempts to circumvent security or rate limits.</p>
+<h2>Liability</h2>
+<p>The service is provided as available. We are not liable for indirect losses or third-party payment network failures.</p>
+<h2>Changes</h2>
+<p>We may update these terms; continued use after notice means acceptance.</p>
 
-<h2>1. Service</h2>
-<p>LuvuPay provides APIs and consoles for Second Chance flows, resale marketplace coordination, signed webhooks (Entitlement Bridge), AI-assisted insights (where enabled), and related tooling. Funds move through the merchant’s payment provider (e.g. PayPal). LuvuPay does not custody end-customer balances as a bank or e-money institution beyond operational settlement in documented flows.</p>
-
-<h2>2. Accounts &amp; access</h2>
-<ul>
-  <li>You must provide accurate registration information and keep team access current.</li>
-  <li>You are responsible for safeguarding API keys, webhook secrets, and console credentials.</li>
-  <li>MFA may be required. You must not share individual login credentials.</li>
-  <li>We may suspend access that presents security, fraud, or legal risk.</li>
-</ul>
-
-<h2>3. Merchant responsibilities</h2>
-<ul>
-  <li>Comply with applicable law in every jurisdiction where you offer subscriptions.</li>
-  <li>Provide accurate subscription and user mapping data; you remain the controller of your end-user relationships.</li>
-  <li>Implement webhook verification and entitlement updates correctly.</li>
-  <li>Honour consumer rights, refunds, and disclosures required by your local law beyond LuvuPay product flows.</li>
-  <li>Do not use Second Chance or resale to circumvent card-network, provider, or legal obligations.</li>
-</ul>
-
-<h2>4. Acceptable use</h2>
-<p>Prohibited: fraud; abuse of Second Chance or resale loops; unlawful content or products; attempts to bypass rate limits, scopes, allow-lists, or audit controls; reverse engineering except as allowed by law; or any activity that harms end users or the platform.</p>
-
-<h2>5. Fees</h2>
-<p>Platform fees (including resale marketplace fee) are disclosed in product documentation and/or your commercial order form. Provider fees (PayPal etc.) are charged by the provider under their terms. Sandbox environments do not move real money.</p>
-
-<h2>6. Data</h2>
-<p>Our handling of personal data is described in the <a href="/privacy">Privacy Policy</a>. You represent that you have lawful grounds to transmit any end-user data you send to the API.</p>
-
-<h2>7. Intellectual property</h2>
-<p>LuvuPay retains IP in the platform, APIs, and documentation. You retain IP in your products and customer relationships. Feedback may be used to improve the service without obligation.</p>
-
-<h2>8. Disclaimers &amp; liability</h2>
-<p>The service is provided on an “as available” basis for the sandbox and subject to your production agreement. To the maximum extent permitted by law we exclude indirect, incidental, and consequential damages. Aggregate liability is limited as set out in your order form or, if none, to fees paid for the service in the three months preceding the claim.</p>
-
-<h2>9. Termination</h2>
-<p>You may deactivate via Console subject to outstanding obligations. We may suspend or terminate for breach, legal requirement, or prolonged inactivity. Export tools are provided to assist orderly offboarding.</p>
-
-<h2>10. Changes</h2>
-<p>We may update these terms with notice via the console or email for material changes. Continued use after the effective date constitutes acceptance.</p>
-
-<h2>11. Contact</h2>
-<p><a href="/support">Support</a> · Legal notices should include your merchant ID and registered company details.</p>
+  </div>
+</article>
+<style>
+.legal-body h2{margin:28px 0 10px;font-size:1.05rem;font-weight:650;color:#0f172a}
+.legal-body ul{margin:0 0 16px;padding-left:1.2rem}
+.legal-body li{margin:6px 0}
+.legal-body p{margin:0 0 14px}
+</style>
 @endsection
