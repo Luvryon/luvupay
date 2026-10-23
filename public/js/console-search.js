@@ -1,7 +1,3 @@
-/**
- * Console command palette — Ctrl+K / Cmd+K
- * Targets: #luvupay-search-btn, #luvupay-search-panel, #luvupay-search-input, #luvupay-search-list
- */
 (function () {
   'use strict';
 
@@ -9,17 +5,15 @@
     { title: 'Dashboard', href: '/dashboard', group: 'Console', keywords: 'home overview ledger' },
     { title: 'Wallet & Transactions', href: '/wallet', group: 'Console', keywords: 'balance withdraw money' },
     { title: 'Subscriptions', href: '/subscriptions', group: 'Console', keywords: 'customers crm churn' },
+    { title: 'Developers', href: '/developers', group: 'Console', keywords: 'api keys webhook' },
     { title: 'Marketplace', href: '/marketplace', group: 'Console', keywords: 'resale listings' },
     { title: 'Settings', href: '/settings', group: 'Console', keywords: 'paypal logo api webhook' },
     { title: 'Analytics', href: '/analytics', group: 'Console', keywords: 'charts revenue' },
-    { title: 'Team', href: '/team', group: 'Console', keywords: 'invite members' },
-    { title: 'Status', href: '/status', group: 'Console', keywords: 'health' },
     { title: 'Docs overview', href: '/docs', group: 'Docs', keywords: 'documentation' },
-    { title: 'API reference', href: '/docs/api', group: 'Docs', keywords: 'rest endpoints auth' },
-    { title: 'Postman collection', href: '/docs/postman', group: 'Docs', keywords: 'import collection' },
-    { title: 'Sandbox guide', href: '/docs/sandbox', group: 'Docs', keywords: 'paypal demo' },
-    { title: 'Privacy policy', href: '/privacy', group: 'Legal', keywords: 'privacy data' },
-    { title: 'Terms of service', href: '/terms', group: 'Legal', keywords: 'terms legal' },
+    { title: 'API reference', href: '/docs/api', group: 'Docs', keywords: 'rest endpoints' },
+    { title: 'Postman', href: '/docs/postman', group: 'Docs', keywords: 'collection' },
+    { title: 'Privacy', href: '/privacy', group: 'Legal', keywords: 'privacy' },
+    { title: 'Terms', href: '/terms', group: 'Legal', keywords: 'terms' },
   ];
 
   function norm(s) { return String(s || '').toLowerCase(); }
@@ -35,20 +29,40 @@
   function render(list) {
     var box = document.getElementById('luvupay-search-list');
     if (!box) return;
+    if (window.DomSafe) DomSafe.clear(box);
+    else while (box.firstChild) box.removeChild(box.firstChild);
+
     if (!list.length) {
-      box.innerHTML = '<li class="ns-empty">No matches</li>';
+      var empty = document.createElement('li');
+      empty.className = 'ns-empty';
+      empty.textContent = 'No matches';
+      box.appendChild(empty);
       return;
     }
-    var html = '';
     var last = '';
     list.forEach(function (item) {
       if (item.group !== last) {
         last = item.group;
-        html += '<li class="ns-empty" style="text-align:left;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:8px 12px 4px">' + last + '</li>';
+        var h = document.createElement('li');
+        h.className = 'ns-empty';
+        h.style.cssText = 'text-align:left;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:8px 12px 4px';
+        h.textContent = last;
+        box.appendChild(h);
       }
-      html += '<li><a href="' + item.href + '"><span>' + item.title + '</span><span class="ns-meta">' + (item.group || '') + '</span></a></li>';
+      var li = document.createElement('li');
+      var a = document.createElement('a');
+      var href = String(item.href || '/');
+      if (!/^\s*javascript:/i.test(href)) a.setAttribute('href', href);
+      var title = document.createElement('span');
+      title.textContent = item.title || '';
+      var meta = document.createElement('span');
+      meta.className = 'ns-meta';
+      meta.textContent = item.group || '';
+      a.appendChild(title);
+      a.appendChild(meta);
+      li.appendChild(a);
+      box.appendChild(li);
     });
-    box.innerHTML = html;
   }
 
   function searchSubscribers(q) {

@@ -1,68 +1,102 @@
 (function () {
   'use strict';
-
   function csrf() {
     var m = document.querySelector('meta[name="csrf-token"]');
-    return m ? m.getAttribute('content') : '';
+    return m ? m.content : '';
   }
-
-  function money(minor, currency) {
-    try {
-      return new Intl.NumberFormat(undefined, { style: 'currency', currency: currency || 'USD' }).format((minor || 0) / 100);
-    } catch (e) {
-      return ((minor || 0) / 100).toFixed(2) + ' ' + (currency || 'USD');
-    }
+  function money(minor, cur) {
+    return (cur === 'USD' || !cur ? '$' : '') + (Number(minor || 0) / 100).toFixed(2) + (cur && cur !== 'USD' ? ' ' + cur : '');
   }
-
-  window.walletApp = function () {
+  window.walletPage = function () {
     return {
       loading: false,
       withdrawing: false,
-      donating: false,
       balanceMinor: 0,
       currency: 'USD',
       rows: [],
-      lastPayoutId: '',
-      get balanceDisplay() {
-        return money(this.balanceMinor, this.currency);
+      q: '',
+      fromDate: '',
+      toDate: '',
+      page: 1,
+      perPage: 15,
+      get balanceLabel() { return money(this.balanceMinor, this.currency); },
+      get filteredRows() {
+        var q = (this.q || '').toLowerCase().trim();
+        var from = this.fromDate ? new Date(this.fromDate + 'T00:00:00') : null;
+        var to = this.toDate ? new Date(this.toDate + 'T23:59:59') : null;
+        return this.rows.filter(function (r) {
+          if (from && r.ts && r.ts < from) return false;
+          if (to && r.ts && r.ts > to) return false;
+          if (!q) return true;
+          return (r.id + ' ' + r.type + ' ' + r.ref + ' ' + (r.email || '')).toLowerCase().indexOf(q) !== -1;
+        });
       },
-      init: function () {
-        this.load();
+      get totalPages() {
+        return Math.max(1, Math.ceil(this.filteredRows.length / this.perPage));
       },
-      load: async function () {
+      get pageRows() {
+        var start = (this.page - 1) * this.perPage;
+        return this.filteredRows.slice(start, start + this.perPage);
+      },
+      async load() {
         this.loading = true;
         try {
-          var res = await fetch('/api/v1/dashboard/transactions', {
-            credentials: 'same-origin',
-            headers: { Accept: 'application/json' },
-          });
-          var json = res.ok ? await res.json() : { data: [] };
+          var [sumRes, txRes] = await Promise.all([
+            fetch('/api/v1/dashboard/summary', { credentials: 'same-origin', headers: { Accept: 'application/json' } }),
+            fetch('/api/v1/dashboard/transactions', { credentials: 'same-origin', headers: { Accept: 'application/json' } }),
+          ]);
+          var sum = sumRes.ok ? await sumRes.json() : {};
+          var json = txRes.ok ? await txRes.json() : { data: [] };
           var data = Array.isArray(json.data) ? json.data : [];
-          var bal = 0;
-          var cur = 'USD';
+          this.currency = sum.currency || 'USD';
+          this.balanceMinor = Number(sum.wallet_balance_minor != null ? sum.wallet_balance_minor : sum.available_balance_minor) || 0;
           this.rows = data.map(function (r) {
-            var amt = Number(r.amount_minor || 0);
-            bal += amt;
-            cur = r.currency || cur;
+            var ts = r.created_at ? new Date(r.created_at) : null;
             return {
               id: r.id,
-              when: r.created_at ? new Date(r.created_at).toLocaleString() : '—',
+              email: r.email || '',
+              when: ts ? ts.toLocaleString() : '—',
+              ts: ts,
               type: r.type || '—',
               status: r.status || '—',
-              ref: r.provider_reference || '—',
-              amount: money(amt, r.currency || 'USD'),
+              ref: r.provider_reference || r.id || '—',
+              amount: money(r.amount_minor, r.currency || 'USD'),
+              amount_minor: Number(r.amount_minor || 0),
             };
           });
-          this.balanceMinor = Math.max(0, bal);
-          this.currency = cur;
+          this.page = 1;
         } catch (e) {
           this.rows = [];
+          if (window.LuvuToast) window.LuvuToast.error('Wallet load failed', String(e.message || e));
         } finally {
           this.loading = false;
         }
       },
-      withdraw: async function () {
+      exportCsv() {
+        var lines = ['id,when,type,status,reference,amount_minor'];
+        this.filteredRows.forEach(function (r) {
+          lines.push([r.id, r.when, r.type, r.status, r.ref, r.amount_minor].map(function (c) {
+            return '"' + String(c).replace(/"/g, '""') + '"';
+          }).join(','));
+        });
+        var blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'luvupay-ledger.csv';
+        a.click();
+        if (window.LuvuToast) window.LuvuToast.success('CSV exported', this.filteredRows.length + ' rows');
+      },
+      async withdraw() {
         if (this.withdrawing || this.balanceMinor <= 0) return;
+        var ob = document.getElementById('luvu-onboarding');
+        if (ob && ob.getAttribute('data-payment-driver') === 'paypal' && ob.getAttribute('data-has-paypal') !== '1') {
+          if (window.LuvuToast) {
+            window.LuvuToast.info('Connect PayPal first', 'Link Sandbox merchant in Settings before withdrawing.', {
+              action: { label: 'Open Settings', href: '/settings#paypal' },
+            });
+          }
+          return;
+        }
         this.withdrawing = true;
         try {
           var res = await fetch('/api/v1/dashboard/payouts', {
@@ -74,77 +108,19 @@
               'X-CSRF-TOKEN': csrf(),
               'X-Requested-With': 'XMLHttpRequest',
             },
-            body: JSON.stringify({
-              payout_type: 'merchant_withdrawal',
-              amount_minor: this.balanceMinor,
-            }),
+            body: JSON.stringify({ payout_type: 'merchant_withdrawal', amount_minor: this.balanceMinor }),
           });
           var j = await res.json().catch(function () { return {}; });
           if (res.ok && j.ok) {
-            this.lastPayoutId = j.payout_batch_id || '';
-            if (window.LuvuPayToast) window.LuvuPayToast(j.message || 'Withdrawal submitted', 'success');
-            else alert(j.message || 'Withdrawal submitted');
+            if (window.LuvuToast) window.LuvuToast.success('Withdrawal submitted', j.message || ('Batch ' + (j.payout_batch_id || '')));
             await this.load();
           } else {
-            var err = j.error || j.message || 'Withdrawal failed';
-            if (window.LuvuPayToast) window.LuvuPayToast(err, 'error');
-            else alert(err);
+            if (window.LuvuToast) window.LuvuToast.error('Withdrawal failed', j.error || j.message || 'Request failed');
           }
         } catch (e) {
-          alert('Network error');
+          if (window.LuvuToast) window.LuvuToast.error('Network error', String(e.message || e));
         } finally {
           this.withdrawing = false;
-        }
-      },
-      donateCharity: async function () {
-        if (this.donating) return;
-        this.donating = true;
-        try {
-          // Find a charge row to attach residual donation
-          var resList = await fetch('/api/v1/dashboard/transactions', {
-            credentials: 'same-origin',
-            headers: { Accept: 'application/json' },
-          });
-          var list = resList.ok ? await resList.json() : { data: [] };
-          var rows = Array.isArray(list.data) ? list.data : [];
-          var src = rows.find(function (r) {
-            return r.type === 'charge' && Number(r.amount_minor) > 0;
-          });
-          if (!src) {
-            alert('No charge transaction to donate residual from. Run a demo checkout first.');
-            return;
-          }
-          var res = await fetch('/api/v1/dashboard/payouts', {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: {
-              Accept: 'application/json',
-              'Content-Type': 'application/json',
-              'X-CSRF-TOKEN': csrf(),
-              'X-Requested-With': 'XMLHttpRequest',
-            },
-            body: JSON.stringify({
-              payout_type: 'charity_donation',
-              transaction_id: src.id,
-              amount_minor: Math.abs(Number(src.amount_minor)),
-              charity_label: 'American Red Cross',
-            }),
-          });
-          var j = await res.json().catch(function () { return {}; });
-          if (res.ok && j.ok) {
-            this.lastPayoutId = j.payout_batch_id || '';
-            if (window.LuvuPayToast) window.LuvuPayToast(j.message || 'Charity payout submitted', 'success');
-            else alert(j.message || 'Charity payout submitted');
-            await this.load();
-          } else {
-            var err = j.error || j.message || 'Charity payout failed';
-            if (window.LuvuPayToast) window.LuvuPayToast(err, 'error');
-            else alert(err);
-          }
-        } catch (e) {
-          alert('Network error');
-        } finally {
-          this.donating = false;
         }
       },
     };

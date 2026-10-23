@@ -319,25 +319,16 @@
             } catch (e) { failCount++; }
           }
           await self.load();
-          self.walletBalanceMinor = 0;
+          await self.refreshEvents();
           self.hasData = !!(self.rowData && self.rowData.length);
           if (!self.hasData) {
-            self.pushToast('Sandbox returned no rows — check PayPal credentials & API logs', '⚠️');
+            self.pushToast('No ledger rows (ok=' + okCount + ', fail=' + failCount + '). Check project, PayPal connect, or LUVUPAY_DEMO_SIMULATOR.', '⚠️');
           } else {
-            self.pushToast('Sandbox activity written for project: ' + (self.seedProjectName || '—'), '✅');
+            self.pushToast('Wrote ' + okCount + ' checkout(s) — wallet, subscriptions & events updated', '✅');
+            if (window.LuvuToast) {
+              window.LuvuToast.info('Data synced', 'Open Wallet or Subscriptions to inspect the same ledger rows.');
+            }
           }
-          // Event log entry for successful Simulate 30 days
-          var now = new Date().toISOString();
-          var ev = {
-            id: 'sim30-' + Date.now(),
-            timestamp: now,
-            at: now,
-            provider: 'demo',
-            event_type: 'demo.simulate_30_days',
-            http_hint: self.hasData ? '200 OK' : 'empty',
-            message: 'Simulate 30 days · ' + rows.length + ' checkout(s) for ' + (self.seedProjectName || 'project'),
-          };
-          self.webhookLogs = [ev].concat(self.webhookLogs || []);
           try { window.localStorage.setItem('luvupay_demo_seeded', '1'); } catch (e) {}
         } catch (e) {
           self.pushToast('Simulation failed — see console', '⚠️');
@@ -720,8 +711,10 @@
         var product = PROJECT.product;
         var labels = {
           renew: ['[User] Retried ' + product + ' payment.', 'green', 'Renewed — ACTIVE', '[PayPal] Payment retry successful for ' + product + '. Status: ACTIVE.', 'ACTIVE'],
+          partial_refund: ['[User] Accepted partial refund / store credit.', 'green', 'AI-Retained — chargeback avoided', '[LuvuPay] Store credit retained · Revenue Saved updated · Status: AI-RETAINED.', 'AI-RETAINED'],
           cancel: ['[User] Let ' + product + ' expire.', 'warn', 'Expired — CHURNED', '[System] ' + product + ' expired. Status: CHURNED.', 'CHURNED'],
-          resale: ['[User] Chose to resell ' + product + ' access on the Marketplace.', 'purple', 'Listed for resale — PENDING RESALE', '[Marketplace] ' + product + ' access transferred to a new buyer. Status: PENDING RESALE.', 'PENDING RESALE'],
+          resale: ['[User] Chose to resell ' + product + ' access on the Marketplace.', 'purple', 'Listed for resale — PENDING RESALE', '[Marketplace] Listing created · merchant resale fee booked · Status: PENDING RESALE.', 'PENDING RESALE'],
+          donate: ['[User] Donated residual value to charity.', 'purple', 'Donated — AI-RETAINED', '[Charity] Residual value routed to charity partner · Status: AI-RETAINED.', 'AI-RETAINED'],
         };
         var l = labels[choice];
         this.logDecision(l[0], l[1]);
@@ -748,10 +741,8 @@
 
         if (uuid) {
           j = await this.sim(
-            choice === 'resale' ? 'resale' : 'decision',
-            choice === 'resale'
-              ? { transaction_id: uuid, mode: this.apiMode }
-              : { transaction_id: uuid, choice: choice, mode: this.apiMode },
+            'decision',
+            { transaction_id: uuid, choice: choice, mode: this.apiMode },
             'decision'
           );
           if (!j) {

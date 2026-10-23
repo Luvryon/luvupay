@@ -23,6 +23,7 @@ final class MerchantProject
         public readonly string $description = '',
         public readonly bool $marketplaceResale = false,
         public readonly bool $charitySplit = false,
+        public readonly bool $gracePeriod = true,
         public readonly int $partialRefundBps = 2000,
     ) {}
 
@@ -59,8 +60,9 @@ final class MerchantProject
             'active_subscribers' => (int) ($existing['active_subscribers'] ?? 0),
             'environment' => (($data['environment'] ?? $existing['environment'] ?? 'sandbox') === 'production') ? 'production' : 'sandbox',
             'description' => (string) ($data['description'] ?? $existing['description'] ?? ''),
-            'marketplace_resale' => (bool) ($data['marketplace_resale'] ?? $existing['marketplace_resale'] ?? false),
-            'charity_split' => (bool) ($data['charity_split'] ?? $existing['charity_split'] ?? false),
+            'marketplace_resale' => (bool) ($data['marketplace_resale'] ?? $existing['marketplace_resale'] ?? true),
+            'charity_split' => (bool) ($data['charity_split'] ?? $existing['charity_split'] ?? true),
+            'grace_period' => (bool) ($data['grace_period'] ?? $existing['grace_period'] ?? true),
             'partial_refund_bps' => max(0, min(10000, (int) ($data['partial_refund_bps'] ?? $existing['partial_refund_bps'] ?? 2000))),
         ];
 
@@ -118,6 +120,7 @@ final class MerchantProject
             'description' => $this->description,
             'marketplace_resale' => $this->marketplaceResale,
             'charity_split' => $this->charitySplit,
+            'grace_period' => $this->gracePeriod,
             'partial_refund_bps' => $this->partialRefundBps,
             'is_set' => $this->isSet(),
         ];
@@ -137,6 +140,7 @@ final class MerchantProject
             (string) ($stored['description'] ?? ''),
             (bool) ($stored['marketplace_resale'] ?? false),
             (bool) ($stored['charity_split'] ?? false),
+            (bool) ($stored['grace_period'] ?? true),
             max(0, min(10000, (int) ($stored['partial_refund_bps'] ?? 2000))),
         );
     }

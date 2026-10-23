@@ -117,6 +117,8 @@ final class DashboardApiController
         }
 
         $chargeVolume = $sum('charge');
+        $revenueSavedRows = abs($sum('revenue_saved'));
+
 
         /*
          | Revenue Saved (hackathon formula)
@@ -164,6 +166,8 @@ final class DashboardApiController
         }
 
         // Also count completed resale_sale fees not already in loop
+        $revenueSaved += $revenueSavedRows;
+
         $resaleFees = (int) DB::table('transactions')->where('merchant_id', $m)
             ->where('status', 'completed')
             ->whereIn('type', ['resale_payout', 'resale_fee', 'merchant_fee'])
@@ -230,6 +234,8 @@ final class DashboardApiController
             'total_revenue_saved_minor' => $revenueSaved,
             'wallet_balance_minor' => $walletBalance,
             'available_balance_minor' => $walletBalance,
+            'recent_events' => $this->recentEventsForMerchant($m, 40),
+            'events' => $this->recentEventsForMerchant($m, 40),
         ]);
     }
 

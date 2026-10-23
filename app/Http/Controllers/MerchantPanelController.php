@@ -225,6 +225,13 @@ class MerchantPanelController extends Controller
         ]);
     }
 
+    public function developers(Request $request)
+    {
+        $merchant = $this->resolveMerchant($request);
+
+        return view('developers.index', compact('merchant'));
+    }
+
     public function subscriptions(Request $request)
     {
         $merchant = $this->resolveMerchant($request);
@@ -241,34 +248,111 @@ class MerchantPanelController extends Controller
         $merchant = $this->resolveMerchant($request);
         abort_unless($merchant, 404);
 
-        // No SVG: can embed scripts. Images only, re-encoded path, size cap.
+        // Accept both classic form POST and AJAX FormData.
+        // Do NOT rely on Laravel "image" rule alone — Hostinger often lacks GD/Imagick.
         $request->validate([
-            'logo' => ['required', 'file', 'image', 'mimes:png,jpg,jpeg,webp', 'max:1024'],
+            'logo' => ['required', 'file', 'max:2048'],
         ]);
 
         $file = $request->file('logo');
-        $finfo = new \finfo(FILEINFO_MIME_TYPE);
-        $mime = $finfo->file($file->getRealPath()) ?: '';
-        $allowed = ['image/png', 'image/jpeg', 'image/webp'];
-        abort_unless(in_array($mime, $allowed, true), 422, 'Invalid image type.');
-
-        // Reject polyglot / double-extension names
-        $ext = strtolower($file->getClientOriginalExtension() ?: '');
-        abort_unless(in_array($ext, ['png', 'jpg', 'jpeg', 'webp'], true), 422, 'Invalid extension.');
-
-        if (! empty($merchant->logo_path)) {
-            Storage::disk('public')->delete($merchant->logo_path);
+        if (! $file || ! $file->isValid()) {
+            return $this->logoResponse($request, false, 'Upload failed (invalid file).', 422);
         }
 
-        // Random filename — never trust client original name
-        $path = $file->storeAs(
-            'merchant-logos/'.$merchant->id,
-            bin2hex(random_bytes(16)).'.'.$ext,
-            'public'
-        );
-        $merchant->update(['logo_path' => $path]);
+        $real = $file->getRealPath();
+        if (! is_string($real) || ! is_readable($real)) {
+            return $this->logoResponse($request, false, 'Upload failed (unreadable temp file).', 422);
+        }
 
-        return back()->with('status', 'Company logo updated.');
+        // MIME from content, not client header
+        $mime = '';
+        if (class_exists(\finfo::class)) {
+            $mime = (new \finfo(FILEINFO_MIME_TYPE))->file($real) ?: '';
+        }
+        if ($mime === '' && function_exists('mime_content_type')) {
+            $mime = (string) mime_content_type($real);
+        }
+        // getimagesize works without GD for jpeg/png; webp may need GD
+        $info = @getimagesize($real);
+        if (is_array($info) && ! empty($info['mime'])) {
+            $mime = $info['mime'];
+        }
+
+        $allowed = [
+            'image/png' => 'png',
+            'image/jpeg' => 'jpg',
+            'image/webp' => 'webp',
+        ];
+        if (! isset($allowed[$mime])) {
+            return $this->logoResponse($request, false, 'Only PNG, JPEG, or WebP allowed (no SVG).', 422);
+        }
+        $ext = $allowed[$mime];
+
+        // Ensure public disk root exists and is writable
+        $disk = Storage::disk('public');
+        $dir = 'merchant-logos/'.$merchant->id;
+        try {
+            if (! $disk->exists($dir)) {
+                $disk->makeDirectory($dir);
+            }
+        } catch (\Throwable $e) {
+            @mkdir(storage_path('app/public/'.$dir), 0755, true);
+        }
+
+        if (! empty($merchant->logo_path)) {
+            try {
+                $disk->delete($merchant->logo_path);
+            } catch (\Throwable $e) {
+                //
+            }
+        }
+
+        $filename = bin2hex(random_bytes(16)).'.'.$ext;
+        // Binary-safe put (avoids storeAs quirks on some hosts)
+        $path = $dir.'/'.$filename;
+        $bytes = file_get_contents($real);
+        if ($bytes === false || $bytes === '') {
+            return $this->logoResponse($request, false, 'Could not read uploaded file.', 422);
+        }
+        // Block embedded PHP / script polyglots in first bytes (defense in depth)
+        if (preg_match('/<\?php|<script/i', substr($bytes, 0, 512))) {
+            return $this->logoResponse($request, false, 'File rejected by security scan.', 422);
+        }
+
+        $ok = $disk->put($path, $bytes, 'public');
+        if (! $ok) {
+            // Last resort: direct filesystem write
+            $abs = storage_path('app/public/'.$path);
+            @mkdir(dirname($abs), 0755, true);
+            if (file_put_contents($abs, $bytes) === false) {
+                return $this->logoResponse($request, false, 'Storage not writable. Run: php artisan storage:link && chmod -R 775 storage', 500);
+            }
+        }
+
+        $merchant->forceFill(['logo_path' => $path])->save();
+
+        $url = asset('storage/'.$path);
+
+        return $this->logoResponse($request, true, 'Company logo updated.', 200, [
+            'logo_path' => $path,
+            'logo_url' => $url,
+        ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $extra
+     */
+    private function logoResponse(Request $request, bool $ok, string $message, int $status = 200, array $extra = [])
+    {
+        if ($request->expectsJson() || $request->ajax() || $request->wantsJson()) {
+            return response()->json(array_merge(['ok' => $ok, 'message' => $message], $extra), $status);
+        }
+
+        if (! $ok) {
+            return back()->with('toast_error', $message);
+        }
+
+        return back()->with('toast_success', $message);
     }
 
     public function removeLogo(Request $request)
@@ -281,7 +365,7 @@ class MerchantPanelController extends Controller
             $merchant->update(['logo_path' => null]);
         }
 
-        return back()->with('status', 'Company logo removed.');
+        return back()->with('toast_success', 'Company logo removed.');
     }
 
     private function resolveMerchant(Request $request): ?Merchant

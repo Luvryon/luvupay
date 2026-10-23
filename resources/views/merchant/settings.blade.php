@@ -65,7 +65,7 @@
                 <div class="c-head"><div><h2 class="c-title">Company logo</h2><p class="c-sub">Shown on invoices and emails.</p></div></div>
                 <div class="c-pad">
                     <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">
-                        <div style="width:72px;height:72px;border-radius:12px;border:1px solid var(--line);background:#f8fafc;display:grid;place-items:center;overflow:hidden">
+                        <div data-logo-box style="width:72px;height:72px;border-radius:12px;border:1px solid var(--line);background:#f8fafc;display:grid;place-items:center;overflow:hidden">
                             @if($logoUrl)
                                 <img src="{{ $logoUrl }}" alt="Logo" style="max-width:100%;max-height:100%;object-fit:contain">
                             @else
@@ -73,11 +73,66 @@
                             @endif
                         </div>
                         <div class="stack-sm">
-                            <form method="post" action="{{ route('settings.logo') }}" enctype="multipart/form-data" class="stack-sm">
+                            <form id="logo-upload-form" class="stack-sm" enctype="multipart/form-data">
                                 @csrf
-                                <input type="file" name="logo" accept="image/png,image/jpeg,image/webp" class="input" required>
-                                <button type="submit" class="c-btn c-btn-brand">Upload logo</button>
+                                <input type="file" name="logo" id="logo-file" accept="image/png,image/jpeg,image/webp" class="input" required>
+                                <button type="submit" class="c-btn c-btn-brand" id="logo-upload-btn">Upload logo</button>
+                                <p class="help" id="logo-upload-hint">PNG, JPEG, or WebP · max 2 MB · no SVG</p>
                             </form>
+                            <script>
+                            (function () {
+                              var form = document.getElementById('logo-upload-form');
+                              if (!form) return;
+                              form.addEventListener('submit', function (e) {
+                                e.preventDefault();
+                                var btn = document.getElementById('logo-upload-btn');
+                                var fileInput = document.getElementById('logo-file');
+                                if (!fileInput.files || !fileInput.files[0]) {
+                                  if (window.LuvuToast) LuvuToast.warning('Choose a file', 'Select a PNG, JPEG, or WebP logo first.');
+                                  return;
+                                }
+                                var fd = new FormData(form);
+                                if (btn) { btn.disabled = true; btn.textContent = 'Uploading…'; }
+                                fetch(@json(route('settings.logo')), {
+                                  method: 'POST',
+                                  credentials: 'same-origin',
+                                  headers: {
+                                    'X-Requested-With': 'XMLHttpRequest',
+                                    'Accept': 'application/json',
+                                    'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') || {}).content || ''
+                                  },
+                                  body: fd
+                                }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, status: r.status, j: j }; }); })
+                                  .then(function (res) {
+                                    if (res.ok && res.j && res.j.ok) {
+                                      if (window.LuvuToast) LuvuToast.success('Logo updated', res.j.message || 'Saved');
+                                      if (res.j.logo_url) {
+                                        var img = document.querySelector('#branding img');
+                                        var box = document.querySelector('#branding [data-logo-box]');
+                                        if (img) { img.src = res.j.logo_url; }
+                                        else if (box) {
+                                          while (box.firstChild) box.removeChild(box.firstChild);
+                                          var n = document.createElement('img');
+                                          n.src = res.j.logo_url;
+                                          n.alt = 'Logo';
+                                          n.style.cssText = 'max-width:100%;max-height:100%;object-fit:contain';
+                                          box.appendChild(n);
+                                        }
+                                      }
+                                    } else {
+                                      var msg = (res.j && (res.j.message || res.j.error)) || ('HTTP ' + res.status);
+                                      if (window.LuvuToast) LuvuToast.error('Upload failed', msg);
+                                    }
+                                  })
+                                  .catch(function (err) {
+                                    if (window.LuvuToast) LuvuToast.error('Upload failed', String(err && err.message || err));
+                                  })
+                                  .finally(function () {
+                                    if (btn) { btn.disabled = false; btn.textContent = 'Upload logo'; }
+                                  });
+                              });
+                            })();
+                            </script>
                             @if($logoUrl)
                                 <form method="post" action="{{ route('settings.logo.remove') }}" onsubmit="return confirm('Remove company logo?')">
                                     @csrf
@@ -117,7 +172,11 @@
                     </div>
                 </div>
                 <div class="c-pad stack-sm">
-                    <p class="dim" style="margin:0;font-size:.88rem">When payment fails, LuvuPay opens a 48-hour grace window. Extra paths appear only if you enable them.</p>
+                    <p class="dim" style="margin:0;font-size:.88rem">Merchant control: decide which retention paths are available after a failed payment.</p>
+                    <label style="display:flex;gap:12px;align-items:flex-start;padding:14px;border:1px solid var(--line);border-radius:12px;cursor:pointer">
+                        <input type="checkbox" x-model="gracePeriod" style="margin-top:3px;accent-color:var(--brand)">
+                        <span><strong style="font-size:.9rem">Enable 48-Hour Grace Period</strong><span class="dim" style="display:block;font-size:.82rem;margin-top:2px">Hold the subscription for 48 hours and offer partial refund / store credit.</span></span>
+                    </label>
                     <label style="display:flex;gap:12px;align-items:flex-start;padding:14px;border:1px solid var(--line);border-radius:12px;cursor:pointer">
                         <input type="checkbox" x-model="marketplaceResale" style="margin-top:3px;accent-color:var(--brand)">
                         <span><strong style="font-size:.9rem">Marketplace Resale</strong><span class="dim" style="display:block;font-size:.82rem;margin-top:2px">Users can sell remaining days after grace.</span></span>
@@ -126,6 +185,15 @@
                         <input type="checkbox" x-model="charitySplit" style="margin-top:3px;accent-color:var(--brand)">
                         <span><strong style="font-size:.9rem">Charity Split</strong><span class="dim" style="display:block;font-size:.82rem;margin-top:2px">Users can donate residual subscription value.</span></span>
                     </label>
+                    <div class="field" x-show="charitySplit" x-cloak>
+                        <label class="label" for="charity-partner">Charity partner</label>
+                        <select id="charity-partner" class="input" x-model="charityPartner">
+                            <option value="red_cross">American Red Cross</option>
+                            <option value="unicef">UNICEF</option>
+                            <option value="doctors">Doctors Without Borders</option>
+                            <option value="wwf">WWF</option>
+                        </select>
+                    </div>
                     <div class="field">
                         <label class="label" for="refund-pct">Partial refund offer (%)</label>
                         <input id="refund-pct" class="input" type="number" min="0" max="100" x-model.number="refundPct">

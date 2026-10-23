@@ -6,6 +6,7 @@
   }
   window.projectFeatures = function () {
     return {
+      gracePeriod: true,
       marketplaceResale: false,
       charitySplit: false,
       refundPct: 20,
@@ -38,7 +39,8 @@
               'X-Requested-With': 'XMLHttpRequest',
             },
             body: JSON.stringify({
-              marketplace_resale: this.marketplaceResale,
+              grace_period: this.gracePeriod,
+          marketplace_resale: this.marketplaceResale,
               charity_split: this.charitySplit,
               partial_refund_bps: Math.round(Number(this.refundPct) || 0) * 100,
             }),

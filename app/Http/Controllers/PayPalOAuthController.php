@@ -18,12 +18,15 @@ final class PayPalOAuthController
     public function redirect(Request $request): RedirectResponse
     {
         $user = $request->user('merchant_web');
-        abort_unless($user, 401);
+        if (! $user) {
+            return redirect()->route('login')
+                ->with('toast_error', 'Session expired. Please sign in again to connect PayPal.');
+        }
 
         $clientId = trim((string) config('services.paypal.client_id', env('PAYPAL_CLIENT_ID', '')));
         if ($clientId === '' || strcasecmp($clientId, 'null') === 0) {
             return redirect()->route('settings')
-                ->with('status', 'PayPal credentials not configured. Use Sandbox Demo connect (CSRF POST).');
+                ->with('toast_success', 'PayPal credentials not configured. Use Sandbox Demo connect (CSRF POST).');
         }
 
         $state = Str::random(48);
@@ -53,15 +56,15 @@ final class PayPalOAuthController
         if (! is_string($state) || ! hash_equals($state, (string) $request->query('state', ''))) {
             Log::warning('paypal.oauth.invalid_state', ['user_id' => $user->getAuthIdentifier()]);
 
-            return redirect()->route('settings')->with('error', 'Invalid OAuth state.');
+            return redirect()->route('settings')->with('toast_error', 'Invalid OAuth state.');
         }
         if ($expectedUser && ! hash_equals((string) $expectedUser, (string) $user->getAuthIdentifier())) {
-            return redirect()->route('settings')->with('error', 'OAuth user mismatch.');
+            return redirect()->route('settings')->with('toast_error', 'OAuth user mismatch.');
         }
 
         $code = $request->query('code');
         if (! is_string($code) || $code === '') {
-            return redirect()->route('settings')->with('error', 'PayPal authorization denied.');
+            return redirect()->route('settings')->with('toast_error', 'PayPal authorization denied.');
         }
 
         $paypalMerchantId = $this->exchangeCodeForMerchantId($code);
@@ -71,13 +74,13 @@ final class PayPalOAuthController
                 $paypalMerchantId = 'oauth_demo_'.hash('sha256', $code.$user->getAuthIdentifier());
                 $paypalMerchantId = 'pp_'.substr($paypalMerchantId, 0, 24);
             } else {
-                return redirect()->route('settings')->with('error', 'PayPal token exchange failed.');
+                return redirect()->route('settings')->with('toast_error', 'PayPal token exchange failed.');
             }
         }
 
         $this->persistConnected($request, $user, $paypalMerchantId, 'oauth');
 
-        return redirect()->route('settings')->with('status', 'PayPal Business account connected.');
+        return redirect()->route('settings')->with('toast_success', 'PayPal Business account connected.');
     }
 
     public function sandboxConnect(Request $request): RedirectResponse
@@ -110,7 +113,7 @@ final class PayPalOAuthController
         ]);
 
         return redirect()->route('settings')
-            ->with('status', 'PayPal Sandbox linked and stored on your merchant record (demo).');
+            ->with('toast_success', 'PayPal Sandbox linked and stored on your merchant record (demo).');
     }
 
     /** @return string|null PayPal merchant / payer id */

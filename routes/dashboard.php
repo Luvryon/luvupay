@@ -27,6 +27,7 @@ Route::middleware($console)->group(function () {
     Route::post('/api/v1/dashboard/payouts', [PayoutController::class, 'executePayout'])
         ->middleware(['throttle:10,1'])
         ->name('dashboard.payouts.execute');
+    Route::get('/developers', [MerchantPanelController::class, 'developers'])->name('developers');
     Route::get('/subscriptions', [MerchantPanelController::class, 'subscriptions'])->name('subscriptions');
     Route::get('/settings', [MerchantPanelController::class, 'settings'])->middleware('merchant.can:settings.read')->name('settings');
 

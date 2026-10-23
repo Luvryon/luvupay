@@ -218,8 +218,14 @@
                 <x-ui.button variant="success" x-on:click="choose('renew')" x-bind:disabled="decisionBusy">
                     <span x-text="decisionBusy && !paypalConnecting ? 'Working…' : 'Retry payment → ACTIVE'"></span>
                 </x-ui.button>
+                <x-ui.button variant="success" x-on:click="choose('partial_refund')" x-bind:disabled="decisionBusy">
+                    Partial refund / store credit → AI-RETAINED
+                </x-ui.button>
                 <x-ui.button variant="warn" x-on:click="choose('resale')" x-bind:disabled="decisionBusy">
                     Resell remaining → PENDING RESALE
+                </x-ui.button>
+                <x-ui.button variant="warn" x-on:click="choose('donate')" x-bind:disabled="decisionBusy">
+                    Donate residual → Charity
                 </x-ui.button>
                 <x-ui.button variant="danger" x-on:click="choose('cancel')" x-bind:disabled="decisionBusy">
                     Let expire → CHURNED

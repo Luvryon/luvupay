@@ -12,6 +12,7 @@
             $item('dashboard', 'Overview', 'grid', 'dashboard'),
             $item('wallet', 'Wallet & Transactions', 'card', 'wallet'),
             $item('subscriptions', 'Subscriptions', 'users', 'subscriptions'),
+            $item('developers', 'Developers', 'code', 'developers'),
             $item('analytics', 'Analytics', 'chart', 'analytics', 'analytics.read'),
         ]),
         'Account' => array_filter([
@@ -342,7 +343,7 @@
             <div style="display:flex;align-items:center;gap:8px">@yield('header_actions')<span class="pill {{ $envTone }}">{{ $envLabel }}</span></div>
         </header>
         <main id="main" class="page">
-            @if(session('status'))<div class="c-alert" style="margin-bottom:24px">{{ session('status') }}</div>@endif
+            {{-- status/success messages rendered as LuvuToast --}}
             @if($errors->any())<div class="c-alert" style="margin-bottom:24px;background:#fff0f1;border-color:#f7c3c8;color:#8f1d27">@if($errors->count() === 1){{ $errors->first() }}@else<ul style="margin:0;padding-left:18px">@foreach($errors->all() as $e)<li>{{ $e }}</li>@endforeach</ul>@endif</div>@endif
             @yield('content')
         </main>
@@ -369,9 +370,33 @@
      data-payment-driver="{{ $__obDriver }}"></div>
 
 
+
+@php
+  $__toastQueue = [];
+  if (session('toast_success')) $__toastQueue[] = ['type' => 'success', 'title' => session('toast_success')];
+  if (session('toast_error')) $__toastQueue[] = ['type' => 'error', 'title' => session('toast_error')];
+  if (session('toast_warning')) $__toastQueue[] = ['type' => 'warning', 'title' => session('toast_warning')];
+  if (session('toast_info')) $__toastQueue[] = ['type' => 'info', 'title' => session('toast_info')];
+  // migrate legacy flash labels
+  if (session('status') && !session('toast_success')) $__toastQueue[] = ['type' => 'success', 'title' => session('status')];
+  if (session('error') && !session('toast_error')) $__toastQueue[] = ['type' => 'error', 'title' => session('error')];
+@endphp
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  var queue = @json($__toastQueue);
+  if (!window.LuvuToast || !queue.length) return;
+  queue.forEach(function (item, i) {
+    setTimeout(function () {
+      window.LuvuToast.notify({ type: item.type, title: item.title, duration: 5200 });
+    }, 200 + i * 350);
+  });
+});
+</script>
+
 <script src="/js/toast.js?v={{ @filemtime(public_path('js/toast.js')) }}" defer></script>
 <script src="/js/onboarding-track.js?v={{ @filemtime(public_path('js/onboarding-track.js')) }}" defer></script>
 
+<script src="/js/dom-safe.js?v={{ @filemtime(public_path('js/dom-safe.js')) }}" defer></script>
 <script src="/js/console-search.js" defer></script>
 <script src="/js/alpine.min.js" defer></script>
 </body>

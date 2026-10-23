@@ -246,8 +246,60 @@ final class DemoLifecycleController
                     'metadata' => json_encode($meta),
                     'updated_at' => $now,
                 ]);
+                // Platform/merchant fee on residual (vision: ~10% of remaining value)
+                $feeMinor = max(100, (int) round($amount * 0.10));
+                $meta['resale']['fee_minor'] = $feeMinor;
+                $meta['resale']['path'] = 'marketplace_resale';
+                DB::table('transactions')->where('id', $tx->id)->update([
+                    'metadata' => json_encode($meta),
+                    'updated_at' => $now,
+                ]);
+                try {
+                    if (\Illuminate\Support\Facades\Schema::hasTable('resale_listings') && $tx->subscription_id) {
+                        DB::table('resale_listings')->insert([
+                            'id' => (string) Str::uuid(),
+                            'merchant_id' => $merchantId,
+                            'subscription_id' => $tx->subscription_id,
+                            'seller_merchant_user_id' => $tx->merchant_user_id ?? 'demo',
+                            'seller_email' => $tx->email ?? 'seller@example.com',
+                            'status' => 'active',
+                            'entitlement_status' => 'pending',
+                            'asking_price_minor' => $amount,
+                            'currency' => $tx->currency ?? 'USD',
+                            'access_expires_at' => $now->copy()->addDays(15),
+                            'listed_at' => $now,
+                            'created_at' => $now,
+                            'updated_at' => $now,
+                        ]);
+                    }
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::warning('demo.resale_listing_failed', ['err' => $e->getMessage()]);
+                }
+                DB::table('transactions')->insert([
+                    'id' => (string) Str::uuid(),
+                    'merchant_id' => $merchantId,
+                    'subscription_id' => $tx->subscription_id,
+                    'type' => 'resale_fee',
+                    'status' => 'completed',
+                    'idempotency_key' => 'resale-fee-'.$tx->id,
+                    'merchant_user_id' => $tx->merchant_user_id,
+                    'email' => $tx->email,
+                    'amount_minor' => $feeMinor,
+                    'currency' => $tx->currency,
+                    'provider' => 'luvupay',
+                    'provider_reference' => 'RESALE-FEE-'.$tx->id,
+                    'processed_at' => $now,
+                    'metadata' => json_encode([
+                        'lifecycle' => 'PENDING RESALE',
+                        'parent_transaction_id' => $tx->id,
+                        'path' => 'resale_fee',
+                    ]),
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
                 $this->logWebhookEvent('luvupay', 'marketplace.listing_created', [
                     'transaction_id' => $tx->id,
+                    'fee_minor' => $feeMinor,
                 ]);
                 $msg = 'Remaining access listed on Marketplace — PENDING RESALE';
             } elseif ($choice === 'donate') {
@@ -261,6 +313,28 @@ final class DemoLifecycleController
                     'status' => 'completed',
                     'second_chance_expires_at' => null,
                     'metadata' => json_encode($meta),
+                    'updated_at' => $now,
+                ]);
+                DB::table('transactions')->insert([
+                    'id' => (string) Str::uuid(),
+                    'merchant_id' => $merchantId,
+                    'subscription_id' => $tx->subscription_id,
+                    'type' => 'charity_payout',
+                    'status' => 'completed',
+                    'idempotency_key' => 'charity-'.$tx->id,
+                    'merchant_user_id' => $tx->merchant_user_id,
+                    'email' => $tx->email,
+                    'amount_minor' => $amount,
+                    'currency' => $tx->currency,
+                    'provider' => 'luvupay',
+                    'provider_reference' => 'CHARITY-'.$tx->id,
+                    'processed_at' => $now,
+                    'metadata' => json_encode([
+                        'lifecycle' => 'AI-RETAINED',
+                        'parent_transaction_id' => $tx->id,
+                        'path' => 'charity_donate',
+                    ]),
+                    'created_at' => $now,
                     'updated_at' => $now,
                 ]);
                 $this->logWebhookEvent('luvupay', 'charity.donation', [
