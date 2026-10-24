@@ -36,7 +36,10 @@ final class PayoutController extends Controller
         $merchantId = $user->merchant_id;
 
         $type = $data['payout_type'];
-        $receiver = $this->resolveReceiver($type);
+        // Mock driver (default for demos / no PayPal credentials): payouts are simulated end-to-end,
+        // written to the same ledger, and move the wallet exactly like a real PayPal Payout would.
+        $mock = (string) config('luvupay.payment.driver', 'mock') !== 'paypal';
+        $receiver = $mock ? 'mock-receiver@luvupay.local' : $this->resolveReceiver($type);
         if ($receiver === null) {
             return response()->json([
                 'ok' => false,
@@ -73,19 +76,23 @@ final class PayoutController extends Controller
         $requestId = $senderBatchId;
 
         try {
-            $client = PayPalClient::fromConfig();
-            $money = Money::of($amountMinor, $currency);
-            $batch = $client->createPayout(
-                [[
-                    'receiver' => $receiver, // from .env — never from the request body
-                    'amount' => $money,
-                    'note' => $note,
-                    'sender_item_id' => $requestId,
-                ]],
-                $senderBatchId,
-                $requestId,
-                $type === 'merchant_withdrawal' ? 'LuvuPay withdrawal' : 'LuvuPay charity donation'
-            );
+            if ($mock) {
+                $batch = ['batch_header' => ['payout_batch_id' => 'MOCK-'.strtoupper(Str::random(12)), 'batch_status' => 'SUCCESS']];
+            } else {
+                $client = PayPalClient::fromConfig();
+                $money = Money::of($amountMinor, $currency);
+                $batch = $client->createPayout(
+                    [[
+                        'receiver' => $receiver, // from .env — never from the request body
+                        'amount' => $money,
+                        'note' => $note,
+                        'sender_item_id' => $requestId,
+                    ]],
+                    $senderBatchId,
+                    $requestId,
+                    $type === 'merchant_withdrawal' ? 'LuvuPay withdrawal' : 'LuvuPay charity donation'
+                );
+            }
 
             $batchId = (string) ($batch['batch_header']['payout_batch_id'] ?? $batch['batch_header']['payout_batch_id'] ?? '');
             $status = (string) ($batch['batch_header']['batch_status'] ?? 'UNKNOWN');
@@ -105,11 +112,12 @@ final class PayoutController extends Controller
             DB::table('transactions')->insert([
                 'id' => $ledgerId,
                 'merchant_id' => $merchantId,
+                'idempotency_key' => 'payout-'.$senderBatchId,
                 'type' => $type === 'merchant_withdrawal' ? 'payout' : 'charity_payout',
                 'status' => strtolower($status) === 'success' ? 'completed' : 'pending',
                 'amount_minor' => -abs($amountMinor),
                 'currency' => $currency,
-                'provider' => 'paypal',
+                'provider' => $mock ? 'mock' : 'paypal',
                 'provider_reference' => $batchId ?: $senderBatchId,
                 'email' => $type === 'charity_donation' ? ($data['charity_label'] ?? 'Charity') : null,
                 'metadata' => json_encode([
@@ -147,9 +155,10 @@ final class PayoutController extends Controller
 
             return response()->json([
                 'ok' => true,
-                'message' => $type === 'merchant_withdrawal'
+                'message' => ($mock ? 'Simulated: ' : '').($type === 'merchant_withdrawal'
                     ? 'Withdrawal submitted to PayPal Payouts'
-                    : 'Charity donation submitted to PayPal Payouts',
+                    : 'Charity donation submitted to PayPal Payouts'),
+                'mock' => $mock,
                 'payout_type' => $type,
                 'payout_batch_id' => $batchId,
                 'batch_status' => $status,
@@ -195,12 +204,7 @@ final class PayoutController extends Controller
 
     private function availableBalanceMinor(string $merchantId): int
     {
-        $sum = (int) DB::table('transactions')
-            ->where('merchant_id', $merchantId)
-            ->whereIn('status', ['completed', 'settled', 'pending'])
-            ->sum('amount_minor');
-
-        return max(0, $sum);
+        return (int) app(\App\Services\Dashboard\MerchantMetrics::class)->compute($merchantId)['wallet_balance_minor'];
     }
 
     private function maskEmail(string $email): string

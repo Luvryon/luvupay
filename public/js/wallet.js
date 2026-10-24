@@ -14,11 +14,22 @@
       balanceMinor: 0,
       currency: 'USD',
       rows: [],
+      wallet: {},
       q: '',
       fromDate: '',
       toDate: '',
       page: 1,
       perPage: 15,
+      get breakdown() {
+        var w = this.wallet || {}; var c = this.currency;
+        return [
+          { label: 'Charges', value: money(w.charges_minor, c), color: '#0f172a' },
+          { label: 'Partial refunds', value: '−' + money(w.refunded_minor, c), color: '#b45309' },
+          { label: 'Charity donated', value: '−' + money(w.charity_minor, c), color: '#047857' },
+          { label: 'Resale fees', value: '+' + money(w.resale_fees_minor, c), color: '#4338ca' },
+          { label: 'Withdrawn', value: '−' + money(w.withdrawn_minor, c), color: '#64748b' },
+        ];
+      },
       get balanceLabel() { return money(this.balanceMinor, this.currency); },
       get filteredRows() {
         var q = (this.q || '').toLowerCase().trim();
@@ -49,6 +60,7 @@
           var json = txRes.ok ? await txRes.json() : { data: [] };
           var data = Array.isArray(json.data) ? json.data : [];
           this.currency = sum.currency || 'USD';
+          this.wallet = sum.wallet || {};
           this.balanceMinor = Number(sum.wallet_balance_minor != null ? sum.wallet_balance_minor : sum.available_balance_minor) || 0;
           this.rows = data.map(function (r) {
             var ts = r.created_at ? new Date(r.created_at) : null;

@@ -132,8 +132,9 @@ final class MarketplaceController extends Controller
     {
         $data = $request->validate(['buyer_email' => ['required', 'email', 'max:190']]);
 
+        $mock = $this->mockPayments();
         abort_if(
-            trim((string) config('services.paypal.client_id', '')) === '' || trim((string) config('services.paypal.secret', '')) === '',
+            ! $mock && (trim((string) config('services.paypal.client_id', '')) === '' || trim((string) config('services.paypal.secret', '')) === ''),
             503,
             'PayPal is not configured (PAYPAL_CLIENT_ID / PAYPAL_SECRET)'
         );
@@ -144,6 +145,12 @@ final class MarketplaceController extends Controller
 
         // 2) Talk to PayPal. Any failure hands the listing straight back to the pool.
         try {
+            if ($mock) {
+                // Mock driver: no PayPal call. The "approval" link is our own return URL with a mock order id.
+                $orderId = 'MOCK-ORDER-'.strtoupper(Str::random(12));
+                $approveUrl = url('/marketplace/paypal/return?'.http_build_query(['listing' => $id, 'rt' => $token, 'token' => $orderId]));
+                $order = null;
+            } else {
             $order = $this->paypal()->createOrder(
                 Money::of((int) $listing->price_minor, $listing->currency),
                 $id,
@@ -156,6 +163,7 @@ final class MarketplaceController extends Controller
             $approveUrl = PayPalClient::link($order, 'payer-action', 'approve');
             if ($orderId === '' || ! $approveUrl) {
                 throw new \RuntimeException('PayPal order response missing id or approval link.');
+            }
             }
         } catch (Throwable $e) {
             $this->market->release($id, $token);
@@ -195,7 +203,18 @@ final class MarketplaceController extends Controller
         }
 
         try {
-            $response = $this->paypal()->capturePayment($orderId, 'mkt-cap-'.$orderId);
+            if ($this->mockPayments() && str_starts_with($orderId, 'MOCK-ORDER-')) {
+                $response = [
+                    'status' => 'COMPLETED',
+                    'purchase_units' => [['payments' => ['captures' => [[
+                        'id' => 'MOCK-CAP-'.strtoupper(Str::random(10)),
+                        'status' => 'COMPLETED',
+                        'amount' => ['currency_code' => strtoupper((string) $listing->currency), 'value' => number_format(((int) $listing->price_minor) / 100, 2, '.', '')],
+                    ]]]]],
+                ];
+            } else {
+                $response = $this->paypal()->capturePayment($orderId, 'mkt-cap-'.$orderId);
+            }
         } catch (Throwable $e) {
             $this->market->unclaim($id);                     // reservation stays; buyer can retry the same link
             Log::error('marketplace.capture_error', ['listing' => $id, 'err' => $e->getMessage()]);
@@ -236,6 +255,13 @@ final class MarketplaceController extends Controller
         }
 
         return redirect('/marketplace?cancelled=1');
+    }
+
+    /** True when LUVUPAY_PAYMENT_DRIVER is not "paypal": checkout/payouts are simulated end to end. */
+    private function mockPayments(): bool
+    {
+        return (string) config('luvupay.payment.driver', 'mock') !== 'paypal'
+            && (trim((string) config('services.paypal.client_id', '')) === '' || trim((string) config('services.paypal.secret', '')) === '');
     }
 
     private function paypal(): PayPalClient

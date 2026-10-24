@@ -19,11 +19,19 @@
             <div>
                 <p class="dim" style="margin:0;font-size:.75rem;text-transform:uppercase;letter-spacing:.06em;font-weight:600">Available balance</p>
                 <p style="margin:6px 0 0;font-size:2rem;font-weight:700;letter-spacing:-0.03em;color:#0f172a" x-text="balanceLabel">$0.00</p>
-                <p class="dim" style="margin:6px 0 0;font-size:.8rem">Funded by completed subscription charges and resale fees.</p>
+                <p class="dim" style="margin:6px 0 0;font-size:.8rem">Completed charges − partial refunds − charity − withdrawals + your resale fees.</p>
             </div>
             <button type="button" class="c-btn c-btn-brand" x-on:click="withdraw()" x-bind:disabled="withdrawing || balanceMinor <= 0">
                 <span x-text="withdrawing ? 'Sending…' : 'Withdraw to PayPal'"></span>
             </button>
+        </div>
+        <div class="c-pad" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;border-top:1px solid var(--line)">
+            <template x-for="b in breakdown" x-bind:key="b.label">
+                <div>
+                    <p class="dim" style="margin:0;font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;font-weight:600" x-text="b.label"></p>
+                    <p style="margin:4px 0 0;font-weight:700" x-bind:style="'color:' + b.color" x-text="b.value"></p>
+                </div>
+            </template>
         </div>
     </section>
 

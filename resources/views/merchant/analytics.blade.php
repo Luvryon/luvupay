@@ -7,119 +7,122 @@
     <div class="row">
         <div>
             <h1 class="page-title">Analytics</h1>
-            <p class="page-sub">Live metrics from your merchant ledger — real transactions, not mock data.</p>
+            <p class="page-sub">Live metrics from your ledger for <strong x-text="d.project && d.project.name ? d.project.name : 'your project'"></strong>. Same numbers as Overview and Wallet.</p>
         </div>
         <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px">
-            <div style="position:relative" x-on:click.outside="rangeOpen = false">
-                <button type="button" class="c-btn c-btn-sm" x-on:click="rangeOpen = !rangeOpen" x-text="rangeLabel">Last 30 Days</button>
-                <div x-show="rangeOpen" x-cloak class="dd-menu" style="display:none;right:0;left:auto;min-width:11rem">
-                    <template x-for="r in ranges" :key="r.id">
-                        <button type="button" class="dd-item" x-on:click="pickRange(r)" x-text="r.label"></button>
-                    </template>
-                </div>
+            <div style="display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden">
+                <template x-for="r in ranges" :key="r">
+                    <button type="button" class="c-btn c-btn-sm" style="border:0;border-radius:0"
+                            x-bind:style="days === r ? 'background:var(--brand);color:#fff' : ''"
+                            x-on:click="pick(r)" x-text="r + 'd'"></button>
+                </template>
             </div>
-            <button type="button" class="c-btn c-btn-sm" x-on:click="downloadCsv()" x-bind:disabled="loading">Export CSV</button>
+            <button type="button" class="c-btn c-btn-sm" x-on:click="downloadCsv()" x-bind:disabled="loading || !hasData">Export CSV</button>
             <button type="button" class="c-btn c-btn-brand c-btn-sm" x-on:click="load()" x-bind:disabled="loading">
                 <span x-text="loading ? 'Refreshing…' : 'Refresh'"></span>
             </button>
         </div>
     </div>
 
-    {{-- Primary KPIs --}}
-    <section style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px">
-        <div class="c-card" style="padding:20px 22px">
-            <p style="margin:0;font-size:.7rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)">Total revenue saved</p>
-            <p style="margin:10px 0 0;font-size:1.75rem;font-weight:700;font-variant-numeric:tabular-nums;color:var(--ink)" x-text="kpi.totalRevenueSaved">$0.00</p>
-            <p style="margin:6px 0 0;font-size:.75rem;color:var(--faint)">merchant retention</p>
+    <div class="c-alert" x-show="error" x-cloak><p x-text="error"></p></div>
+
+    <div class="c-card" x-show="loaded && !hasData" x-cloak>
+        <div class="c-pad" style="text-align:center;padding:36px 20px">
+            <p style="margin:0;font-weight:700;font-size:1.05rem">No activity in the last <span x-text="days"></span> days</p>
+            <p class="dim" style="margin:8px 0 16px">Open Overview and run <strong>Simulate 30 days</strong> (or a single checkout) to populate every chart here.</p>
+            <a href="{{ route('dashboard') }}" class="c-btn c-btn-brand">Go to Overview</a>
         </div>
-        <div class="c-card" style="padding:20px 22px">
-            <p style="margin:0;font-size:.7rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)">Churn rate</p>
-            <p style="margin:10px 0 0;font-size:1.75rem;font-weight:700;font-variant-numeric:tabular-nums;color:var(--ink)" x-text="kpi.churnRate">0%</p>
-            <p style="margin:6px 0 0;font-size:.75rem;color:var(--faint)">lifecycle + subscriptions</p>
-        </div>
-        <div class="c-card" style="padding:20px 22px">
-            <p style="margin:0;font-size:.7rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)">Marketplace volume</p>
-            <p style="margin:10px 0 0;font-size:1.75rem;font-weight:700;font-variant-numeric:tabular-nums;color:var(--ink)" x-text="kpi.marketplaceVolume">$0.00</p>
-            <p style="margin:6px 0 0;font-size:.75rem;color:var(--faint)">resale completed</p>
-        </div>
-        <div class="c-card" style="padding:20px 22px">
-            <p style="margin:0;font-size:.7rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)">Charity impact</p>
-            <p style="margin:10px 0 0;font-size:1.75rem;font-weight:700;font-variant-numeric:tabular-nums;color:var(--ink)" x-text="kpi.charityImpact">$0.00</p>
-            <p style="margin:6px 0 0;font-size:.75rem;color:var(--faint)">charity payouts</p>
-        </div>
+    </div>
+
+    <section style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:16px" x-show="hasData" x-cloak>
+        <template x-for="k in kpis" :key="k.label">
+            <div class="c-card" style="padding:18px 20px">
+                <p class="dim" style="margin:0;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;font-weight:600" x-text="k.label"></p>
+                <p style="margin:6px 0 0;font-size:1.6rem;font-weight:700;letter-spacing:-0.02em" x-bind:style="'color:' + k.color" x-text="k.value"></p>
+                <p class="dim" style="margin:4px 0 0;font-size:.78rem" x-text="k.hint"></p>
+            </div>
+        </template>
     </section>
 
-    {{-- Secondary metrics --}}
-    <section style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px">
-        <div class="c-card" style="padding:16px 18px">
-            <p style="margin:0;font-size:.68rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)">Revenue saved</p>
-            <p style="margin:8px 0 0;font-size:1.15rem;font-weight:700;font-variant-numeric:tabular-nums" x-text="kpi.revenueSaved">$0.00</p>
-        </div>
-        <div class="c-card" style="padding:16px 18px">
-            <p style="margin:0;font-size:.68rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)">Chargebacks prevented</p>
-            <p style="margin:8px 0 0;font-size:1.15rem;font-weight:700;font-variant-numeric:tabular-nums" x-text="kpi.chargebacks">0</p>
-        </div>
-        <div class="c-card" style="padding:16px 18px">
-            <p style="margin:0;font-size:.68rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)">Active subscribers</p>
-            <p style="margin:8px 0 0;font-size:1.15rem;font-weight:700;font-variant-numeric:tabular-nums" x-text="kpi.subscriptions">0</p>
-        </div>
-        <div class="c-card" style="padding:16px 18px">
-            <p style="margin:0;font-size:.68rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)">Charity donated</p>
-            <p style="margin:8px 0 0;font-size:1.15rem;font-weight:700;font-variant-numeric:tabular-nums" x-text="kpi.charity">$0.00</p>
-        </div>
-        <div class="c-card" style="padding:16px 18px">
-            <p style="margin:0;font-size:.68rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)">Resale volume</p>
-            <p style="margin:8px 0 0;font-size:1.15rem;font-weight:700;font-variant-numeric:tabular-nums" x-text="kpi.resaleVolume">$0.00</p>
-        </div>
+    <section class="c-card" x-show="hasData" x-cloak>
+        <div class="c-head"><div><h2 class="c-title">Revenue vs. revenue saved</h2><p class="c-sub">Daily completed charges (bars) and value LuvuPay retained (line).</p></div>
+            <div class="dim" style="font-size:.78rem;display:flex;gap:12px"><span><i style="display:inline-block;width:10px;height:10px;background:#6366f1;border-radius:2px"></i> Revenue</span><span><i style="display:inline-block;width:10px;height:10px;background:#10b981;border-radius:2px"></i> Saved</span></div></div>
+        <div class="c-pad" style="overflow-x:auto"><div x-html="chartMain()"></div></div>
     </section>
 
-    {{-- Ledger table --}}
-    <section class="c-card">
-        <div class="c-head">
-            <div>
-                <h2 class="c-title">Recent ledger activity</h2>
-                <p class="c-sub">Rows from the transactions API for this merchant</p>
+    <section style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px" x-show="hasData" x-cloak>
+        <div class="c-card">
+            <div class="c-head"><div><h2 class="c-title">Charity &amp; resale per day</h2><p class="c-sub">Donations (green) and marketplace resale volume (amber).</p></div></div>
+            <div class="c-pad" style="overflow-x:auto"><div x-html="chartSecondary()"></div></div>
+        </div>
+        <div class="c-card">
+            <div class="c-head"><div><h2 class="c-title">Lifecycle outcomes</h2><p class="c-sub">What happened to each charge.</p></div></div>
+            <div class="c-pad stack-sm">
+                <template x-for="o in outcomes" :key="o.label">
+                    <div>
+                        <div style="display:flex;justify-content:space-between;font-size:.84rem"><span x-text="o.label"></span><strong x-text="o.count"></strong></div>
+                        <div style="height:8px;border-radius:99px;background:var(--line);margin-top:4px;overflow:hidden"><div style="height:100%;border-radius:99px" x-bind:style="'width:' + o.pct + '%;background:' + o.color"></div></div>
+                    </div>
+                </template>
             </div>
         </div>
-        <div style="overflow-x:auto">
-            <table class="c-table">
-                <thead>
-                    <tr>
-                        <th>Date</th>
-                        <th>Customer</th>
-                        <th>Type</th>
-                        <th>Lifecycle</th>
-                        <th>Amount</th>
-                        <th>Status</th>
-                    </tr>
-                </thead>
+    </section>
+
+    <section style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px" x-show="hasData" x-cloak>
+        <div class="c-card">
+            <div class="c-head"><div><h2 class="c-title">Where revenue saved comes from</h2></div></div>
+            <div class="c-pad stack-sm">
+                <template x-for="s in savedParts" :key="s.label">
+                    <div style="display:flex;justify-content:space-between;font-size:.9rem"><span><i style="display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:8px" x-bind:style="'background:' + s.color"></i><span x-text="s.label"></span></span><strong x-text="s.value"></strong></div>
+                </template>
+                <div style="display:flex;justify-content:space-between;border-top:1px solid var(--line);padding-top:10px;font-weight:700"><span>Total saved</span><span x-text="money(d.revenue_saved_minor)"></span></div>
+            </div>
+        </div>
+        <div class="c-card">
+            <div class="c-head"><div><h2 class="c-title">Subscribers</h2></div></div>
+            <div class="c-pad stack-sm">
+                <template x-for="s in subs" :key="s.label">
+                    <div style="display:flex;justify-content:space-between;font-size:.9rem"><span x-text="s.label"></span><strong x-text="s.value"></strong></div>
+                </template>
+                <div style="display:flex;justify-content:space-between;border-top:1px solid var(--line);padding-top:10px;font-weight:700"><span>Churn rate</span><span x-text="(d.churn_rate || 0) + '%'"></span></div>
+            </div>
+        </div>
+        <div class="c-card">
+            <div class="c-head"><div><h2 class="c-title">Project settings in effect</h2><p class="c-sub">Edited in <a href="{{ route('settings') }}#project">Settings</a>.</p></div></div>
+            <div class="c-pad stack-sm" style="font-size:.9rem">
+                <template x-for="p in projectRows" :key="p.label">
+                    <div style="display:flex;justify-content:space-between"><span class="dim" x-text="p.label"></span><strong x-text="p.value"></strong></div>
+                </template>
+            </div>
+        </div>
+    </section>
+
+    <section class="c-card" x-show="hasData && (d.insights || []).length" x-cloak>
+        <div class="c-head"><div><h2 class="c-title">Insights</h2></div></div>
+        <div class="c-pad stack-sm">
+            <template x-for="(i, idx) in d.insights" :key="idx"><div class="c-item"><span x-text="i.icon"></span><p style="margin:0" x-text="i.text"></p></div></template>
+        </div>
+    </section>
+
+    <section class="c-card" x-show="hasData" x-cloak>
+        <div class="c-head"><div><h2 class="c-title">Recent activity</h2><p class="c-sub">Latest ledger rows in this range.</p></div></div>
+        <div class="c-pad" style="overflow-x:auto">
+            <table style="width:100%;border-collapse:collapse;font-size:.86rem">
+                <thead><tr class="dim" style="text-align:left"><th style="padding:6px 8px">When</th><th style="padding:6px 8px">Customer</th><th style="padding:6px 8px">Type</th><th style="padding:6px 8px">Status</th><th style="padding:6px 8px;text-align:right">Amount</th></tr></thead>
                 <tbody>
-                    <template x-for="row in rows" :key="row.id">
-                        <tr>
-                            <td style="white-space:nowrap;color:var(--muted);font-size:.85rem" x-text="fmtDate(row.created_at)"></td>
-                            <td>
-                                <span style="font-weight:600" x-text="row.customer_name || row.email || '—'"></span>
-                                <span style="display:block;font-size:.75rem;color:var(--faint)" x-show="row.customer_name && row.email" x-text="row.email"></span>
-                            </td>
-                            <td x-text="row.type || '—'"></td>
-                            <td>
-                                <span class="tag" x-show="row.lifecycle" x-bind:class="lifeClass(row.lifecycle)" x-text="row.lifecycle"></span>
-                                <span x-show="!row.lifecycle" style="color:var(--faint)">—</span>
-                            </td>
-                            <td style="font-variant-numeric:tabular-nums;font-weight:600" x-text="fmtMoney(row.amount_minor, row.currency)"></td>
-                            <td><span class="tag" x-bind:class="statusClass(row.status)" x-text="row.status || '—'"></span></td>
+                    <template x-for="r in d.recent" :key="r.id">
+                        <tr style="border-top:1px solid var(--line)">
+                            <td style="padding:8px" x-text="new Date(r.created_at).toLocaleString()"></td>
+                            <td style="padding:8px" x-text="r.customer_name || r.email || '—'"></td>
+                            <td style="padding:8px" x-text="r.type"></td>
+                            <td style="padding:8px" x-text="r.lifecycle || r.status"></td>
+                            <td style="padding:8px;text-align:right;font-weight:600" x-text="money(r.amount_minor)"></td>
                         </tr>
                     </template>
-                    <tr x-show="!loading && rows.length === 0">
-                        <td colspan="6" class="c-empty">No ledger rows yet. Run Simulate 30 days or a sandbox checkout.</td>
-                    </tr>
                 </tbody>
             </table>
         </div>
     </section>
 </div>
-@endsection
-
-@push('scripts')
 <script src="/js/analytics.js?v={{ @filemtime(public_path('js/analytics.js')) ?: time() }}" defer></script>
-@endpush
+@endsection

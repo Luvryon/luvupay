@@ -8,6 +8,7 @@ use App\Http\Controllers\PayoutController;
 use App\Http\Controllers\Demo\DemoCheckoutController;
 use App\Http\Controllers\Demo\DemoInsightsController;
 use App\Http\Controllers\Demo\DemoLifecycleController;
+use App\Http\Controllers\Demo\DemoMonthController;
 use App\Http\Controllers\Demo\DemoResaleController;
 use App\Http\Controllers\Demo\DemoSmartConvertController;
 use App\Http\Controllers\EnterpriseConsoleController;
@@ -59,6 +60,8 @@ Route::middleware($console)->group(function () {
 
     Route::prefix('api/v1/dashboard')->name('dashboard.api.')->middleware('throttle:120,1')->group(function () {
         Route::get('summary', [DashboardApiController::class, 'summary'])->name('summary');
+        Route::get('analytics', [DashboardApiController::class, 'analytics'])->name('analytics');
+        Route::get('project', [DashboardApiController::class, 'project'])->name('project');
         Route::get('transactions', [DashboardApiController::class, 'transactions'])->name('transactions');
         Route::get('subscriptions', [DashboardApiController::class, 'subscriptions'])->name('subscriptions');
         Route::get('resale-listings', [DashboardApiController::class, 'resaleListings'])->name('resale');
@@ -86,6 +89,7 @@ Route::middleware($console)->group(function () {
 
     Route::prefix('api/v1/dashboard/demo')->name('dashboard.demo.')->middleware(['demo.simulator', 'throttle:30,1'])->group(function () {
         Route::post('checkout', [DemoCheckoutController::class, 'simulateCheckout'])->name('checkout');
+        Route::post('simulate-month', DemoMonthController::class)->name('simulate-month');
         Route::post('forgot', [DemoLifecycleController::class, 'simulateForgot'])->name('forgot');
         Route::post('decision', [DemoLifecycleController::class, 'decision'])->name('decision');
         Route::post('resale', [DemoResaleController::class, 'simulateResale'])->name('resale');

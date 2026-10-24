@@ -82,9 +82,9 @@ class MockPaymentProvider implements PaymentProviderInterface
         return true; // real driver calls POST /v1/notifications/verify-webhook-signature
     }
 
-    public function parseWebhook(string $rawBody): ProviderWebhookEvent
+    public function parseWebhook(\Illuminate\Http\Request $request): ProviderWebhookEvent
     {
-        $p = json_decode($rawBody, true, 512, JSON_THROW_ON_ERROR);
+        $p = json_decode($request->getContent(), true, 512, JSON_THROW_ON_ERROR);
         $r = $p['resource'] ?? [];
         $cents = isset($r['amount']['total']) ? (int) round(((float) $r['amount']['total']) * 100) : null;
 
