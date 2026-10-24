@@ -6,11 +6,6 @@
     return m ? m.content : '';
   }
 
-  function defaults() {
-    return { nameSelect: '', nameCustom: '', description: '', env: 'sandbox', plan: 'Premium', price: 20, currency: 'USD',
-      grace_period: true, marketplace_resale: true, charity_split: true, partial_refund_pct: 20 };
-  }
-
   window.projectContext = function () {
     var root = document.getElementById('project-context');
     var initialName = root ? (root.getAttribute('data-name') || '') : '';
@@ -24,7 +19,7 @@
       currentName: initialName,
       hasProject: hasInitial,
       currentEnv: initialEnv,
-      form: defaults(),
+      form: { nameSelect: '', nameCustom: '', description: '', env: 'sandbox', marketplace_resale: true, charity_split: true, partial_refund_pct: 20 },
       nameOpen: false,
       envOpen: false,
       nameOptions: [
@@ -52,7 +47,7 @@
         return o ? o.label : 'Select environment…';
       },
       openNew: function () {
-        this.form = defaults();
+        this.form = { nameSelect: '', nameCustom: '', description: '', env: 'sandbox' };
         this.nameOpen = false;
         this.envOpen = false;
         this.openModal = true;
@@ -81,19 +76,13 @@
               name: name,
               description: this.form.description || '',
               environment: env,
-              plan: (this.form.plan || 'Premium').trim(),
-              price_minor: Math.max(100, Math.round((Number(this.form.price) || 20) * 100)),
-              currency: (this.form.currency || 'USD').toUpperCase(),
-              grace_period: !!this.form.grace_period,
+              plan: 'Premium',
               marketplace_resale: !!this.form.marketplace_resale,
               charity_split: !!this.form.charity_split,
-              partial_refund_bps: Math.round(Math.min(100, Math.max(0, isNaN(Number(this.form.partial_refund_pct)) ? 20 : Number(this.form.partial_refund_pct))) * 100),
+              partial_refund_bps: Math.round((Number(this.form.partial_refund_pct) || 20) * 100),
             }),
           });
-          if (!res.ok) {
-            var ej = await res.json().catch(function () { return {}; });
-            throw new Error(ej.message || 'Failed to save project');
-          }
+          if (!res.ok) throw new Error('Failed to save project');
           var j = await res.json();
           this.currentName = (j.project && j.project.name) || name;
           this.currentEnv = env;
@@ -102,8 +91,6 @@
           this.toast = true;
           var self = this;
           setTimeout(function () { self.toast = false; }, 3200);
-          // Reload so Overview, Settings, Analytics and the simulator all read the same saved project
-          setTimeout(function () { window.location.reload(); }, 700);
           try {
             // Prefer window.PROJECT (dashboard.js exports it); fall back to bare PROJECT
             var P = (typeof window !== 'undefined' && window.PROJECT) ? window.PROJECT : (typeof PROJECT !== 'undefined' ? PROJECT : null);
@@ -120,7 +107,7 @@
             }
           } catch (e) {}
         } catch (e) {
-          alert('Could not create project: ' + (e && e.message ? e.message : 'please try again.'));
+          alert('Could not create project. Please try again.');
         } finally {
           this.creating = false;
         }

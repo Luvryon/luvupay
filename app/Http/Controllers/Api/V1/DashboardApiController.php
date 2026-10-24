@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Api\V1;
 
-use App\Services\Dashboard\MerchantMetrics;
 use App\Support\MerchantProject;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -39,134 +38,205 @@ final class DashboardApiController
             'plan' => ['nullable', 'string', 'max:40'],
             'description' => ['nullable', 'string', 'max:240'],
             'environment' => ['nullable', 'in:sandbox,production'],
-            'interval' => ['nullable', 'in:month,year'],
-            'price_minor' => ['nullable', 'integer', 'min:100', 'max:100000000'],
+            'price_minor' => ['nullable', 'integer', 'min:100'],
             'currency' => ['nullable', 'string', 'size:3'],
             'marketplace_resale' => ['sometimes', 'boolean'],
             'charity_split' => ['sometimes', 'boolean'],
-            'grace_period' => ['sometimes', 'boolean'],
             'partial_refund_bps' => ['sometimes', 'integer', 'min:0', 'max:10000'],
         ]);
 
-        $current = MerchantProject::current();
-        if (empty($data['name']) && ! $current->isSet()) {
+        // Allow feature-flag-only updates when project already exists
+        if (empty($data['name']) && ! MerchantProject::current()->isSet()) {
             return response()->json(['ok' => false, 'message' => 'Create a project first'], 422);
         }
 
         $payload = [];
-        foreach (['name', 'plan', 'description', 'environment', 'interval', 'price_minor', 'currency', 'partial_refund_bps'] as $k) {
+        foreach (['name', 'plan', 'description', 'environment', 'price_minor', 'currency', 'partial_refund_bps'] as $k) {
             if (array_key_exists($k, $data) && $data[$k] !== null) {
                 $payload[$k] = $data[$k];
             }
         }
-        if ($request->has('description')) {
-            $payload['description'] = (string) ($data['description'] ?? '');
+        if (array_key_exists('marketplace_resale', $data)) {
+            $payload['marketplace_resale'] = (bool) $data['marketplace_resale'];
         }
-        foreach (['marketplace_resale', 'charity_split', 'grace_period'] as $k) {
-            if (array_key_exists($k, $data)) {
-                $payload[$k] = (bool) $data[$k];
-            }
+        if (array_key_exists('charity_split', $data)) {
+            $payload['charity_split'] = (bool) $data['charity_split'];
         }
-        if (empty($payload['name'])) {
-            $payload['name'] = $current->name;
+        // Feature-only update: keep existing name
+        if (empty($payload['name']) && MerchantProject::current()->isSet()) {
+            $payload['name'] = MerchantProject::current()->name;
         }
         $project = MerchantProject::store($payload);
-
-        // Keep the merchant's billing currency aligned with the project so every ledger row/KPI uses one currency.
-        if (! empty($payload['currency'])) {
-            DB::table('merchants')->where('id', $this->merchantId($request))->update([
-                'currency' => strtoupper($payload['currency']), 'updated_at' => now(),
-            ]);
-        }
 
         return response()->json(['ok' => true, 'project' => $project->toArray()]);
     }
 
-    public function project(): JsonResponse
-    {
-        return response()->json(['project' => MerchantProject::current()->toArray()]);
-    }
-
-    public function summary(Request $request, MerchantMetrics $metrics): JsonResponse
+    public function summary(Request $request): JsonResponse
     {
         $m = $this->merchantId($request);
-        $data = $metrics->compute($m);
+        $sum = fn (string $type) => (int) DB::table('transactions')->where('merchant_id', $m)->where('type', $type)->where('status', 'completed')->sum('amount_minor');
+        $merchant = DB::table('merchants')->where('id', $m)->first(['serial_forgetter_threshold', 'currency']);
 
-        $data['integrations'] = [
-            'paypal' => trim((string) config('services.paypal.client_id', '')) !== ''
-                && trim((string) config('services.paypal.secret', '')) !== '',
-            'paypal_mode' => config('services.paypal.mode', 'sandbox'),
-            'payment_driver' => config('luvupay.payment.driver', 'mock'),
-            'paypal_merchant_connected' => (bool) (DB::table('merchants')->where('id', $m)->value('paypal_merchant_id')
-                ?: session('paypal_connected')),
-            'nebius' => (bool) config('nebius.enabled', true)
-                && trim((string) config('nebius.api_key', '')) !== '',
-        ];
-        // In mock mode withdrawals are simulated, so the wallet never needs a PayPal link.
-        $data['can_withdraw'] = $data['integrations']['payment_driver'] !== 'paypal'
-            || $data['integrations']['paypal_merchant_connected'];
-        $data['project'] = MerchantProject::current()->toArray();
-        $data['recent_events'] = $data['events'] = $this->recentEventsForMerchant($m, 40);
-
-        return response()->json($data);
-    }
-
-    public function analytics(Request $request, MerchantMetrics $metrics): JsonResponse
-    {
-        $m = $this->merchantId($request);
-        $days = (int) $request->query('days', 30);
-        $days = in_array($days, [7, 30, 90], true) ? $days : 30;
-        $data = $metrics->compute($m, $days);
-        $data['project'] = MerchantProject::current()->toArray();
-
-        $data['recent'] = DB::table('transactions')->where('merchant_id', $m)
-            ->where('created_at', '>=', now()->subDays($days - 1)->startOfDay())
-            ->orderByDesc('created_at')->limit(25)
-            ->get(['id', 'created_at', 'email', 'type', 'status', 'amount_minor', 'currency', 'metadata'])
-            ->map(function ($r) {
-                $meta = json_decode($r->metadata ?? '{}', true) ?: [];
-
-                return [
-                    'id' => $r->id,
-                    'created_at' => Carbon::parse($r->created_at)->toIso8601String(),
-                    'email' => $r->email,
-                    'customer_name' => $meta['display_name'] ?? null,
-                    'type' => self::TYPE_LABELS[$r->type] ?? Str::headline($r->type),
-                    'status' => $r->status,
-                    'lifecycle' => $meta['lifecycle'] ?? '',
-                    'amount_minor' => abs((int) $r->amount_minor),
-                    'currency' => trim($r->currency),
-                ];
-            })->values();
-
-        return response()->json($data);
-    }
-
-    /** @return list<array<string,mixed>> */
-    private function recentEventsForMerchant(string $merchantId, int $limit = 40): array
-    {
+        $txBase = DB::table('transactions')->where('merchant_id', $m);
+        $chargeCount = (int) (clone $txBase)->where('type', 'charge')->count();
+        $completedCharges = (int) (clone $txBase)->where('type', 'charge')->where('status', 'completed')->count();
+        $churned = 0;
+        $retained = 0;
         try {
-            return DB::table('webhook_events')->where('merchant_id', $merchantId)
-                ->orderByDesc('received_at')->limit($limit)
-                ->get(['id', 'provider', 'event_type', 'status', 'payload', 'received_at'])
-                ->map(function ($r) {
-                    $payload = is_string($r->payload) ? $r->payload : json_encode($r->payload);
-
-                    return [
-                        'id' => $r->id,
-                        'timestamp' => Carbon::parse($r->received_at)->toIso8601String(),
-                        'provider' => $r->provider,
-                        'event_type' => $r->event_type,
-                        'status' => $r->status,
-                        'http_hint' => in_array($r->status, ['processed', 'received'], true) ? '200 OK' : '400 Error',
-                        'payload_preview' => Str::limit((string) $payload, 180),
-                    ];
-                })->values()->all();
+            $subs = DB::table('subscriptions')->where('merchant_id', $m);
+            $totalSubs = (int) (clone $subs)->count();
+            $churned = (int) (clone $subs)->whereIn('status', ['cancelled', 'churned', 'expired'])->count();
+            $activeSubs = (int) (clone $subs)->whereIn('status', ['active', 'trialing', 'past_due'])->count();
         } catch (\Throwable $e) {
-            report($e);
-
-            return [];
+            $totalSubs = 0;
+            $activeSubs = $completedCharges;
         }
+
+        // Lifecycle signals from transaction metadata (demo + live)
+        $recent = DB::table('transactions')->where('merchant_id', $m)->orderByDesc('created_at')->limit(1000)
+            ->get(['metadata', 'type', 'status', 'amount_minor', 'churn_risk']);
+        foreach ($recent as $r) {
+            $meta = json_decode($r->metadata ?? '{}', true) ?: [];
+            $life = strtoupper((string) ($meta['lifecycle'] ?? ''));
+            if ($life === 'AI-RETAINED' || ! empty($meta['smart_convert']['chargeback_prevented'] ?? null)) {
+                $retained++;
+            }
+            if ($life === 'CHURNED') {
+                $churned++;
+            }
+        }
+
+        $resaleVolume = $sum('resale_sale');
+        if ($resaleVolume === 0) {
+            // some rows typed as Resale label only in UI; sum by type name variants
+            $resaleVolume = (int) DB::table('transactions')->where('merchant_id', $m)
+                ->where('status', 'completed')
+                ->where(function ($q) {
+                    $q->where('type', 'like', '%resale%')->orWhere('type', 'resale_sale');
+                })->sum('amount_minor');
+        }
+
+        $chargeVolume = $sum('charge');
+        $revenueSavedRows = abs($sum('revenue_saved'));
+
+
+        /*
+         | Revenue Saved (hackathon formula)
+         | A) Partial refund / store credit → cash retained (e.g. $10 of $20)
+         | B) Marketplace resale → merchant transfer/platform fee from resale
+         | C) Charity split → avoided PayPal chargeback penalty (~$15 = 1500 minor)
+         */
+        $revenueSaved = $sum('merchant_retention');
+        $CHARGEBACK_AVOIDED_MINOR = 1500; // $15 typical PayPal chargeback fee avoided
+        if ($revenueSaved === 0) {
+            foreach ($recent as $r) {
+                $meta = json_decode($r->metadata ?? '{}', true) ?: [];
+                $life = strtoupper((string) ($meta['lifecycle'] ?? ''));
+                $sc = $meta['smart_convert'] ?? [];
+                $path = strtolower((string) ($sc['path'] ?? $meta['retention_path'] ?? $meta['choice'] ?? ''));
+
+                // Explicit minor if engine stored it
+                if (isset($sc['revenue_retained_minor'])) {
+                    $revenueSaved += abs((int) $sc['revenue_retained_minor']);
+                    continue;
+                }
+                if (isset($meta['revenue_saved_minor'])) {
+                    $revenueSaved += abs((int) $meta['revenue_saved_minor']);
+                    continue;
+                }
+
+                // Path C — charity / chargeback prevented
+                if (! empty($sc['chargeback_prevented']) || str_contains($path, 'charity') || str_contains($path, 'donate')) {
+                    $revenueSaved += $CHARGEBACK_AVOIDED_MINOR;
+                    continue;
+                }
+                // Path B — resale fee to merchant
+                if ($life === 'RESOLD' || $life === 'PENDING RESALE' || str_contains($path, 'resale') || $r->type === 'resale_sale') {
+                    // Prefer fee fields; else ~10% of amount as transfer fee
+                    $fee = (int) ($sc['fee_minor'] ?? $meta['merchant_fee_minor'] ?? max(100, (int) round(abs((int) $r->amount_minor) * 0.10)));
+                    $revenueSaved += abs($fee);
+                    continue;
+                }
+                // Path A — partial refund / store credit / AI-retained
+                if ($life === 'AI-RETAINED' || $life === 'SMART-CONVERTED' || str_contains($path, 'credit') || str_contains($path, 'partial') || str_contains($path, 'refund')) {
+                    $retained = (int) ($sc['store_credit_minor'] ?? $meta['retained_minor'] ?? (int) round(abs((int) $r->amount_minor) * 0.5));
+                    $revenueSaved += abs($retained);
+                }
+            }
+        }
+
+        // Also count completed resale_sale fees not already in loop
+        $revenueSaved += $revenueSavedRows;
+
+        $resaleFees = (int) DB::table('transactions')->where('merchant_id', $m)
+            ->where('status', 'completed')
+            ->whereIn('type', ['resale_payout', 'resale_fee', 'merchant_fee'])
+            ->sum('amount_minor');
+        if ($resaleFees > 0 && $revenueSaved === 0) {
+            $revenueSaved += abs($resaleFees);
+        }
+
+        $charity = abs($sum('charity_payout'));
+        if ($charity === 0) {
+            $charity = (int) DB::table('transactions')->where('merchant_id', $m)
+                ->where(function ($q) {
+                    $q->where('type', 'like', '%charity%')->orWhere('type', 'charity_payout');
+                })->sum(DB::raw('ABS(amount_minor)'));
+        }
+        $denom = max(1, $retained + $churned);
+        $churnRate = round(($churned / $denom) * 100, 1);
+
+
+        // Merchant wallet available = completed subscription charges + resale credits − withdrawals
+        $withdrawn = (int) DB::table('transactions')->where('merchant_id', $m)
+            ->where('status', 'completed')
+            ->where(function ($q) {
+                $q->whereIn('type', ['payout', 'merchant_withdrawal', 'withdrawal', 'user_payout'])
+                    ->orWhere('type', 'like', '%withdraw%');
+            })->sum(DB::raw('ABS(amount_minor)'));
+        $walletIn = abs($chargeVolume) + abs($resaleVolume);
+        // Resale payouts to original subscribers are not merchant wallet
+        $resalePayoutOut = (int) DB::table('transactions')->where('merchant_id', $m)
+            ->where('status', 'completed')
+            ->where('type', 'resale_payout')
+            ->sum(DB::raw('ABS(amount_minor)'));
+        $walletBalance = max(0, $walletIn - $withdrawn - abs($resalePayoutOut));
+
+        return response()->json([
+            'integrations' => [
+                'paypal' => trim((string) config('services.paypal.client_id', '')) !== ''
+                    && trim((string) config('services.paypal.secret', '')) !== '',
+                'paypal_mode' => config('services.paypal.mode', 'sandbox'),
+                'payment_driver' => config('luvupay.payment.driver', 'mock'),
+                'paypal_merchant_connected' => (bool) (DB::table('merchants')->where('id', $m)->value('paypal_merchant_id')
+                    ?: DB::table('merchants')->where('id', $m)->value('paypal_email')
+                    ?: session('paypal_connected')),
+                'nebius' => (bool) config('nebius.enabled', true)
+                    && trim((string) config('nebius.api_key', '')) !== '',
+            ],
+            'currency' => trim($merchant->currency ?? 'USD'),
+            'revenue_saved_minor' => $revenueSaved,
+            'charity_minor' => abs($charity),
+            'resale_volume_minor' => abs($resaleVolume),
+            'charge_volume_minor' => abs($chargeVolume),
+            // Alias for UI "Total revenue" = completed charge volume (real ledger)
+            'total_revenue_minor' => abs($chargeVolume),
+            'active_listings' => DB::table('resale_listings')->where('merchant_id', $m)->where('status', 'active')->where('access_expires_at', '>', now())->count(),
+            'serial_forgetters' => DB::table('subscriptions')->where('merchant_id', $m)
+                ->where('forgotten_cancel_count', '>=', $merchant->serial_forgetter_threshold ?? 2)->distinct()->count('merchant_user_id'),
+            'transaction_count' => $chargeCount,
+            'active_subscribers' => $activeSubs,
+            'chargebacks_prevented' => $retained,
+            'churned_count' => $churned,
+            'churn_rate' => $churnRate,
+            'marketplace_volume_minor' => $resaleVolume,
+            'charity_impact_minor' => $charity,
+            'total_revenue_saved_minor' => $revenueSaved,
+            'wallet_balance_minor' => $walletBalance,
+            'available_balance_minor' => $walletBalance,
+            'recent_events' => $this->recentEventsForMerchant($m, 40),
+            'events' => $this->recentEventsForMerchant($m, 40),
+        ]);
     }
 
     public function transactions(Request $request): JsonResponse

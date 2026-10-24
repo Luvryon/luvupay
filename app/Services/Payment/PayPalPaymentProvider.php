@@ -113,9 +113,9 @@ class PayPalPaymentProvider implements PaymentProviderInterface
         return $this->client->verifyWebhookSignature($headers, $rawBody, $providerWebhookId ?: null);
     }
 
-    public function parseWebhook(\Illuminate\Http\Request $request): ProviderWebhookEvent
+    public function parseWebhook(string $rawBody): ProviderWebhookEvent
     {
-        return $this->webhooks->parse($request->getContent());
+        return $this->webhooks->parse($rawBody);
     }
 
     // ---- mapping
