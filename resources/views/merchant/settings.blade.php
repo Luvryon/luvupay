@@ -22,7 +22,7 @@
             <a href="#paypal">PayPal</a>
             <a href="#branding">Company logo</a>
             <a href="#api">API credentials</a>
-            <a href="#project">Project features</a>
+            <a href="#project">Project</a>
             <a href="#webhooks">Webhooks</a>
             <a href="#payouts">Payout allow-list</a>
             <a href="#danger">Deactivate</a>
@@ -160,49 +160,59 @@
             </section>
 
             <script type="application/json" id="project-features-seed">{!! json_encode([
-                'marketplace_resale' => (bool) ($project->marketplaceResale ?? false),
-                'charity_split' => (bool) ($project->charitySplit ?? false),
+                'is_set' => (bool) ($project->isSet() ?? false),
+                'name' => (string) ($project->name ?? ''),
+                'plan' => (string) ($project->plan ?? 'Premium'),
+                'description' => (string) ($project->description ?? ''),
+                'environment' => (string) ($project->environment ?? 'sandbox'),
+                'price_minor' => (int) ($project->priceMinor ?? 2000),
+                'currency' => (string) ($project->currency ?? 'USD'),
+                'grace_period' => (bool) ($project->gracePeriod ?? true),
+                'marketplace_resale' => (bool) ($project->marketplaceResale ?? true),
+                'charity_split' => (bool) ($project->charitySplit ?? true),
                 'partial_refund_bps' => (int) ($project->partialRefundBps ?? 2000),
             ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) !!}</script>
             <section class="c-card" id="project" x-data="projectFeatures()" x-init="init()">
                 <div class="c-head">
                     <div>
-                        <h2 class="c-title">Project features</h2>
-                        <p class="c-sub">Options after a missed-cancellation grace period. Default is expire — no force.</p>
+                        <h2 class="c-title">Project</h2>
+                        <p class="c-sub">One source of truth: the simulator, Wallet, Analytics and checkout all follow these settings.</p>
                     </div>
                 </div>
                 <div class="c-pad stack-sm">
-                    <p class="dim" style="margin:0;font-size:.88rem">Merchant control: decide which retention paths are available after a failed payment.</p>
+                    <p x-show="!isSet" x-cloak class="dim" style="margin:0;font-size:.88rem">No project yet. Name it below and save to create one.</p>
+                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px">
+                        <div class="field" style="margin:0"><label class="label" for="pf-name">Project name</label><input id="pf-name" class="input" type="text" maxlength="80" x-model="name"></div>
+                        <div class="field" style="margin:0"><label class="label" for="pf-plan">Plan</label><input id="pf-plan" class="input" type="text" maxlength="40" x-model="plan"></div>
+                        <div class="field" style="margin:0"><label class="label" for="pf-price">Price / month</label><input id="pf-price" class="input" type="number" min="1" step="0.01" x-model.number="price"></div>
+                        <div class="field" style="margin:0"><label class="label" for="pf-cur">Currency</label>
+                            <select id="pf-cur" class="input" x-model="currency"><option>USD</option><option>EUR</option><option>GBP</option><option>IDR</option><option>SGD</option></select></div>
+                        <div class="field" style="margin:0"><label class="label" for="pf-env">Environment</label>
+                            <select id="pf-env" class="input" x-model="environment"><option value="sandbox">Sandbox (no real money)</option><option value="production">Production</option></select></div>
+                    </div>
+                    <div class="field" style="margin:0"><label class="label" for="pf-desc">Description</label><input id="pf-desc" class="input" type="text" maxlength="240" x-model="description"></div>
+
                     <label style="display:flex;gap:12px;align-items:flex-start;padding:14px;border:1px solid var(--line);border-radius:12px;cursor:pointer">
                         <input type="checkbox" x-model="gracePeriod" style="margin-top:3px;accent-color:var(--brand)">
-                        <span><strong style="font-size:.9rem">Enable 48-Hour Grace Period</strong><span class="dim" style="display:block;font-size:.82rem;margin-top:2px">Hold the subscription for 48 hours and offer partial refund / store credit.</span></span>
+                        <span><strong style="font-size:.9rem">Grace Period</strong><span class="dim" style="display:block;font-size:.82rem;margin-top:2px">Hold a missed-cancellation charge for 48 hours and offer the retention paths below. Off = charges settle immediately.</span></span>
                     </label>
                     <label style="display:flex;gap:12px;align-items:flex-start;padding:14px;border:1px solid var(--line);border-radius:12px;cursor:pointer">
                         <input type="checkbox" x-model="marketplaceResale" style="margin-top:3px;accent-color:var(--brand)">
-                        <span><strong style="font-size:.9rem">Marketplace Resale</strong><span class="dim" style="display:block;font-size:.82rem;margin-top:2px">Users can sell remaining days after grace.</span></span>
+                        <span><strong style="font-size:.9rem">Marketplace Resale</strong><span class="dim" style="display:block;font-size:.82rem;margin-top:2px">Users can sell remaining days after grace. You keep the platform fee.</span></span>
                     </label>
                     <label style="display:flex;gap:12px;align-items:flex-start;padding:14px;border:1px solid var(--line);border-radius:12px;cursor:pointer">
                         <input type="checkbox" x-model="charitySplit" style="margin-top:3px;accent-color:var(--brand)">
                         <span><strong style="font-size:.9rem">Charity Split</strong><span class="dim" style="display:block;font-size:.82rem;margin-top:2px">Users can donate residual subscription value.</span></span>
                     </label>
-                    <div class="field" x-show="charitySplit" x-cloak>
-                        <label class="label" for="charity-partner">Charity partner</label>
-                        <select id="charity-partner" class="input" x-model="charityPartner">
-                            <option value="red_cross">American Red Cross</option>
-                            <option value="unicef">UNICEF</option>
-                            <option value="doctors">Doctors Without Borders</option>
-                            <option value="wwf">WWF</option>
-                        </select>
-                    </div>
                     <div class="field">
                         <label class="label" for="refund-pct">Partial refund offer (%)</label>
                         <input id="refund-pct" class="input" type="number" min="0" max="100" x-model.number="refundPct">
                     </div>
                     <div style="display:flex;align-items:center;gap:12px">
-                        <button type="button" class="c-btn c-btn-brand" x-on:click="save()" x-bind:disabled="saving">
-                            <span x-text="saving ? 'Saving…' : 'Save features'"></span>
+                        <button type="button" class="c-btn c-btn-brand" x-on:click="save()" x-bind:disabled="saving || !name.trim()">
+                            <span x-text="saving ? 'Saving…' : (isSet ? 'Save project' : 'Create project')"></span>
                         </button>
-                        <span x-show="saved" x-cloak class="dim" style="color:#0f8f5f">Saved</span>
+                        <span x-show="saved" x-cloak class="dim" style="color:#0f8f5f">Saved. Overview and Analytics now use these settings.</span>
                         <span x-show="error" x-cloak style="color:#b4232f;font-size:.85rem" x-text="error"></span>
                     </div>
                 </div>

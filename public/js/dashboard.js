@@ -208,6 +208,7 @@
 
       walletWithdrawing: false,
       paypalConnected: false,
+      walletCurrency: 'USD',
       dualViewOpen: false,
 
       // AI Insights — derived from real ledger / summary (never invented)
@@ -306,32 +307,25 @@
         this.loadingSeed = true;
         this.seedModalOpen = false;
         var self = this;
-        var okCount = 0, failCount = 0;
         try {
-          self.pushToast('Sending ' + rows.length + ' checkouts to PayPal Sandbox for ' + (self.seedProjectName || 'project') + '…', '⏳');
-          for (var i = 0; i < rows.length; i++) {
-            var n = rows[i];
-            try {
-              var out = await self.sim('checkout', { display_name: n.name, email: n.email }, 'seed');
-              if (!out) { failCount++; }
-              else { okCount++; }
-              await sleep(400);
-            } catch (e) { failCount++; }
+          self.pushToast('Simulating 30 days for ' + (self.seedProjectName || 'your project') + '…', '⏳');
+          var payload = rows.map(function (n) { return { name: n.name, email: n.email }; });
+          var res = await request('POST', 'demo/simulate-month', { rows: payload });
+          if (!res.ok || !res.data || !res.data.ok) {
+            var why = (res.data && (res.data.message || res.data.error)) || ('HTTP ' + res.status);
+            self.pushToast('Simulation failed: ' + why, '⚠️');
+            return;
           }
           await self.load();
-          await self.refreshEvents();
           self.hasData = !!(self.rowData && self.rowData.length);
-          if (!self.hasData) {
-            self.pushToast('No ledger rows (ok=' + okCount + ', fail=' + failCount + '). Check project, PayPal connect, or LUVUPAY_DEMO_SIMULATOR.', '⚠️');
-          } else {
-            self.pushToast('Wrote ' + okCount + ' checkout(s) — wallet, subscriptions & events updated', '✅');
-            if (window.LuvuToast) {
-              window.LuvuToast.info('Data synced', 'Open Wallet or Subscriptions to inspect the same ledger rows.');
-            }
+          self.pushToast(res.data.message || 'Simulated 30 days', '✅');
+          if (window.LuvuToast) {
+            window.LuvuToast.info('Data synced', 'Wallet, Subscriptions, Invoices, Analytics and Events now show the same ledger.');
           }
           try { window.localStorage.setItem('luvupay_demo_seeded', '1'); } catch (e) {}
         } catch (e) {
           self.pushToast('Simulation failed — see console', '⚠️');
+          if (window.console) console.error(e);
         } finally {
           self.loadingSeed = false;
         }
@@ -364,48 +358,36 @@
           this.hasData = !!(this.rowData && this.rowData.length);
           if (r[3].ok && r[3].data.limit != null) this.usage = r[3].data;
 
-          // Real KPI from DashboardApiController::summary + ledger rows (no invented floors)
-          var c = summary.currency || PROJECT.currency || 'USD';
-          var revenueSavedMinor = Number(summary.revenue_saved_minor) || 0;
-          var charityMinor = Math.abs(Number(summary.charity_minor) || 0);
-          var chargeVolumeMinor = Math.abs(Number(summary.charge_volume_minor != null ? summary.charge_volume_minor : summary.total_revenue_minor) || 0);
-          var chargeCount = summary.transaction_count != null
-            ? Number(summary.transaction_count)
-            : this.rowData.filter(function (t) { return String(t.type).toLowerCase().indexOf('charge') !== -1; }).length;
-          var activeSubs = summary.active_subscribers != null ? Number(summary.active_subscribers) : chargeCount;
-          var resaleVolume = Math.abs(Number(summary.resale_volume_minor) || 0);
-          if (resaleVolume === 0) {
-            resaleVolume = this.rowData.filter(function (t) {
-              return String(t.type).toLowerCase().indexOf('resale') !== -1;
-            }).reduce(function (s, t) { return s + Math.abs(Number(t.amount_minor) || 0); }, 0);
-          }
-          var chargebacks = summary.chargebacks_prevented != null
-            ? Number(summary.chargebacks_prevented)
-            : this.rowData.filter(function (t) {
-                return String(t.lifecycle || '').toUpperCase().indexOf('RETAIN') !== -1;
-              }).length;
-
-          // Wallet funded by completed charges + resale (server-side ledger math)
-          var walletMinor = Number(summary.wallet_balance_minor != null ? summary.wallet_balance_minor : summary.available_balance_minor);
-          if (!walletMinor && walletMinor !== 0) {
-            walletMinor = chargeVolumeMinor; // fallback: all completed charges sit in wallet until withdrawn
-          }
-          this.walletBalanceMinor = Math.max(0, walletMinor || 0);
-          this.paypalConnected = !!(summary.integrations && (summary.integrations.paypal_merchant_connected || summary.integrations.paypal));
-
-          // Revenue Saved = retention formula only (never fall back to gross charge volume)
-          this.kpi = {
-            revenueSaved: money(revenueSavedMinor, c),
-            chargebacks: String(chargebacks),
-            subscriptions: String(activeSubs),
-            charity: money(charityMinor, c),
-            resaleVolume: money(resaleVolume, c)
-          };
+          this.applySummary(summary);
           var self = this;
           this.$nextTick(function () { self.mountGrids(); });
         } finally {
           this.loading = false;
         }
+      },
+
+      applySummary: function (summary) {
+        summary = summary || {};
+        var c = summary.currency || PROJECT.currency || 'USD';
+        this.kpi = {
+          revenueSaved: money(Number(summary.revenue_saved_minor) || 0, c),
+          chargebacks: String(Number(summary.chargebacks_prevented) || 0),
+          subscriptions: String(Number(summary.active_subscribers) || 0),
+          charity: money(Math.abs(Number(summary.charity_minor) || 0), c),
+          resaleVolume: money(Math.abs(Number(summary.resale_volume_minor) || 0), c)
+        };
+        this.walletBalanceMinor = Math.max(0, Number(summary.wallet_balance_minor) || 0);
+        this.walletCurrency = c;
+        this.paypalConnected = !!(summary.can_withdraw);
+        this.aiInsights = Array.isArray(summary.insights) ? summary.insights : [];
+        if (Array.isArray(summary.recent_events)) this.webhookLogs = summary.recent_events;
+      },
+
+      refreshKpi: async function () {
+        try {
+          var r = await request('GET', 'summary');
+          if (r.ok) this.applySummary(r.data);
+        } catch (e) { /* keep last numbers */ }
       },
 
       mountGrids: function () {
@@ -529,7 +511,7 @@
       // ---- Merchant Wallet · PayPal Payouts (real sandbox)
       withdrawToPayPal: async function () {
         if (this.walletWithdrawing || this.walletBalanceMinor <= 0) return;
-        // Gate: must connect merchant PayPal in Settings first
+        // Gate: only when the live PayPal driver is on and no PayPal merchant is linked (mock mode never needs it)
         if (!this.paypalConnected) {
           this.pushToast('Connect PayPal in Settings before withdrawing.', '⚠️');
           try { window.location.href = '/settings'; } catch (e) {}
@@ -537,14 +519,14 @@
         }
         this.walletWithdrawing = true;
         var amountMinor = this.walletBalanceMinor;
-        var amount = money(amountMinor, 'USD');
+        var amount = money(amountMinor, this.walletCurrency || 'USD');
         try {
           var res = await request('POST', 'wallet/withdraw', { amount_minor: amountMinor, payout_type: 'merchant_withdrawal' });
           if (res && res.ok) {
             this.walletBalanceMinor = 0;
-            this.pushToast(amount + ' sent to your linked PayPal account.', '💸');
-            if (res.data && res.data.batch_id) {
-              this.pushToast('PayPal batch: ' + res.data.batch_id, '🔗');
+            this.pushToast(amount + (res.data && res.data.mock ? ' withdrawn (simulated PayPal payout).' : ' sent to your linked PayPal account.'), '💸');
+            if (res.data && res.data.payout_batch_id) {
+              this.pushToast('Payout batch: ' + res.data.payout_batch_id, '🔗');
             }
             await this.load();
           } else {
@@ -577,6 +559,7 @@
               this.pushToast('Open Settings → PayPal, or set LUVUPAY_PAYMENT_DRIVER=mock', '⚠️');
             }
           }
+          if (res.ok) { await this.refreshKpi(); }
           return res.ok ? res.data : null;
         } catch (e) {
           this.simMsgOk = false;

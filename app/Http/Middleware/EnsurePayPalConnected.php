@@ -57,6 +57,11 @@ final class EnsurePayPalConnected
             return false;
         }
 
+        // Mock driver: every payment/payout is simulated, so no PayPal link is required to use the console.
+        if ((string) config('luvupay.payment.driver', 'mock') !== 'paypal') {
+            return true;
+        }
+
         $merchant = self::merchantOf($user);
         if ($merchant && self::dbConnected($merchant)) {
             return true;

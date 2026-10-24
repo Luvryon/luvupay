@@ -89,12 +89,27 @@
                         </div>
                     </div>
                 </div>
-            </div>
-            <div class="modal-foot">
-                <button type="button" class="c-btn" x-on:click="close()">Cancel</button>
-                
+                <div style="display:grid;grid-template-columns:1fr 1fr 110px;gap:12px">
+                    <div class="field" style="margin:0">
+                        <label class="label" for="np-plan">Plan name</label>
+                        <input id="np-plan" class="input" type="text" x-model="form.plan" maxlength="40" placeholder="Premium">
+                    </div>
+                    <div class="field" style="margin:0">
+                        <label class="label" for="np-price">Price</label>
+                        <input id="np-price" class="input" type="number" min="1" step="0.01" x-model.number="form.price" placeholder="20.00">
+                    </div>
+                    <div class="field" style="margin:0">
+                        <label class="label" for="np-cur">Currency</label>
+                        <select id="np-cur" class="input" x-model="form.currency"><option>USD</option><option>EUR</option><option>GBP</option><option>IDR</option><option>SGD</option></select>
+                    </div>
+                </div>
+
                 <div class="field" style="display:grid;gap:10px;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--bg)">
-                    <p class="label" style="margin:0">Post-grace options</p>
+                    <p class="label" style="margin:0">Retention settings <span style="font-weight:400;color:var(--muted)">(also editable in Settings)</span></p>
+                    <label style="display:flex;gap:10px;align-items:flex-start;cursor:pointer">
+                        <input type="checkbox" x-model="form.grace_period" style="margin-top:3px;accent-color:var(--brand)" />
+                        <span><strong style="font-size:.9rem">Grace Period</strong><span style="display:block;font-size:.8rem;color:var(--muted)">Hold a missed-cancellation charge and let the user choose before it settles.</span></span>
+                    </label>
                     <label style="display:flex;gap:10px;align-items:flex-start;cursor:pointer">
                         <input type="checkbox" x-model="form.marketplace_resale" style="margin-top:3px;accent-color:var(--brand)" />
                         <span><strong style="font-size:.9rem">Marketplace Resale</strong><span style="display:block;font-size:.8rem;color:var(--muted)">Let users sell remaining days after grace.</span></span>
@@ -108,6 +123,10 @@
                         <input id="np-refund" class="input" type="number" min="0" max="100" x-model.number="form.partial_refund_pct" />
                     </div>
                 </div>
+            </div>
+            <div class="modal-foot">
+                <button type="button" class="c-btn" x-on:click="close()">Cancel</button>
+                
                 <button type="button" class="c-btn c-btn-brand" x-bind:disabled="!resolvedName || creating" x-on:click="createProject()">
                     <span x-text="creating ? 'Creating…' : 'Create project'"></span>
                 </button>
