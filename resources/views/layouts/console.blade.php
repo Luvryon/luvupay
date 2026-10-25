@@ -12,6 +12,7 @@
             $item('dashboard', 'Overview', 'grid', 'dashboard'),
             $item('wallet', 'Wallet & Transactions', 'card', 'wallet'),
             $item('subscriptions', 'Subscriptions', 'users', 'subscriptions'),
+            $item('resale', 'Resale', 'store', 'resale'),
             $item('developers', 'Developers', 'code', 'developers'),
             $item('analytics', 'Analytics', 'chart', 'analytics', 'analytics.read'),
         ]),
@@ -22,6 +23,7 @@
         ]),
         'Resources' => [
             ['href' => url('/marketplace'), 'label' => 'Marketplace', 'icon' => 'store', 'active' => false, 'external' => true],
+            ['href' => url('/m/'.($user?->merchant_id ?? '')), 'label' => 'Public merchant page', 'icon' => 'store', 'active' => false, 'external' => true],
             ['href' => url('/docs'), 'label' => 'Documentation', 'icon' => 'book', 'active' => false, 'external' => true],
             ['href' => url('/status'), 'label' => 'System status', 'icon' => 'pulse', 'active' => false, 'external' => true],
         ],
@@ -33,7 +35,7 @@
     try {
         $m = $user?->merchant ?? null;
         if ($m && ! empty($m->logo_path)) {
-            $merchantLogo = asset('storage/'.$m->logo_path);
+            $merchantLogo = \App\Support\MerchantBranding::logoUrl($m);
         }
     } catch (\Throwable $e) {}
 @endphp
@@ -381,18 +383,10 @@
   if (session('status') && !session('toast_success')) $__toastQueue[] = ['type' => 'success', 'title' => session('status')];
   if (session('error') && !session('toast_error')) $__toastQueue[] = ['type' => 'error', 'title' => session('error')];
 @endphp
-<script>
-document.addEventListener('DOMContentLoaded', function () {
-  var queue = @json($__toastQueue);
-  if (!window.LuvuToast || !queue.length) return;
-  queue.forEach(function (item, i) {
-    setTimeout(function () {
-      window.LuvuToast.notify({ type: item.type, title: item.title, duration: 5200 });
-    }, 200 + i * 350);
-  });
-});
-</script>
+<script type="application/json" id="toast-queue">@json($__toastQueue)</script>
+<script src="/js/toast-queue.js" defer></script>
 
+<x-ui.live-user-simulator />
 <script src="/js/toast.js?v={{ @filemtime(public_path('js/toast.js')) }}" defer></script>
 <script src="/js/onboarding-track.js?v={{ @filemtime(public_path('js/onboarding-track.js')) }}" defer></script>
 

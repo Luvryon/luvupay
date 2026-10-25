@@ -331,7 +331,7 @@ class MerchantPanelController extends Controller
 
         $merchant->forceFill(['logo_path' => $path])->save();
 
-        $url = asset('storage/'.$path);
+        $url = \App\Support\MerchantBranding::logoUrl($merchant->fresh());
 
         return $this->logoResponse($request, true, 'Company logo updated.', 200, [
             'logo_path' => $path,
@@ -353,6 +353,24 @@ class MerchantPanelController extends Controller
         }
 
         return back()->with('toast_success', $message);
+    }
+
+    public function saveInvoiceDetails(Request $request)
+    {
+        $merchant = $this->resolveMerchant($request);
+        abort_unless($merchant, 404);
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:120'],
+            'billing_address' => ['nullable', 'string', 'max:400'],
+            'tax_id' => ['nullable', 'string', 'max:60'],
+        ]);
+        $merchant->forceFill([
+            'name' => trim(strip_tags($data['name'])),
+            'billing_address' => isset($data['billing_address']) ? trim(strip_tags($data['billing_address'])) : null,
+            'tax_id' => isset($data['tax_id']) ? trim(strip_tags($data['tax_id'])) : null,
+        ])->save();
+
+        return back()->with('toast_success', 'Invoice details saved. New invoices and emails will use them.');
     }
 
     public function removeLogo(Request $request)

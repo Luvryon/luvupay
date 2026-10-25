@@ -5,7 +5,7 @@ use App\Http\Controllers\SnippetController;
 use Illuminate\Support\Facades\Route;
 
 
-Route::get('/v1/badge.js', [SnippetController::class, 'badge'])->middleware('throttle:600,1')->name('badge.js');
+Route::get('/v1/badge.js', [SnippetController::class, 'badge'])->middleware('throttle:600,1,luvupay-api8')->name('badge.js');
 
 // Order matters: authenticate first, then the per-merchant limiter can key on the merchant.
 Route::prefix('v1')->middleware(['merchant.auth', 'api.usage', 'throttle:merchant-api'])->group(function () {
@@ -24,7 +24,7 @@ Route::prefix('v1')->middleware(['merchant.auth', 'api.usage', 'throttle:merchan
     Route::get('export', MerchantExportController::class)->middleware('scope:export:read')->name('api.export');
 
     // Nebius AI intelligence layer (rate-limited)
-    Route::prefix('ai')->middleware(['scope:ai:read', 'throttle:100,1'])->group(function () {
+    Route::prefix('ai')->middleware(['scope:ai:read', 'throttle:100,1,luvupay-api27'])->group(function () {
         Route::post('churn-prediction', [AIController::class, 'churnPrediction']);
         Route::post('resale-price-suggestion', [AIController::class, 'resalePriceSuggestion']);
         Route::get('subscription-health-report', [AIController::class, 'subscriptionHealthReport']);

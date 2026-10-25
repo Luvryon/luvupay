@@ -82,6 +82,12 @@ final class Money implements Stringable
         return $result;
     }
 
+    /** Decimal string for payment APIs (PayPal Orders/Payouts): integer math, never floats. 1234 => "12.34". */
+    public function toDecimalString(): string
+    {
+        return sprintf('%d.%02d', intdiv($this->amountMinor, 100), $this->amountMinor % 100);
+    }
+
     public function format(): string
     {
         return number_format($this->amountMinor / 100, 2) . ' ' . $this->currency;

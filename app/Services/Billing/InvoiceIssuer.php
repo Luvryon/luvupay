@@ -25,7 +25,7 @@ final class InvoiceIssuer
 
         $lineItems = $extra['line_items'] ?? [
             [
-                'description' => 'Pro Subscription — 30 Days',
+                'description' => ($extra['product'] ?? \App\Support\MerchantProject::current()->product() ?: 'Pro Subscription').' — 30 days',
                 'quantity' => 1,
                 'unit_amount_minor' => $subtotal,
                 'amount_minor' => $subtotal,
@@ -47,7 +47,7 @@ final class InvoiceIssuer
             'merchant_id' => $merchantId,
             'transaction_id' => $tx->id,
             'invoice_number' => $number,
-            'billing_name' => $merchant->name ?? 'Merchant',
+            'billing_name' => $extra['customer_name'] ?? ($tx->email ?? 'Customer'),
             'billing_address' => $merchant->billing_address ?? "{$merchant->name}\nBilling Department\nUnited States",
             'tax_id' => $merchant->tax_id ?? null,
             'subtotal_minor' => $subtotal,
@@ -60,6 +60,7 @@ final class InvoiceIssuer
             'metadata' => json_encode([
                 'provider_reference' => $tx->provider_reference ?? null,
                 'email' => $tx->email ?? null,
+                'customer_name' => $extra['customer_name'] ?? null,
             ]),
             'issued_at' => $now,
             'paid_at' => $now,

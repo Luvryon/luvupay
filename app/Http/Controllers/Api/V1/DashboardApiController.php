@@ -142,6 +142,41 @@ final class DashboardApiController
         return response()->json($data);
     }
 
+    public function resale(Request $request): JsonResponse
+    {
+        $m = $this->merchantId($request);
+        $merchant = DB::table('merchants')->where('id', $m)->first();
+        $project = MerchantProject::current();
+        $hosted = app(\App\Services\Hosted\HostedPurchase::class);
+        $rows = DB::table('resale_listings')->where('merchant_id', $m)->orderByDesc('listed_at')->limit(100)->get();
+        $list = $rows->map(function ($l) use ($merchant, $hosted) {
+            $v = $l->redeem_token ? $hosted->listingView($l, $merchant) : null;
+            $cur = trim((string) $l->currency) ?: 'USD';
+
+            return [
+                'id' => $l->id,
+                'status' => $l->status === 'active' && Carbon::parse($l->access_expires_at)->isPast() ? 'expired' : $l->status,
+                'seller' => $v['seller'] ?? $l->seller_email,
+                'buyer' => $l->buyer_email,
+                'days' => $v['days'] ?? null,
+                'price_minor' => (int) $l->asking_price_minor,
+                'currency' => $cur,
+                'token' => $l->redeem_token,
+                'link' => $l->redeem_token ? url('/redeem/'.$l->redeem_token) : null,
+                'listed_at' => $l->listed_at ? Carbon::parse($l->listed_at)->toIso8601String() : null,
+                'sold_at' => $l->sold_at ? Carbon::parse($l->sold_at)->toIso8601String() : null,
+            ];
+        })->values();
+
+        return response()->json([
+            'enabled' => $project->marketplaceResale,
+            'store_url' => url('/m/'.$m),
+            'currency' => trim((string) ($merchant->currency ?? 'USD')) ?: 'USD',
+            'counts' => ['active' => $list->where('status', 'active')->count(), 'sold' => $list->where('status', 'sold')->count()],
+            'listings' => $list,
+        ]);
+    }
+
     /** @return list<array<string,mixed>> */
     private function recentEventsForMerchant(string $merchantId, int $limit = 40): array
     {

@@ -264,10 +264,12 @@ final class DemoLifecycleController
                             'seller_email' => $tx->email ?? 'seller@example.com',
                             'status' => 'active',
                             'entitlement_status' => 'pending',
-                            'asking_price_minor' => $amount,
+                            'asking_price_minor' => max(100, (int) round($amount * 0.6)),
                             'currency' => $tx->currency ?? 'USD',
                             'access_expires_at' => $now->copy()->addDays(15),
                             'listed_at' => $now,
+                            'redeem_token' => \App\Services\Hosted\HostedPurchase::token((string) ($meta['display_name'] ?? $tx->email ?? 'user'), 15),
+                            'metadata' => json_encode(['seller_name' => $meta['display_name'] ?? null, 'source' => 'decision']),
                             'created_at' => $now,
                             'updated_at' => $now,
                         ]);

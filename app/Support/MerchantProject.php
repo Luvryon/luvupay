@@ -37,6 +37,22 @@ final class MerchantProject
         return new self;
     }
 
+    /** Project of a specific merchant, no login/session needed (public storefront, hosted checkout). */
+    public static function forMerchant(string $merchantId): self
+    {
+        try {
+            $raw = DB::table('merchants')->where('id', $merchantId)->value('project_json');
+            $decoded = is_string($raw) ? json_decode($raw, true) : (is_array($raw) ? $raw : null);
+            if (is_array($decoded) && trim((string) ($decoded['name'] ?? '')) !== '') {
+                return self::fromPayload($decoded);
+            }
+        } catch (\Throwable $e) {
+            // ignore
+        }
+
+        return new self;
+    }
+
     public function isSet(): bool
     {
         return trim($this->name) !== '';

@@ -525,6 +525,7 @@
           if (res && res.ok) {
             this.walletBalanceMinor = 0;
             this.pushToast(amount + (res.data && res.data.mock ? ' withdrawn (simulated PayPal payout).' : ' sent to your linked PayPal account.'), '💸');
+            if (res.data && res.data.warning) { this.pushToast(res.data.warning, '⚠️'); }
             if (res.data && res.data.payout_batch_id) {
               this.pushToast('Payout batch: ' + res.data.payout_batch_id, '🔗');
             }

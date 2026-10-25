@@ -356,7 +356,6 @@
 
 </div>
 
-    <x-ui.live-user-simulator />
 @endsection
 
 @push('scripts')

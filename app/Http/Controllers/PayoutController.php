@@ -76,23 +76,37 @@ final class PayoutController extends Controller
         $requestId = $senderBatchId;
 
         try {
+            $fallbackReason = null;
             if ($mock) {
                 $batch = ['batch_header' => ['payout_batch_id' => 'MOCK-'.strtoupper(Str::random(12)), 'batch_status' => 'SUCCESS']];
             } else {
-                $client = PayPalClient::fromConfig();
-                $money = Money::of($amountMinor, $currency);
-                $batch = $client->createPayout(
-                    [[
-                        'receiver' => $receiver, // from .env — never from the request body
-                        'amount' => $money,
-                        'note' => $note,
-                        'sender_item_id' => $requestId,
-                    ]],
-                    $senderBatchId,
-                    $requestId,
-                    $type === 'merchant_withdrawal' ? 'LuvuPay withdrawal' : 'LuvuPay charity donation'
-                );
+                try {
+                    $client = PayPalClient::fromConfig();
+                    $money = Money::of($amountMinor, $currency);
+                    $batch = $client->createPayout(
+                        [[
+                            'receiver' => $receiver, // from .env — never from the request body
+                            'amount' => $money,
+                            'note' => $note,
+                            'sender_item_id' => $requestId,
+                        ]],
+                        $senderBatchId,
+                        $requestId,
+                        $type === 'merchant_withdrawal' ? 'LuvuPay withdrawal' : 'LuvuPay charity donation'
+                    );
+                } catch (Throwable $pe) {
+                    // PayPal Sandbox frequently rejects payouts (Payouts not enabled on the app, sender account without
+                    // balance, unverified receiver). In sandbox we still complete the withdrawal as a clearly-labelled
+                    // simulation instead of failing with HTTP 502. Production never falls back.
+                    if (! $this->sandboxFallback()) {
+                        throw $pe;
+                    }
+                    $fallbackReason = $this->explainPayPalError($pe->getMessage());
+                    Log::warning('paypal.payout.sandbox_fallback', ['type' => $type, 'merchant_id' => $merchantId, 'error' => $pe->getMessage()]);
+                    $batch = ['batch_header' => ['payout_batch_id' => 'SANDBOX-SIM-'.strtoupper(Str::random(10)), 'batch_status' => 'SUCCESS']];
+                }
             }
+            $simulated = $mock || $fallbackReason !== null;
 
             $batchId = (string) ($batch['batch_header']['payout_batch_id'] ?? $batch['batch_header']['payout_batch_id'] ?? '');
             $status = (string) ($batch['batch_header']['batch_status'] ?? 'UNKNOWN');
@@ -117,7 +131,7 @@ final class PayoutController extends Controller
                 'status' => strtolower($status) === 'success' ? 'completed' : 'pending',
                 'amount_minor' => -abs($amountMinor),
                 'currency' => $currency,
-                'provider' => $mock ? 'mock' : 'paypal',
+                'provider' => $simulated ? 'mock' : 'paypal',
                 'provider_reference' => $batchId ?: $senderBatchId,
                 'email' => $type === 'charity_donation' ? ($data['charity_label'] ?? 'Charity') : null,
                 'metadata' => json_encode([
@@ -128,6 +142,8 @@ final class PayoutController extends Controller
                     'charity_label' => $data['charity_label'] ?? null,
                     'receiver_masked' => $this->maskEmail($receiver),
                     'env_swap' => true,
+                    'simulated' => $simulated,
+                    'fallback_reason' => $fallbackReason,
                 ]),
                 'created_at' => now(),
                 'updated_at' => now(),
@@ -155,10 +171,12 @@ final class PayoutController extends Controller
 
             return response()->json([
                 'ok' => true,
-                'message' => ($mock ? 'Simulated: ' : '').($type === 'merchant_withdrawal'
+                'message' => ($simulated ? 'Simulated: ' : '').($type === 'merchant_withdrawal'
                     ? 'Withdrawal submitted to PayPal Payouts'
                     : 'Charity donation submitted to PayPal Payouts'),
-                'mock' => $mock,
+                'mock' => $simulated,
+                'fallback' => $fallbackReason !== null,
+                'warning' => $fallbackReason ? 'PayPal Sandbox did not accept this payout ('.$fallbackReason.'). It was recorded as a simulated payout so your wallet stays consistent.' : null,
                 'payout_type' => $type,
                 'payout_batch_id' => $batchId,
                 'batch_status' => $status,
@@ -178,7 +196,8 @@ final class PayoutController extends Controller
 
             return response()->json([
                 'ok' => false,
-                'error' => 'PayPal Payouts failed: '.$e->getMessage(),
+                'error' => 'PayPal Payouts failed: '.$this->explainPayPalError($e->getMessage()),
+                'hint' => 'Check PAYPAL_CLIENT_ID/SECRET, that Payouts is enabled on the PayPal app, that the sender sandbox account has funds, and set PAYPAL_MODE=sandbox.',
             ], 502);
         }
     }
@@ -200,6 +219,35 @@ final class PayoutController extends Controller
         }
 
         return $email;
+    }
+
+    private function sandboxFallback(): bool
+    {
+        return (string) config('services.paypal.mode', 'sandbox') !== 'live'
+            && filter_var(config('luvupay.payout_sandbox_fallback', true), FILTER_VALIDATE_BOOLEAN);
+    }
+
+    private function explainPayPalError(string $raw): string
+    {
+        $m = strtoupper($raw);
+        $map = [
+            'INSUFFICIENT_FUNDS' => 'the sender sandbox account has insufficient funds',
+            'AUTHORIZATION_ERROR' => 'Payouts is not enabled for this PayPal app (enable "Payouts" in the developer dashboard)',
+            'PAYOUTS_NOT_ENABLED' => 'Payouts is not enabled for this PayPal app',
+            'RECEIVER_UNREGISTERED' => 'the receiver email is not a registered sandbox account',
+            'INVALID_CLIENT' => 'invalid PayPal client id/secret',
+            'INVALID_REQUEST' => 'PayPal rejected the request format',
+            'USER_BUSINESS_ERROR' => 'the sandbox receiver account cannot receive payouts',
+            'MALFORMED_REQUEST' => 'PayPal rejected the request format',
+            'TIMEOUT' => 'PayPal timed out',
+        ];
+        foreach ($map as $needle => $text) {
+            if (str_contains($m, $needle)) {
+                return $text;
+            }
+        }
+
+        return mb_substr(trim($raw) !== '' ? $raw : 'unknown PayPal error', 0, 160);
     }
 
     private function availableBalanceMinor(string $merchantId): int

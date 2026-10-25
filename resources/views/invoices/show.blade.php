@@ -1,85 +1,114 @@
-@php
-    $fmt = fn ($minor, $c = null) => number_format(($minor ?? 0) / 100, 2).' '.($c ?? $invoice->currency);
-    $issued = \Illuminate\Support\Carbon::parse($invoice->issued_at ?? $invoice->created_at)->toFormattedDateString();
-@endphp
 <!DOCTYPE html>
-<html lang="en" class="h-full">
+<html lang="en">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex, nofollow">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; form-action 'none'; base-uri 'self'; object-src 'none'">
-    <title>Invoice {{ $invoice->invoice_number }} · LuvuPay</title>
-    <link rel="stylesheet" href="/css/ui.css?v={{ @filemtime(public_path('css/ui.css')) }}">
+    <title>Invoice {{ $d['number'] }} · {{ $d['from']['name'] }}</title>
+    <style>
+        :root{--accent:#4f46e5;--ink:#0f172a;--muted:#64748b;--line:#e2e8f0;--soft:#eef2ff}
+        *{box-sizing:border-box}
+        body{margin:0;background:#f1f5f9;color:var(--ink);font-family:Inter,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.5;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+        .bar{max-width:820px;margin:24px auto 12px;padding:0 16px;display:flex;gap:10px;flex-wrap:wrap}
+        .btn{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:10px;padding:9px 16px;font:600 13px inherit;font-family:inherit;text-decoration:none;cursor:pointer}
+        .btn.pri{background:var(--accent);border-color:var(--accent);color:#fff}
+        .sheet{max-width:820px;margin:0 auto 40px;background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 10px 40px rgba(15,23,42,.08);padding:48px;position:relative}
+        .top{display:flex;justify-content:space-between;gap:24px;align-items:flex-start}
+        .brand{display:flex;gap:16px;align-items:flex-start}
+        .logo{width:64px;height:64px;border-radius:12px;object-fit:contain;flex:none}
+        .initials{width:64px;height:64px;border-radius:12px;background:var(--soft);color:var(--accent);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:22px;flex:none}
+        .bn{margin:0;font-size:18px;font-weight:800;letter-spacing:-.01em}
+        .sm{margin:2px 0 0;color:var(--muted);font-size:12.5px;white-space:pre-line}
+        .title{text-align:right}
+        .title h1{margin:0;font-size:34px;letter-spacing:.02em;color:var(--accent);font-weight:800}
+        .title p{margin:4px 0 0;color:var(--muted);font-size:13px}
+        .meta{display:flex;justify-content:space-between;gap:24px;margin-top:36px}
+        .lab{margin:0 0 4px;font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+        .to b{font-size:16px}
+        dl{margin:0;display:grid;grid-template-columns:auto auto;gap:6px 28px}
+        dt{color:var(--muted)}dd{margin:0;text-align:right;font-weight:600}
+        .badge{display:inline-block;margin-top:10px;border-radius:6px;background:#d1fae5;color:#047857;font-weight:800;font-size:12px;letter-spacing:.08em;padding:4px 14px}
+        .badge.due{background:#fef3c7;color:#b45309}
+        table{width:100%;border-collapse:collapse;margin-top:32px}
+        thead th{background:var(--accent);color:#fff;font-size:11px;letter-spacing:.07em;text-transform:uppercase;padding:11px 14px;text-align:right}
+        thead th:first-child{text-align:left;border-radius:8px 0 0 8px}thead th:last-child{border-radius:0 8px 8px 0}
+        td{padding:16px 14px;border-bottom:1px solid var(--line);text-align:right}
+        td:first-child{text-align:left;font-weight:600}
+        .tot{margin:20px 0 0 auto;width:min(320px,100%)}
+        .tot div{display:flex;justify-content:space-between;padding:6px 0;color:var(--muted)}
+        .tot .grand{background:var(--soft);border-radius:10px;padding:12px 14px;margin:6px 0;color:var(--ink);font-weight:800;font-size:16px}
+        .tot .grand span:last-child{color:var(--accent);font-size:20px}
+        .tot .bal{color:var(--ink);font-weight:700}
+        .info{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:36px;padding-top:24px;border-top:1px solid var(--line)}
+        .foot{margin-top:40px;padding-top:16px;border-top:1px solid var(--line);color:var(--muted);font-size:11.5px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+        @media(max-width:640px){.sheet{padding:24px}.top,.meta,.info{flex-direction:column;grid-template-columns:1fr}.title{text-align:left}}
+        @media print{body{background:#fff}.bar{display:none}.sheet{box-shadow:none;border:0;margin:0;max-width:none;padding:0}}
+    </style>
 </head>
-<body class="min-h-full px-4 py-8">
-<div class="mx-auto max-w-3xl">
-    <div class="no-print mb-4 flex flex-wrap gap-3">
-        <x-ui.button type="button" icon="print" data-print>Download PDF / Print</x-ui.button>
-        <x-ui.button variant="secondary" icon="arrow" href="/dashboard">Back to console</x-ui.button>
+<body>
+<div class="bar">
+    <a class="btn pri" href="{{ $pdfUrl }}">⬇ Download PDF</a>
+    <button class="btn" type="button" data-print>🖨 Print</button>
+    @if(!empty($backUrl))<a class="btn" href="{{ $backUrl }}">← Back to console</a>@endif
+</div>
+<article class="sheet">
+    <header class="top">
+        <div class="brand">
+            @if($d['from']['logo_uri'])
+                <img class="logo" src="{{ $d['from']['logo_uri'] }}" alt="{{ $d['from']['name'] }} logo">
+            @else
+                <div class="initials" aria-hidden="true">{{ $d['from']['initials'] }}</div>
+            @endif
+            <div>
+                <p class="bn">{{ $d['from']['name'] }}</p>
+                @if($d['from']['address'])<p class="sm">{{ implode("\n", $d['from']['address']) }}</p>@endif
+                @if($d['from']['tax_id'])<p class="sm">Tax ID: {{ $d['from']['tax_id'] }}</p>@endif
+                @if($d['from']['email'])<p class="sm">{{ $d['from']['email'] }}</p>@endif
+            </div>
+        </div>
+        <div class="title"><h1>INVOICE</h1><p>#{{ $d['number'] }}</p></div>
+    </header>
+
+    <section class="meta">
+        <div class="to">
+            <p class="lab">Billed to</p>
+            <b>{{ $d['to']['name'] }}</b>
+            @if($d['to']['email'])<p class="sm">{{ $d['to']['email'] }}</p>@endif
+        </div>
+        <div>
+            <dl>
+                <dt>Invoice date</dt><dd>{{ $d['issued'] }}</dd>
+                <dt>Due date</dt><dd>{{ $d['due'] }}</dd>
+                <dt>Payment</dt><dd>{{ $d['payment_method'] }}</dd>
+            </dl>
+            <div style="text-align:right"><span class="badge {{ $d['paid'] ? '' : 'due' }}">{{ $d['status'] }}</span></div>
+        </div>
+    </section>
+
+    <table>
+        <thead><tr><th>Description</th><th>Qty</th><th>Price</th><th>Amount</th></tr></thead>
+        <tbody>
+        @foreach($d['items'] as $it)
+            <tr><td>{{ $it['description'] }}</td><td>{{ $it['qty'] }}</td><td>{{ $it['unit'] }}</td><td><b>{{ $it['amount'] }}</b></td></tr>
+        @endforeach
+        </tbody>
+    </table>
+
+    <div class="tot">
+        <div><span>Subtotal</span><span>{{ $d['subtotal'] }}</span></div>
+        @if($d['has_tax'])<div><span>Tax</span><span>{{ $d['tax'] }}</span></div>@endif
+        <div class="grand"><span>Total</span><span>{{ $d['total'] }}</span></div>
+        <div><span>Amount paid</span><span>{{ $d['amount_paid'] }}</span></div>
+        <div class="bal"><span>Balance due</span><span>{{ $d['balance'] }}</span></div>
     </div>
 
-    <article class="invoice-sheet relative rounded-2xl border border-slate-200 p-8 shadow-2xl shadow-black/40 sm:p-10">
-        @if($invoice->status === 'paid')
-            <span class="pointer-events-none absolute right-8 top-28 -rotate-12 rounded-lg border-[3px] border-emerald-600 px-4 py-1 text-xl font-black tracking-[0.12em] text-emerald-600/85">PAID</span>
-        @endif
+    <section class="info">
+        <div><p class="lab">Payment information</p><p class="sm" style="white-space:normal;color:var(--ink)">Paid with {{ $d['payment_method'] }}@if($d['payment_ref']) · Ref {{ $d['payment_ref'] }}@endif</p></div>
+        <div><p class="lab">Notes</p><p class="sm" style="white-space:normal;color:var(--ink)">Thank you for your business. This invoice was paid in full.</p></div>
+    </section>
 
-        <header class="flex items-start justify-between gap-4">
-            <div class="flex items-center gap-2.5 text-lg font-extrabold tracking-tight text-slate-900"><x-ui.logo :size="34" />LuvuPay</div>
-            <div class="text-right"><p class="font-bold text-slate-900">{{ $merchant->name ?? 'Merchant' }}</p><p class="mt-0.5 text-xs text-slate-500">Merchant of record</p></div>
-        </header>
-
-        <h1 class="mt-7 text-3xl font-extrabold tracking-tight text-slate-900">Invoice</h1>
-        <div class="mt-1 space-y-0.5 text-sm text-slate-500">
-            <p><strong class="text-slate-800">{{ $invoice->invoice_number }}</strong></p>
-            <p>Issued {{ $issued }}</p>
-            <p>Status: {{ strtoupper($invoice->status) }}</p>
-        </div>
-
-        <div class="my-7 grid gap-6 sm:grid-cols-2">
-            <div>
-                <h2 class="mb-1 text-[11px] font-bold uppercase tracking-widest text-slate-500">Bill to</h2>
-                <p class="whitespace-pre-line text-sm leading-relaxed text-slate-800">{{ $invoice->billing_name }}@if($invoice->billing_address)
-{{ $invoice->billing_address }}@endif @if($invoice->tax_id)
-Tax ID: {{ $invoice->tax_id }}@endif @if(!empty($meta['email']))
-{{ $meta['email'] }}@endif</p>
-            </div>
-            <div>
-                <h2 class="mb-1 text-[11px] font-bold uppercase tracking-widest text-slate-500">Remit to</h2>
-                <p class="whitespace-pre-line text-sm leading-relaxed text-slate-800">LuvuPay Platform
-Ethical Subscription Infrastructure
-support@luvupay.local
-Payments via PayPal (merchant of record)</p>
-            </div>
-        </div>
-
-        <table class="w-full text-sm">
-            <thead><tr class="border-b-2 border-slate-200 text-left text-[11px] uppercase tracking-wider text-slate-500">
-                <th class="py-2 pr-2 font-semibold">Description</th><th class="px-2 py-2 text-right font-semibold">Qty</th><th class="px-2 py-2 text-right font-semibold">Unit</th><th class="py-2 pl-2 text-right font-semibold">Amount</th></tr></thead>
-            <tbody class="text-slate-800">
-            @foreach($lineItems as $item)
-                <tr class="border-b border-slate-200 align-top">
-                    <td class="py-3 pr-2">{{ $item['description'] ?? 'Line item' }}@if(!empty($item['note']))<p class="mt-0.5 text-xs text-slate-500">{{ $item['note'] }}</p>@endif</td>
-                    <td class="px-2 py-3 text-right tabular-nums">{{ $item['quantity'] ?? 1 }}</td>
-                    <td class="px-2 py-3 text-right tabular-nums">{{ $fmt($item['unit_amount_minor'] ?? $item['amount_minor'] ?? 0) }}</td>
-                    <td class="py-3 pl-2 text-right tabular-nums">{{ $fmt($item['amount_minor'] ?? 0) }}</td>
-                </tr>
-            @endforeach
-            </tbody>
-        </table>
-
-        <dl class="ml-auto mt-4 w-64 text-sm text-slate-800">
-            <div class="flex justify-between py-1"><dt>Subtotal</dt><dd class="tabular-nums">{{ $fmt($invoice->subtotal_minor) }}</dd></div>
-            <div class="flex justify-between py-1"><dt>Tax</dt><dd class="tabular-nums">{{ $fmt($invoice->tax_amount_minor) }}</dd></div>
-            <div class="mt-1 flex justify-between border-t-2 border-slate-900 pt-2 text-base font-extrabold"><dt>Total</dt><dd class="tabular-nums">{{ $fmt($invoice->total_minor) }}</dd></div>
-        </dl>
-
-        <footer class="mt-8 flex flex-wrap justify-between gap-2 border-t border-slate-200 pt-4 text-xs text-slate-500">
-            <p>Transaction {{ $invoice->transaction_id }}@if(!empty($meta['provider_reference'])) · {{ $meta['provider_reference'] }}@endif</p>
-            <p>Generated by LuvuPay · Sandbox</p>
-        </footer>
-    </article>
-</div>
-<script src="/js/ui.js?v={{ @filemtime(public_path('js/ui.js')) }}" defer></script>
+    <footer class="foot"><span>Invoice generated by LuvuPay on behalf of {{ $d['from']['name'] }}</span><span>#{{ $d['number'] }}</span></footer>
+</article>
+<script src="/js/invoice-print.js" defer></script>
 </body>
 </html>

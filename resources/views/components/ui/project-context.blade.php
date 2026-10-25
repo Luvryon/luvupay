@@ -100,7 +100,7 @@
                     </div>
                     <div class="field" style="margin:0">
                         <label class="label" for="np-cur">Currency</label>
-                        <select id="np-cur" class="input" x-model="form.currency"><option>USD</option><option>EUR</option><option>GBP</option><option>IDR</option><option>SGD</option></select>
+                        <select id="np-cur" class="input" x-model="form.currency"><option>USD</option><option>EUR</option><option>GBP</option><option>SGD</option></select>
                     </div>
                 </div>
 

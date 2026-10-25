@@ -124,10 +124,13 @@
           });
           var j = await res.json().catch(function () { return {}; });
           if (res.ok && j.ok) {
-            if (window.LuvuToast) window.LuvuToast.success('Withdrawal submitted', j.message || ('Batch ' + (j.payout_batch_id || '')));
+            if (window.LuvuToast) {
+              window.LuvuToast.success('Withdrawal submitted', j.message || ('Batch ' + (j.payout_batch_id || '')));
+              if (j.warning) window.LuvuToast.info('PayPal Sandbox note', j.warning);
+            }
             await this.load();
           } else {
-            if (window.LuvuToast) window.LuvuToast.error('Withdrawal failed', j.error || j.message || 'Request failed');
+            if (window.LuvuToast) window.LuvuToast.error('Withdrawal failed', (j.error || j.message || 'Request failed') + (j.hint ? ' — ' + j.hint : ''));
           }
         } catch (e) {
           if (window.LuvuToast) window.LuvuToast.error('Network error', String(e.message || e));

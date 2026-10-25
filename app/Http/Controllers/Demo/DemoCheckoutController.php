@@ -135,7 +135,7 @@ final class DemoCheckoutController
                 'provider_reference' => $paypalRef,
                 'email' => $email,
             ];
-            $invoice = app(\App\Services\Billing\InvoiceIssuer::class)->issueForTransaction($merchantId, $txObj);
+            $invoice = app(\App\Services\Billing\InvoiceIssuer::class)->issueForTransaction($merchantId, $txObj, ['customer_name' => $first, 'product' => $product]);
 
             $this->recordOutboundDelivery($merchantId, 'subscription.activated', [
                 'transaction_id' => $txId,
@@ -389,11 +389,11 @@ final class DemoCheckoutController
         $error = null;
         $amountLabel = number_format($amountMinor / 100, 2).' '.$currency;
         // Merchant branding for invoice email
-        $merchantRow = DB::table('merchants')->where('id', $merchantId)->first(['name', 'logo_path', 'email']);
+        $merchantRow = DB::table('merchants')->where('id', $merchantId)->first(['id', 'name', 'logo_path', 'email']);
         $merchantBrand = $merchantRow->name ?? 'Merchant';
         $logoUrl = null;
         if (! empty($merchantRow->logo_path)) {
-            $logoUrl = rtrim((string) config('app.url'), '/').'/storage/'.$merchantRow->logo_path;
+            $logoUrl = \App\Support\MerchantBranding::logoUrl($merchantRow);
         }
         $logoHtml = $logoUrl
             ? '<img src="'.e($logoUrl).'" alt="'.e($merchantBrand).'" width="120" style="display:block;max-width:120px;height:auto;margin:0 auto 12px;border:0" />'
@@ -404,68 +404,16 @@ final class DemoCheckoutController
         } catch (\Throwable $e) {
         }
 
-        $safeName = e($userName);
-        $safeEmail = e($userEmail);
-        $safeProduct = e($product);
-        $safeAmount = e($amountLabel);
-        $safePaypal = e($paypalRef);
-        $safeInv = $invNum ? e((string) $invNum) : null;
-
-        $userHtml = <<<HTML
-<!DOCTYPE html>
-<html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#f8fafc;font-family:Inter,Segoe UI,system-ui,sans-serif">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="padding:32px 16px">
-    <tr><td align="center">
-      <table role="presentation" width="100%" style="max-width:560px;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;overflow:hidden">
-        <tr><td style="padding:24px 28px;background:#ffffff;text-align:center;border-bottom:1px solid #e2e8f0">
-          {$logoHtml}
-
-          <p style="margin:0;font-size:12px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:rgba(255,255,255,0.9)">LuvuPay</p>
-          <h1 style="margin:6px 0 0;font-size:22px;color:#fff">Payment confirmed</h1>
-        </td></tr>
-        <tr><td style="padding:28px;color:#0f172a">
-          <p style="margin:0 0 12px;font-size:15px;line-height:1.6">Hi {$safeName}, your subscription is active.</p>
-          <table role="presentation" width="100%" style="margin:16px 0;border-collapse:collapse;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px">
-            <tr><td style="padding:14px 16px;font-size:13px;color:#64748b">Product</td><td style="padding:14px 16px;font-size:14px;font-weight:600;text-align:right">{$safeProduct}</td></tr>
-            <tr><td style="padding:14px 16px;font-size:13px;color:#64748b;border-top:1px solid #e2e8f0">Amount</td><td style="padding:14px 16px;font-size:14px;font-weight:600;text-align:right">{$safeAmount} / month</td></tr>
-HTML;
-
-        if ($safeInv) {
-            $userHtml .= '<tr><td style="padding:14px 16px;font-size:13px;color:#64748b;border-top:1px solid #e2e8f0">Invoice</td><td style="padding:14px 16px;font-size:14px;font-weight:600;text-align:right;font-family:ui-monospace,monospace">'.$safeInv.'</td></tr>';
-        }
-
-        $userHtml .= <<<HTML
-            <tr><td style="padding:14px 16px;font-size:13px;color:#64748b;border-top:1px solid #e2e8f0">PayPal ref</td><td style="padding:14px 16px;font-size:13px;text-align:right;font-family:ui-monospace,monospace;color:#475569">{$safePaypal}</td></tr>
-          </table>
-          <p style="margin:0;font-size:12px;color:#94a3b8">Powered by LuvuPay · PayPal Sandbox</p>
-        </td></tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>
-HTML;
-
-        try {
-            Mail::to($userEmail)->sendNow(new PlainHtmlMail(
-                'Your '.$product.' subscription is confirmed',
-                $userHtml
-            ));
-            $userSent = true;
-            $this->logWebhookEvent('luvupay', 'email.user_confirmation_sent', [
-                'to' => $userEmail,
-                'transaction_id' => $txId,
-            ]);
-        } catch (\Throwable $e) {
-            $error = $e->getMessage();
-            Log::warning('demo.checkout.user_email_failed', ['err' => $error, 'to' => $userEmail]);
-            $this->logWebhookEvent('luvupay', 'email.user_confirmation_failed', [
-                'to' => $userEmail,
-                'error' => $error,
-            ], 'failed');
-        }
+        // Subscriber receipt: invoice inline (Bookipi-style) + PDF attached, merchant logo from Settings.
+        $res = \App\Services\Billing\InvoiceMailer::sendForTransaction($txId, 'subscription', $userEmail);
+        $userSent = $res['sent'];
+        $error = $res['error'];
+        $this->logWebhookEvent('luvupay', $userSent ? 'email.user_confirmation_sent' : 'email.user_confirmation_failed', [
+            'to' => $userEmail,
+            'transaction_id' => $txId,
+            'invoice_attached' => $userSent,
+            'error' => $error,
+        ], $userSent ? 'processed' : 'failed');
 
         try {
             $merchant = DB::table('merchants')->where('id', $merchantId)->first();

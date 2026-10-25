@@ -6,7 +6,7 @@
     $project = $project ?? \App\Support\MerchantProject::current();
     $ppId = $merchant->paypal_merchant_id ?? null;
     $ppAt = $merchant->paypal_connected_at ?? null;
-    $logoUrl = !empty($merchant->logo_path) ? asset('storage/'.$merchant->logo_path) : null;
+    $logoUrl = $merchant ? \App\Support\MerchantBranding::logoUrl($merchant) : null;
 @endphp
 <div class="stack">
     <div>
@@ -21,6 +21,7 @@
         <nav class="snav" aria-label="Settings sections">
             <a href="#paypal">PayPal</a>
             <a href="#branding">Company logo</a>
+            <a href="#invoice-details">Invoice details</a>
             <a href="#api">API credentials</a>
             <a href="#project">Project</a>
             <a href="#webhooks">Webhooks</a>
@@ -73,68 +74,14 @@
                             @endif
                         </div>
                         <div class="stack-sm">
-                            <form id="logo-upload-form" class="stack-sm" enctype="multipart/form-data">
+                            <form id="logo-upload-form" class="stack-sm" method="post" action="{{ route('settings.logo') }}" enctype="multipart/form-data">
                                 @csrf
                                 <input type="file" name="logo" id="logo-file" accept="image/png,image/jpeg,image/webp" class="input" required>
                                 <button type="submit" class="c-btn c-btn-brand" id="logo-upload-btn">Upload logo</button>
                                 <p class="help" id="logo-upload-hint">PNG, JPEG, or WebP · max 2 MB · no SVG</p>
                             </form>
-                            <script>
-                            (function () {
-                              var form = document.getElementById('logo-upload-form');
-                              if (!form) return;
-                              form.addEventListener('submit', function (e) {
-                                e.preventDefault();
-                                var btn = document.getElementById('logo-upload-btn');
-                                var fileInput = document.getElementById('logo-file');
-                                if (!fileInput.files || !fileInput.files[0]) {
-                                  if (window.LuvuToast) LuvuToast.warning('Choose a file', 'Select a PNG, JPEG, or WebP logo first.');
-                                  return;
-                                }
-                                var fd = new FormData(form);
-                                if (btn) { btn.disabled = true; btn.textContent = 'Uploading…'; }
-                                fetch(@json(route('settings.logo')), {
-                                  method: 'POST',
-                                  credentials: 'same-origin',
-                                  headers: {
-                                    'X-Requested-With': 'XMLHttpRequest',
-                                    'Accept': 'application/json',
-                                    'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') || {}).content || ''
-                                  },
-                                  body: fd
-                                }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, status: r.status, j: j }; }); })
-                                  .then(function (res) {
-                                    if (res.ok && res.j && res.j.ok) {
-                                      if (window.LuvuToast) LuvuToast.success('Logo updated', res.j.message || 'Saved');
-                                      if (res.j.logo_url) {
-                                        var img = document.querySelector('#branding img');
-                                        var box = document.querySelector('#branding [data-logo-box]');
-                                        if (img) { img.src = res.j.logo_url; }
-                                        else if (box) {
-                                          while (box.firstChild) box.removeChild(box.firstChild);
-                                          var n = document.createElement('img');
-                                          n.src = res.j.logo_url;
-                                          n.alt = 'Logo';
-                                          n.style.cssText = 'max-width:100%;max-height:100%;object-fit:contain';
-                                          box.appendChild(n);
-                                        }
-                                      }
-                                    } else {
-                                      var msg = (res.j && (res.j.message || res.j.error)) || ('HTTP ' + res.status);
-                                      if (window.LuvuToast) LuvuToast.error('Upload failed', msg);
-                                    }
-                                  })
-                                  .catch(function (err) {
-                                    if (window.LuvuToast) LuvuToast.error('Upload failed', String(err && err.message || err));
-                                  })
-                                  .finally(function () {
-                                    if (btn) { btn.disabled = false; btn.textContent = 'Upload logo'; }
-                                  });
-                              });
-                            })();
-                            </script>
                             @if($logoUrl)
-                                <form method="post" action="{{ route('settings.logo.remove') }}" onsubmit="return confirm('Remove company logo?')">
+                                <form method="post" action="{{ route('settings.logo.remove') }}" data-confirm="Remove company logo?">
                                     @csrf
                                     <button type="submit" class="c-btn c-btn-sm">Remove logo</button>
                                 </form>
@@ -157,6 +104,17 @@
                         <button type="submit" class="c-btn">Rotate secret key</button>
                     </form>
                 </div>
+            </section>
+
+            <section class="c-card" id="invoice-details">
+                <div class="c-head"><div><h2 class="c-title">Invoice details</h2><p class="c-sub">Printed on every invoice, invoice PDF and receipt email, next to your logo.</p></div></div>
+                <form method="post" action="{{ route('settings.invoice') }}" class="c-pad stack-sm">
+                    @csrf
+                    <div class="field" style="margin:0"><label class="label" for="inv-name">Business name</label><input id="inv-name" name="name" class="input" type="text" maxlength="120" required value="{{ old('name', $merchant->name ?? '') }}"></div>
+                    <div class="field" style="margin:0"><label class="label" for="inv-addr">Business address</label><textarea id="inv-addr" name="billing_address" class="input" rows="3" maxlength="400" placeholder="Street, city, country">{{ old('billing_address', $merchant->billing_address ?? '') }}</textarea></div>
+                    <div class="field" style="margin:0"><label class="label" for="inv-tax">Tax / VAT ID (optional)</label><input id="inv-tax" name="tax_id" class="input" type="text" maxlength="60" value="{{ old('tax_id', $merchant->tax_id ?? '') }}"></div>
+                    <div><button type="submit" class="c-btn c-btn-brand">Save invoice details</button> <a href="{{ route('dashboard.invoice.preview') }}" target="_blank" class="c-btn">Preview invoice</a></div>
+                </form>
             </section>
 
             <script type="application/json" id="project-features-seed">{!! json_encode([
@@ -186,7 +144,7 @@
                         <div class="field" style="margin:0"><label class="label" for="pf-plan">Plan</label><input id="pf-plan" class="input" type="text" maxlength="40" x-model="plan"></div>
                         <div class="field" style="margin:0"><label class="label" for="pf-price">Price / month</label><input id="pf-price" class="input" type="number" min="1" step="0.01" x-model.number="price"></div>
                         <div class="field" style="margin:0"><label class="label" for="pf-cur">Currency</label>
-                            <select id="pf-cur" class="input" x-model="currency"><option>USD</option><option>EUR</option><option>GBP</option><option>IDR</option><option>SGD</option></select></div>
+                            <select id="pf-cur" class="input" x-model="currency"><option>USD</option><option>EUR</option><option>GBP</option><option>SGD</option></select></div>
                         <div class="field" style="margin:0"><label class="label" for="pf-env">Environment</label>
                             <select id="pf-env" class="input" x-model="environment"><option value="sandbox">Sandbox (no real money)</option><option value="production">Production</option></select></div>
                     </div>
@@ -288,6 +246,7 @@
 
 @push('scripts')
 <script src="/js/project-features.js" defer></script>
+<script src="/js/settings-logo.js" defer></script>
 <script src="/js/settings-spy.js" defer></script>
 <style>
   .snav { position: sticky; top: 80px; align-self: start; }

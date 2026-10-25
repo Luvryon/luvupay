@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\Route;
 
 // In routes/web.php add:  require __DIR__.'/luvupay-public.php';
 // Account-less end-user screens: authenticated ONLY by Laravel's signed URLs (tamper-proof, expiring).
-Route::middleware(['signed', 'throttle:30,1'])->group(function () {
+Route::middleware(['signed', 'throttle:30,1,luvupay-public9'])->group(function () {
     Route::get('/second-chance/{transaction}', [SecondChanceController::class, 'show'])->name('second-chance.show');
     Route::post('/second-chance/{transaction}', [SecondChanceController::class, 'confirm'])->name('second-chance.trigger');
 

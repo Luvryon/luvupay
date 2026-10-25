@@ -22,7 +22,7 @@ final class MonthSimulator
 
     private const PATTERN = [
         'active', 'partial_refund', 'resale', 'active', 'charity', 'renewed',
-        'churned', 'active', 'resale', 'partial_refund', 'grace', 'charity',
+        'churned', 'active', 'resale_listed', 'partial_refund', 'grace', 'charity',
     ];
 
     private const NAMES = [
@@ -70,12 +70,12 @@ final class MonthSimulator
     private function resolveOutcome(string $o, MerchantProject $p): string
     {
         // Without a grace period there is no post-charge retention path: everything settles as a normal charge.
-        if (! $p->gracePeriod && in_array($o, ['partial_refund', 'resale', 'charity', 'renewed', 'grace'], true)) {
+        if (! $p->gracePeriod && in_array($o, ['partial_refund', 'resale', 'resale_listed', 'charity', 'renewed', 'grace'], true)) {
             return 'active';
         }
 
         return match (true) {
-            $o === 'resale' && ! $p->marketplaceResale => $p->charitySplit ? 'charity' : 'partial_refund',
+            in_array($o, ['resale', 'resale_listed'], true) && ! $p->marketplaceResale => $p->charitySplit ? 'charity' : 'partial_refund',
             $o === 'charity' && ! $p->charitySplit => $p->marketplaceResale ? 'resale' : 'partial_refund',
             default => $o,
         };
@@ -116,6 +116,13 @@ final class MonthSimulator
                 $meta['lifecycle'] = 'AI-RETAINED';
                 $meta['decision'] = 'charity_donate';
                 $meta['charity'] = ['donated_minor' => $amount, 'at' => $at->toIso8601String()];
+                break;
+            case 'resale_listed':
+                $meta['lifecycle'] = 'PENDING RESALE';
+                $meta['decision'] = 'marketplace_resale';
+                $meta['resale'] = ['listed_at' => $at->toIso8601String(), 'remaining_value_minor' => $amount, 'path' => 'marketplace_resale'];
+                $status = 'held';
+                $subStatus = 'past_due';
                 break;
             case 'resale':
                 $meta['lifecycle'] = 'RESOLD';
@@ -168,7 +175,7 @@ final class MonthSimulator
 
         $inv = app(InvoiceIssuer::class)->issueForTransaction($m, (object) [
             'id' => $txId, 'amount_minor' => $amount, 'currency' => $cur, 'provider_reference' => $ref, 'email' => $email,
-        ]);
+        ], ['customer_name' => $name, 'product' => $product]);
 
         $this->logWebhookEvent('paypal', 'PAYMENT.CAPTURE.COMPLETED', ['id' => $ref, 'status' => 'COMPLETED', 'custom_id' => $txId]);
         $this->logWebhookEvent('luvupay', 'subscription.activated', ['transaction_id' => $txId, 'email' => $email]);
@@ -181,12 +188,36 @@ final class MonthSimulator
         } elseif ($outcome === 'partial_refund') {
             $this->logWebhookEvent('luvupay', 'subscription.partial_refund', ['transaction_id' => $txId, 'refund_minor' => $refund]);
         } elseif ($outcome === 'resale') {
-            $this->resaleRows($m, $project, $subId, $txId, $userId, $email, $amount, $cur, $at, $provider);
+            $this->resaleRows($m, $project, $subId, $txId, $userId, $email, $amount, $cur, $at, $provider, $name);
+        } elseif ($outcome === 'resale_listed') {
+            $this->listRow($m, $subId, $txId, $userId, $email, $name, $amount, $cur, $provider);
         } elseif ($outcome === 'churned') {
             $this->logWebhookEvent('paypal', 'BILLING.SUBSCRIPTION.EXPIRED', ['transaction_id' => $txId]);
         } elseif ($outcome === 'grace') {
             $this->logWebhookEvent('luvupay', 'subscription.grace_period_started', ['transaction_id' => $txId]);
         }
+    }
+
+    /** Live (unsold) listing: shows on the public merchant page with a redeem token and a Buy button. */
+    private function listRow(string $m, string $subId, string $parent, string $userId, string $email, string $name, int $amount, string $cur, string $provider): void
+    {
+        $now = now();
+        $asking = max(100, (int) round($amount * 0.6));
+        $fee = max(100, (int) round($amount * 0.10));
+        DB::table('resale_listings')->insert([
+            'id' => (string) Str::uuid(), 'merchant_id' => $m, 'subscription_id' => $subId, 'seller_merchant_user_id' => $userId, 'seller_email' => $email,
+            'status' => 'active', 'entitlement_status' => 'pending', 'asking_price_minor' => $asking, 'currency' => $cur,
+            'access_expires_at' => $now->copy()->addDays(15), 'listed_at' => $now, 'correlation_id' => (string) Str::uuid(),
+            'redeem_token' => \App\Services\Hosted\HostedPurchase::token($name, 15),
+            'metadata' => json_encode(['demo' => true, 'seller_name' => $name, 'source' => 'simulate_30_days']), 'created_at' => $now, 'updated_at' => $now,
+        ]);
+        DB::table('transactions')->insert([
+            'id' => (string) Str::uuid(), 'merchant_id' => $m, 'subscription_id' => $subId, 'parent_transaction_id' => $parent, 'type' => 'resale_fee',
+            'status' => 'completed', 'idempotency_key' => 'sim30-resale-fee-'.$parent, 'merchant_user_id' => $userId, 'email' => $email,
+            'amount_minor' => $fee, 'currency' => $cur, 'provider' => 'luvupay', 'provider_reference' => 'RESALE-FEE-'.$parent, 'processed_at' => $now,
+            'metadata' => json_encode(['lifecycle' => 'PENDING RESALE', 'parent_transaction_id' => $parent, 'path' => 'resale_fee']), 'created_at' => $now, 'updated_at' => $now,
+        ]);
+        $this->logWebhookEvent('luvupay', 'marketplace.listing_created', ['transaction_id' => $parent, 'asking_minor' => $asking]);
     }
 
     private function charityRow(string $m, string $subId, string $parent, string $userId, string $email, int $amt, string $cur, Carbon $at, string $provider, string $path): string
@@ -216,7 +247,7 @@ final class MonthSimulator
     }
 
     private function resaleRows(string $m, MerchantProject $project, string $subId, string $parent, string $sellerId, string $sellerEmail,
-        int $amount, string $cur, Carbon $at, string $provider): void
+        int $amount, string $cur, Carbon $at, string $provider, ?string $sellerName = null): void
     {
         $buyerId = 'sim_buyer_'.Str::lower(Str::random(6));
         $buyerEmail = 'buyer.'.$buyerId.'@demo.luvupay.local';
@@ -234,7 +265,8 @@ final class MonthSimulator
             'asking_price_minor' => $asking, 'currency' => $cur, 'access_expires_at' => $at->copy()->addDays(30), 'listed_at' => $at,
             'sold_at' => $sold, 'entitlement_sent_at' => $sold, 'correlation_id' => (string) Str::uuid(),
             'buyer_payment_reference' => 'PAYPAL-RESALE-'.strtoupper(Str::random(8)),
-            'metadata' => json_encode(['demo' => true, 'source' => 'simulate_30_days']), 'created_at' => $at, 'updated_at' => $sold,
+            'redeem_token' => \App\Services\Hosted\HostedPurchase::token((string) ($sellerName ?? 'user'), 15),
+            'metadata' => json_encode(['demo' => true, 'seller_name' => $sellerName ?? null, 'source' => 'simulate_30_days']), 'created_at' => $at, 'updated_at' => $sold,
         ]);
         DB::table('transactions')->insert([
             'id' => $sale, 'merchant_id' => $m, 'subscription_id' => $subId, 'parent_transaction_id' => $parent, 'type' => 'resale_sale',
