@@ -38,7 +38,58 @@ final class MarketplaceController extends Controller
             ->limit(48)
             ->get();
 
-        return response()->json(['data' => $rows->map(fn ($r) => $this->format($r))->values()]);
+        $data = $rows->map(fn ($r) => $this->format($r))->values()->all();
+
+        // Resale offers created by merchant subscribers (grace period → Resell) are live here too.
+        // Buy → /redeem/{token} (hosted checkout, same ledger).
+        foreach ($this->merchantResaleListings() as $l) {
+            $data[] = $l;
+        }
+        usort($data, fn ($a, $b) => strcmp((string) ($b['listed_at'] ?? ''), (string) ($a['listed_at'] ?? '')));
+
+        return response()->json(['data' => array_values($data)]);
+    }
+
+    /** @return list<array<string,mixed>> */
+    private function merchantResaleListings(): array
+    {
+        try {
+            $hosted = app(\App\Services\Hosted\HostedPurchase::class);
+            $rows = DB::table('resale_listings')->where('status', 'active')->whereNotNull('redeem_token')
+                ->where('access_expires_at', '>', now())->orderByDesc('listed_at')->limit(48)->get();
+            $out = [];
+            foreach ($rows as $l) {
+                $m = DB::table('merchants')->where('id', $l->merchant_id)->where('is_active', true)->first();
+                if (! $m || ! \App\Support\MerchantProject::forMerchant($m->id)->marketplaceResale) {
+                    continue;
+                }
+                $v = $hosted->listingView($l, $m);
+                $project = \App\Support\MerchantProject::forMerchant($m->id);
+                $out[] = [
+                    'id' => $l->id,
+                    'app' => $v['product'],
+                    'app_key' => \Illuminate\Support\Str::slug($v['product']),
+                    'title' => $v['days'].' days of '.$v['product'],
+                    'description' => 'Verified resale token from '.$v['seller'].' — pay once with PayPal and the access transfers instantly.',
+                    'emoji' => '🎟️',
+                    'daysLeft' => $v['days'],
+                    'original' => round($project->priceMinor / 100, 2),
+                    'price' => round($v['price_minor'] / 100, 2),
+                    'currency' => $v['currency'],
+                    'status' => 'active',
+                    'seller' => $v['seller'],
+                    'source' => 'merchant_resale',
+                    'redeem_url' => url('/redeem/'.$l->redeem_token),
+                    'listed_at' => $l->listed_at ? \Illuminate\Support\Carbon::parse($l->listed_at)->toIso8601String() : null,
+                ];
+            }
+
+            return $out;
+        } catch (\Throwable $e) {
+            report($e);
+
+            return [];
+        }
     }
 
     /** POST /api/marketplace/sell */
@@ -285,6 +336,7 @@ final class MarketplaceController extends Controller
             'currency' => $r->currency,
             'status' => $r->status,
             'seller' => $this->maskEmail((string) $r->seller_email),
+            'listed_at' => $r->created_at ? \Illuminate\Support\Carbon::parse($r->created_at)->toIso8601String() : null,
         ];
     }
 

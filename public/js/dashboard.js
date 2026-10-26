@@ -181,6 +181,11 @@
       checkoutPaying: false,
       checkoutForm: { name: 'John Doe', email: 'john@example.com' },
       decisionOpen: false,
+      decisionRow: null,
+      selectedAction: null,
+      phoneView: 'options',
+      journey: { brand: '', name: '', first: '', email: '', amount: '', hours: 48, refundPct: 20, nudge: '', sandbox: false, nebius: false, features: { resale: true, charity: true }, doneMessage: '', listingUrl: '' },
+      _journeySeen: {},
       decisionBusy: false,
       decisionStep: 0,
       decisionReady: false,
@@ -209,6 +214,15 @@
       walletWithdrawing: false,
       paypalConnected: false,
       walletCurrency: 'USD',
+      money: function (m, c) { return money(m, c); },
+      payoutFee: { bps: 200, fixed_minor: 0, cap_minor: 0 },
+      get walletQuote() {
+        var f = this.payoutFee || {}; var g = Number(this.walletBalanceMinor) || 0;
+        var fee = Math.round(g * (Number(f.bps) || 0) / 10000) + (Number(f.fixed_minor) || 0);
+        if (Number(f.cap_minor) > 0) fee = Math.min(fee, Number(f.cap_minor));
+        fee = Math.max(0, Math.min(fee, g));
+        return { fee: fee, net: g - fee };
+      },
       dualViewOpen: false,
 
       // AI Insights — derived from real ledger / summary (never invented)
@@ -313,7 +327,7 @@
           var res = await request('POST', 'demo/simulate-month', { rows: payload });
           if (!res.ok || !res.data || !res.data.ok) {
             var why = (res.data && (res.data.message || res.data.error)) || ('HTTP ' + res.status);
-            self.pushToast('Simulation failed: ' + why, '⚠️');
+            self.pushToast('Simulation failed: ' + why, '❌');
             return;
           }
           await self.load();
@@ -324,7 +338,7 @@
           }
           try { window.localStorage.setItem('luvupay_demo_seeded', '1'); } catch (e) {}
         } catch (e) {
-          self.pushToast('Simulation failed — see console', '⚠️');
+          self.pushToast('Simulation failed — see console', '❌');
           if (window.console) console.error(e);
         } finally {
           self.loadingSeed = false;
@@ -378,6 +392,7 @@
         };
         this.walletBalanceMinor = Math.max(0, Number(summary.wallet_balance_minor) || 0);
         this.walletCurrency = c;
+        this.payoutFee = summary.payout_fee || this.payoutFee;
         this.paypalConnected = !!(summary.can_withdraw);
         this.aiInsights = Array.isArray(summary.insights) ? summary.insights : [];
         if (Array.isArray(summary.recent_events)) this.webhookLogs = summary.recent_events;
@@ -495,7 +510,10 @@
       // ---- feedback
       pushToast: function (message, icon) {
         if (window.LuvuToast) {
-          var type = (icon === '⚠️' || icon === '!') ? 'error' : (icon === '⏳' ? 'warning' : 'success');
+          var type = 'success';
+          if (icon === '❌' || icon === '🚫') type = 'error';
+          else if (icon === '⚠️' || icon === '!') type = 'warning';
+          else if (icon === 'ℹ️' || icon === '⏳' || icon === '🔗' || icon === '🔔') type = 'info';
           window.LuvuToast.notify({ type: type, title: message, duration: 4500 });
           return;
         }
@@ -524,7 +542,7 @@
           var res = await request('POST', 'wallet/withdraw', { amount_minor: amountMinor, payout_type: 'merchant_withdrawal' });
           if (res && res.ok) {
             this.walletBalanceMinor = 0;
-            this.pushToast(amount + (res.data && res.data.mock ? ' withdrawn (simulated PayPal payout).' : ' sent to your linked PayPal account.'), '💸');
+            this.pushToast('Withdrew ' + amount + ' — you receive ' + money((res.data && res.data.net_minor) || 0, this.walletCurrency || 'USD') + ' after the ' + money((res.data && res.data.fee_minor) || 0, this.walletCurrency || 'USD') + ' PayPal fee' + (res.data && res.data.mock ? ' (simulated).' : '.') + (res.data && res.data.receipt_email_sent ? ' Receipt emailed.' : ''), '💸');
             if (res.data && res.data.warning) { this.pushToast(res.data.warning, '⚠️'); }
             if (res.data && res.data.payout_batch_id) {
               this.pushToast('Payout batch: ' + res.data.payout_batch_id, '🔗');
@@ -536,11 +554,11 @@
               this.pushToast('Connect PayPal in Settings first.', '⚠️');
               try { window.location.href = '/settings'; } catch (e2) {}
             } else {
-              this.pushToast(err || 'Withdraw failed', '⚠️');
+              this.pushToast(err || 'Withdraw failed', '❌');
             }
           }
         } catch (e) {
-          this.pushToast('Network error during withdraw', '⚠️');
+          this.pushToast('Network error during withdraw', '❌');
         } finally {
           this.walletWithdrawing = false;
         }
@@ -555,7 +573,7 @@
           this.simMsg = res.ok ? (res.data.message || 'Done') : (res.data.message || res.data.error || ('HTTP ' + res.status));
           if (!res.ok) {
             var err = res.data.message || res.data.error || ('HTTP ' + res.status);
-            this.pushToast(err, '⚠️');
+            this.pushToast(err, '❌');
             if (res.status === 403 && (res.data.error === 'paypal_not_connected' || String(err).indexOf('PayPal') !== -1)) {
               this.pushToast('Open Settings → PayPal, or set LUVUPAY_PAYMENT_DRIVER=mock', '⚠️');
             }
@@ -565,7 +583,7 @@
         } catch (e) {
           this.simMsgOk = false;
           this.simMsg = 'Network error';
-          this.pushToast('Network error calling demo/' + path, '⚠️');
+          this.pushToast('Network error calling demo/' + path, '❌');
           return null;
         } finally {
           this.simBusy = null;
@@ -626,141 +644,142 @@
 
       // ---- 2. Missed Cancellation journey
       logDecision: function (text, tone) {
-        this.decisionLogs = this.decisionLogs.concat([{ text: text, tone: tone || 'dim' }]);
-        this.$nextTick(function () {
-          var box = document.getElementById('decision-log');
-          if (box) box.scrollTop = box.scrollHeight;
-        });
+        this.decisionLogs.push({ text: text, tone: tone || '' });
+        var self = this;
+        this.$nextTick(function () { var el = self.$refs && self.$refs.journeyLog; if (el) el.scrollTop = el.scrollHeight; });
+      },
+      decisionToneClass: function (tone) {
+        return tone === 'green' ? 'text-emerald-600' : tone === 'warn' ? 'text-rose-600' : tone === 'gold' ? 'text-indigo-600' : tone === 'blue' ? 'text-blue-600' : 'text-slate-500';
       },
 
-      decisionToneClass: function (tone) {
-        return ({ gold: 'text-warn', purple: 'text-brand-soft', green: 'text-ok', warn: 'text-bad' })[tone] || 'text-muted';
+      // ---- 2. Missed Cancellation journey (dual view: real backend events + user's phone)
+      journeyDate: function (d) { return d.toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' }); },
+      journeyEvents: function (events, seen, tone) {
+        var self = this;
+        (events || []).forEach(function (e) {
+          if (!e || seen[e.id]) return;
+          seen[e.id] = true;
+          // only events produced by THIS journey (not the whole history)
+          if (e.timestamp && Date.parse(e.timestamp) < (self._journeyStart || 0) - 2500) return;
+          self.logDecision('[Webhook] ' + (e.provider || 'luvupay') + ' · ' + (e.event_type || e.type || 'event') + ' (' + (e.status || 'ok') + ')', tone || 'warn');
+        });
       },
 
       openDecision: async function () {
         if (this.decisionBusy || this.decisionOpen) return;
-        var life = this.selectedLifecycle ? normalizeLifecycle(this.selectedLifecycle) : null;
-        if (life && life !== 'ACTIVE') {
-          this.simMsgOk = false;
-          this.simMsg = 'Select an ACTIVE row first (or clear the selection).';
+        var UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        var row = null, i;
+        var sel = this.selectedRow;
+        var isCharge = function (r) { return r && String(r.type || '').toLowerCase() === 'charge' && Number(r.amount_minor) > 0 && String(r.status || '') === 'completed'; };
+        if (sel && isCharge(sel) && String(sel.lifecycle || '').toUpperCase() === 'ACTIVE' && UUID.test(String(sel.id))) row = sel;
+        if (!row) {
+          for (i = 0; i < this.rowData.length; i++) {
+            var r = this.rowData[i];
+            if (isCharge(r) && String(r.lifecycle || '').toUpperCase() === 'ACTIVE' && UUID.test(String(r.id))) { row = r; break; }
+          }
+        }
+        if (!row) {
+          this.pushToast('No ACTIVE subscription charge yet. Run “Simulate 30 days” or create a checkout first.', '❌');
           return;
         }
-        var row = this.rowData.find(function (r) { return r.id === this.selectedId; }.bind(this))
-          || this.rowData.find(function (r) { return normalizeLifecycle(r.lifecycle) === 'ACTIVE' && UUID.test(String(r.id)); });
-        var customer = (row && row.display_name) || 'Sarah J.';
-        var product = PROJECT.product;
-        this.decisionCustomer = customer;
-        this.decisionOpen = true;
-        this.decisionBusy = true;
-        this.decisionStep = 0;
-        this.decisionReady = false;
-        this.decisionOutcome = null;
-        this.decisionOutcomeLabel = '';
-        this.decisionResultLog = '';
-        this.decisionLogs = [];
-        this.userPreviewStep = 1;
-        this.showUserPreview = true;
-        this.preview = { phase: 'grace', name: customer, email: (row && row.email) || 'sarah.j@example.com', product: product, status: 'GRACE PERIOD', trust_score: 64, churn_risk: 'high', ai_nudge: null, spinning: true, certificate_code: null };
 
+        var cur = row.currency || PROJECT.currency || 'USD';
+        var name = row.display_name || String(row.email || 'Member').split('@')[0];
+        this.decisionRow = row;
+        this.decisionCustomer = name;
+        this.decisionLogs = [];
+        this.decisionOutcome = null;
+        this.decisionReady = false;
+        this.decisionBusy = true;
+        this.phoneView = 'options';
+        this.selectedAction = null;
+        this.journey = {
+          brand: PROJECT.name || 'Your product', name: name, first: String(name).split(' ')[0], email: row.email || '',
+          amount: money(row.amount_minor, cur), amountMinor: row.amount_minor, currency: cur, hours: 48,
+          refundPct: Math.round(((PROJECT.partial_refund_bps != null ? PROJECT.partial_refund_bps : 2000)) / 100),
+          nudge: '', sandbox: false, nebius: false, features: { resale: PROJECT.marketplace_resale !== false, charity: PROJECT.charity_split !== false },
+          doneMessage: '', listingUrl: ''
+        };
+        this.decisionOpen = true;
+        this._journeyStart = Date.now();
+
+        var seen = {};
+        var renew = new Date(new Date(row.created_at || Date.now()).getTime() + 30 * 86400000);
+        var h7 = new Date(renew.getTime() - 7 * 86400000);
+        this.logDecision('[H-7 Days · ' + this.journeyDate(h7) + '] Reminder for ' + (row.email || name) + ': ' + (row.product || PROJECT.name || 'subscription') + ' renews ' + this.journeyDate(renew) + ' (' + this.journey.amount + ').', 'green');
         await sleep(450);
-        this.decisionStep = 1;
-        this.logDecision('[H-7 Days] Reminder email sent for ' + product + '.', 'green');
-        await sleep(900);
-        this.decisionStep = 2;
-        this.logDecision('[Day H] Payment Failed. [PayPal Webhook] BILLING.SUBSCRIPTION.PAYMENT.FAILED for User: ' + customer + ' (' + product + ').', 'warn');
-        await sleep(600);
-        this.logDecision('[Nebius AI] Analyzing ' + customer + '’s usage of ' + product + '…', 'gold');
-        await sleep(550);
-        this.logDecision('[Tavily API] Scanning external context…', 'purple');
-        await sleep(550);
-        this.logDecision('[Nemotron 3 Ultra] Preparing options for ' + product + ' (' + PROJECT.price + '/mo)…', 'purple');
-        await sleep(650);
-        this.logDecision('[AI Agent] Options ready: retry payment · let it expire · resell the remaining access.', 'green');
+
+        var j = await this.sim('forgot', { transaction_id: row.id }, 'forgot');
+        if (!j) {
+          this.logDecision('[Error] ' + (this.simMsg || 'Could not start the missed-cancellation flow.'), 'warn');
+          this.decisionBusy = false;
+          return;
+        }
+        var g = j.grace || {};
+        var hours = g.expires_at ? Math.max(1, Math.round((new Date(g.expires_at).getTime() - Date.now()) / 3600000)) : 48;
+        this.journey.hours = hours;
+        if (g.partial_refund_pct != null) this.journey.refundPct = Number(g.partial_refund_pct);
+        if (j.project_features) {
+          this.journey.features = { resale: !!j.project_features.marketplace_resale, charity: !!j.project_features.charity_split };
+        }
+        var integ = j.integrations || {};
+        this.journey.sandbox = !!integ.paypal;
+        this.journey.nebius = !!integ.nebius;
+        this.journey.nudge = g.ai_nudge || '';
+
+        this.logDecision('[Day H] Payment Failed. Missed cancellation detected → charge ' + String(row.id).slice(0, 8) + ' (' + this.journey.amount + ') held for ' + hours + 'h. [Webhook] subscription.grace_period_started', 'warn');
+        this.journeyEvents(j.recent_events, seen, 'warn');
+        await sleep(350);
+        this.logDecision('[Nebius AI] Analyzing ' + name + "'s usage of " + (row.product || PROJECT.name || 'the product') + '…', 'gold');
+        await sleep(450);
+        var src = g.ai_source === 'nebius' ? 'Nebius model' : 'local template (set NEBIUS_API_KEY for live AI)';
+        var risk = g.ai_churn && (g.ai_churn.risk || g.ai_churn.level || (typeof g.ai_churn === 'string' ? g.ai_churn : ''));
+        this.logDecision('[Nebius AI] Source: ' + src + (risk ? ' · churn risk ' + risk : '') + '.', 'gold');
+        if (g.ai_nudge) this.logDecision('[Nebius AI] Nudge: "' + g.ai_nudge + '"', 'gold');
+        await sleep(350);
+        var opts = ['Retry payment (' + this.journey.amount + ')', 'Partial refund ' + this.journey.refundPct + '%'];
+        opts.push(this.journey.features.resale ? 'Resell on marketplace' : 'Resell (off in Settings)');
+        opts.push(this.journey.features.charity ? 'Donate to charity' : 'Donate (off in Settings)');
+        opts.push('Expire in ' + hours + 'h');
+        this.logDecision('[AI Agent] Options ready: ' + opts.join(' · '), 'green');
+        this.logDecision(this.journey.sandbox
+          ? '[PayPal Sandbox] Connected — refunds are sent to the sandbox API when the charge has a capture id.'
+          : '[Ledger] PayPal keys not set — running on the mock ledger (same real database rows).', this.journey.sandbox ? 'blue' : '');
+        this._journeySeen = seen;
         this.decisionReady = true;
         this.decisionBusy = false;
-        this.preview.spinning = false;
-        this.preview.status = 'GRACE PERIOD';
-        // Reflect GRACE PERIOD on the selected row
-        if (row) {
-          var patched = Object.assign({}, row, { lifecycle: 'GRACE PERIOD' });
-          this.applyRow(patched, false);
-        }
       },
 
       choose: async function (choice) {
-        if (this.decisionBusy || this.decisionOutcome) return;
+        if (!this.decisionRow || !this.decisionReady || this.decisionBusy) return;
+        var labels = { renew: 'Retry Payment', partial_refund: 'Partial Refund', resale: 'Resell Remaining Access', donate: 'Donate to Charity', cancel: 'Let it expire' };
+        var label = labels[choice] || choice;
+        this.selectedAction = label;
         this.decisionBusy = true;
-        this.paypalConnecting = false;
-        this.userPreviewStep = 2; // phone preview → success
-        var product = PROJECT.product;
-        var labels = {
-          renew: ['[User] Retried ' + product + ' payment.', 'green', 'Renewed — ACTIVE', '[PayPal] Payment retry successful for ' + product + '. Status: ACTIVE.', 'ACTIVE'],
-          partial_refund: ['[User] Accepted partial refund / store credit.', 'green', 'AI-Retained — chargeback avoided', '[LuvuPay] Store credit retained · Revenue Saved updated · Status: AI-RETAINED.', 'AI-RETAINED'],
-          cancel: ['[User] Let ' + product + ' expire.', 'warn', 'Expired — CHURNED', '[System] ' + product + ' expired. Status: CHURNED.', 'CHURNED'],
-          resale: ['[User] Chose to resell ' + product + ' access on the Marketplace.', 'purple', 'Listed for resale — PENDING RESALE', '[Marketplace] Listing created · merchant resale fee booked · Status: PENDING RESALE.', 'PENDING RESALE'],
-          donate: ['[User] Donated residual value to charity.', 'purple', 'Donated — AI-RETAINED', '[Charity] Residual value routed to charity partner · Status: AI-RETAINED.', 'AI-RETAINED'],
-        };
-        var l = labels[choice];
-        this.logDecision(l[0], l[1]);
+        this.logDecision('[User Action] ' + this.journey.name + ' selected: ' + label, 'blue');
 
-        var uuid = this.selectedId && UUID.test(String(this.selectedId)) ? this.selectedId : null;
-        var j = null;
-
-        if (this.apiMode === 'paypal') {
-          // Real PayPal Sandbox path — show latency, then hit backend (or swap setTimeout for fetch)
-          this.paypalConnecting = true;
-          this.logDecision('[PayPal Sandbox] Connecting to PayPal Sandbox API…', 'gold');
-          // ---------------------------------------------------------------------------
-          // Replace the sleep below with a real backend call, e.g.:
-          //   j = await this.sim(choice === 'resale' ? 'resale' : 'decision', {
-          //     transaction_id: uuid, choice: choice, mode: 'paypal'
-          //   }, 'decision');
-          // ---------------------------------------------------------------------------
-          await sleep(1500);
-          this.paypalConnecting = false;
-        } else {
-          // Mock (instant) — minimal delay for UI polish
-          await sleep(300);
+        var j = await this.sim('decision', { transaction_id: this.decisionRow.id, choice: choice }, 'decision');
+        if (!j) {
+          this.logDecision('[Error] ' + (this.simMsg || 'The action failed.') + ' You can choose another option.', 'warn');
+          this.selectedAction = null;
+          this.decisionBusy = false;
+          return;
         }
-
-        if (uuid) {
-          j = await this.sim(
-            'decision',
-            { transaction_id: uuid, choice: choice, mode: this.apiMode },
-            'decision'
-          );
-          if (!j) {
-            this.logDecision('[Error] ' + (this.simMsg || 'Request failed'), 'warn');
-            this.decisionBusy = false;
-            this.paypalConnecting = false;
-            return;
-          }
-          if (j.row) {
-            j.row.lifecycle = normalizeLifecycle(j.row.lifecycle) === 'RESOLD' ? 'PENDING RESALE' : normalizeLifecycle(j.row.lifecycle);
-            if (String(j.row.lifecycle).toUpperCase().indexOf('SMART') !== -1) j.row.lifecycle = 'AI-RETAINED';
-            this.applyRow(j.row, false);
-          }
-          if (j.recent_events) this.webhookLogs = j.recent_events;
-          if (j.preview) this.preview = Object.assign({}, this.preview, j.preview, { product: product, status: l[4] });
-        } else {
-          this.patchRow(l[4], choice === 'cancel' ? 'cancelled' : 'completed');
+        this.journeyEvents(j.recent_events, this._journeySeen || {}, 'green');
+        this.logDecision('[System] ✓ ' + (j.message || (label + ' completed')), 'green');
+        if (j.row && j.row.lifecycle) this.logDecision('[Ledger] Charge is now ' + j.row.lifecycle + ' · status ' + (j.row.status || ''), 'green');
+        if (j.listing && j.listing.url) {
+          this.journey.listingUrl = j.listing.url;
+          this.logDecision('[Marketplace] Listed for ' + money(j.listing.price_minor, this.journey.currency) + ' · token ' + j.listing.token + ' · live on /marketplace', 'purple');
         }
-
-        this.decisionResultLog = (j && j.message) || l[3];
-        this.logDecision(this.decisionResultLog, l[1]);
-        this.decisionOutcome = choice;
-        this.decisionOutcomeLabel = l[2];
-        this.preview.status = l[4];
-        this.preview.spinning = false;
-        if (choice === 'resale') this.preview.phase = 'resale';
+        this.journey.doneMessage = j.message || (label + ' completed');
+        this.phoneView = 'done';
+        this.decisionOutcome = label;
         this.decisionBusy = false;
-        this.paypalConnecting = false;
-        this.pushToast(l[2], '✅');
-        // Pull server-authoritative money KPIs after a successful decision
-        this.load();
+        await this.load();
       },
 
-      /** Local-only update used when no ledger row exists yet. */
+
       patchRow: function (lifecycle, status) {
         var row = this.rowData.find(function (r) { return r.id === this.selectedId; }.bind(this));
         var next = Object.assign({
@@ -773,12 +792,12 @@
 
       // ---- receipts, webhooks, rate limit, deliveries
       openReceipt: async function (id) {
-        if (!id) { this.pushToast('No receipt id on this row', '⚠️'); return; }
+        if (!id) { this.pushToast('No receipt id on this row', '❌'); return; }
         var res = await request('GET', 'demo/receipts/' + encodeURIComponent(id)).catch(function () { return { ok: false, data: {} }; });
         if (!res.ok) {
           this.simMsgOk = false;
           this.simMsg = (res.data && (res.data.message || res.data.error)) || 'Receipt not found';
-          this.pushToast(this.simMsg, '⚠️');
+          this.pushToast(this.simMsg, '❌');
           return;
         }
         var j = res.data;

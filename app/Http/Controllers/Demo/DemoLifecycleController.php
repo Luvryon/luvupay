@@ -372,6 +372,7 @@ final class DemoLifecycleController
             'ok' => true,
             'message' => $msg,
             'choice' => $choice,
+            'listing' => $choice === 'resale' ? $this->activeListingPayload($tx->subscription_id ?? null) : null,
             'row' => $this->formatRow($tx->id),
             'project_features' => [
                 'marketplace_resale' => $project->marketplaceResale,
@@ -551,5 +552,17 @@ final class DemoLifecycleController
                 'error' => $e->getMessage(),
             ], 'failed');
         }
+    }
+
+    /** @return array{token:string,url:string,price_minor:int}|null */
+    private function activeListingPayload(?string $subscriptionId): ?array
+    {
+        if (! $subscriptionId) {
+            return null;
+        }
+        $l = DB::table('resale_listings')->where('subscription_id', $subscriptionId)->where('status', 'active')
+            ->whereNotNull('redeem_token')->orderByDesc('listed_at')->first();
+
+        return $l ? ['token' => $l->redeem_token, 'url' => url('/marketplace'), 'price_minor' => (int) $l->asking_price_minor] : null;
     }
 }

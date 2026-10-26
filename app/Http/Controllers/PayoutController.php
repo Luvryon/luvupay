@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Services\PayPal\PayPalClient;
 use App\Support\Money;
+use App\Support\PayoutFee;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -39,12 +40,14 @@ final class PayoutController extends Controller
         // Mock driver (default for demos / no PayPal credentials): payouts are simulated end-to-end,
         // written to the same ledger, and move the wallet exactly like a real PayPal Payout would.
         $mock = (string) config('luvupay.payment.driver', 'mock') !== 'paypal';
-        $receiver = $mock ? 'mock-receiver@luvupay.local' : $this->resolveReceiver($type);
+        $receiver = $mock
+            ? ($this->resolveReceiver($type, (string) $merchantId) ?? 'mock-receiver@luvupay.local')
+            : $this->resolveReceiver($type, (string) $merchantId);
         if ($receiver === null) {
             return response()->json([
                 'ok' => false,
                 'error' => $type === 'merchant_withdrawal'
-                    ? 'PAYPAL_MERCHANT_SANDBOX_EMAIL is not set in .env'
+                    ? 'Set your PayPal payout email in Settings → Payouts (or PAYPAL_MERCHANT_SANDBOX_EMAIL in .env)'
                     : 'PAYPAL_CHARITY_SANDBOX_EMAIL is not set in .env',
             ], 422);
         }
@@ -60,6 +63,10 @@ final class PayoutController extends Controller
             if ($amountMinor <= 0 || $amountMinor > $available) {
                 return response()->json(['ok' => false, 'error' => 'Insufficient available balance'], 422);
             }
+            $quote = PayoutFee::quote($amountMinor);
+            if ($quote['net_minor'] < PayoutFee::MIN_NET_MINOR) {
+                return response()->json(['ok' => false, 'error' => 'Amount too small: after the PayPal fee you would receive less than '.number_format(PayoutFee::MIN_NET_MINOR / 100, 2).'.'], 422);
+            }
             $note = 'LuvuPay merchant withdrawal';
         } else {
             // charity_donation — amount from held subscription residual
@@ -72,6 +79,9 @@ final class PayoutController extends Controller
             $note = 'LuvuPay charity split · '.$label;
         }
 
+        // What PayPal actually sends: gross - fee for withdrawals (fee stays in the merchant's ledger debit), full amount for charity.
+        $quote = $quote ?? ['gross_minor' => $amountMinor, 'fee_minor' => 0, 'net_minor' => $amountMinor];
+        $sendMinor = $quote['net_minor'];
         $senderBatchId = 'lp-'.($type === 'merchant_withdrawal' ? 'wd' : 'ch').'-'.Str::lower(Str::random(12));
         $requestId = $senderBatchId;
 
@@ -82,7 +92,7 @@ final class PayoutController extends Controller
             } else {
                 try {
                     $client = PayPalClient::fromConfig();
-                    $money = Money::of($amountMinor, $currency);
+                    $money = Money::of($sendMinor, $currency);
                     $batch = $client->createPayout(
                         [[
                             'receiver' => $receiver, // from .env — never from the request body
@@ -141,7 +151,10 @@ final class PayoutController extends Controller
                     'source_transaction_id' => $txId,
                     'charity_label' => $data['charity_label'] ?? null,
                     'receiver_masked' => $this->maskEmail($receiver),
-                    'env_swap' => true,
+                    'gross_minor' => $quote['gross_minor'],
+                    'fee_minor' => $quote['fee_minor'],
+                    'net_minor' => $quote['net_minor'],
+                    'fee_bps' => PayoutFee::config()['bps'],
                     'simulated' => $simulated,
                     'fallback_reason' => $fallbackReason,
                 ]),
@@ -169,6 +182,15 @@ final class PayoutController extends Controller
                 }
             }
 
+            $receipt = ['sent' => false, 'to' => null, 'error' => null];
+            if ($type === 'merchant_withdrawal') {
+                $receipt = \App\Services\Payout\PayoutMailer::sendWithdrawalReceipt((string) $merchantId, [
+                    'gross_minor' => $quote['gross_minor'], 'fee_minor' => $quote['fee_minor'], 'net_minor' => $quote['net_minor'],
+                    'currency' => $currency, 'batch_id' => $batchId ?: null, 'status' => $status, 'receiver_masked' => $this->maskEmail($receiver),
+                    'simulated' => $simulated, 'ledger_id' => $ledgerId,
+                ]);
+            }
+
             return response()->json([
                 'ok' => true,
                 'message' => ($simulated ? 'Simulated: ' : '').($type === 'merchant_withdrawal'
@@ -181,10 +203,15 @@ final class PayoutController extends Controller
                 'payout_batch_id' => $batchId,
                 'batch_status' => $status,
                 'amount_minor' => $amountMinor,
+                'gross_minor' => $quote['gross_minor'],
+                'fee_minor' => $quote['fee_minor'],
+                'net_minor' => $quote['net_minor'],
+                'receipt_email_sent' => $receipt['sent'],
+                'receipt_email_to' => $receipt['to'] ? $this->maskEmail($receipt['to']) : null,
                 'currency' => $currency,
                 // UI-safe: never return the sandbox email
                 'receiver_display' => $type === 'merchant_withdrawal'
-                    ? 'My Business PayPal Account'
+                    ? $this->maskEmail($receiver)
                     : ($data['charity_label'] ?? 'American Red Cross'),
             ], 201);
         } catch (Throwable $e) {
@@ -207,18 +234,19 @@ final class PayoutController extends Controller
      * Sandbox: sb-****@business.example.com in .env
      * Production: real emails in .env — same code path.
      */
-    private function resolveReceiver(string $payoutType): ?string
+    private function resolveReceiver(string $payoutType, string $merchantId = ''): ?string
     {
-        $key = $payoutType === 'merchant_withdrawal'
-            ? 'services.paypal.merchant_payout_email'
-            : 'services.paypal.charity_payout_email';
-
-        $email = trim((string) config($key, ''));
-        if ($email === '' || ! filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            return null;
+        // Merchant withdrawals go to the merchant's OWN PayPal (Settings → Payouts); the .env account is only a sandbox fallback.
+        if ($payoutType === 'merchant_withdrawal' && $merchantId !== '') {
+            $own = trim((string) DB::table('merchants')->where('id', $merchantId)->value('payout_email'));
+            if ($own !== '' && filter_var($own, FILTER_VALIDATE_EMAIL)) {
+                return $own;
+            }
         }
+        $key = $payoutType === 'merchant_withdrawal' ? 'services.paypal.merchant_payout_email' : 'services.paypal.charity_payout_email';
+        $email = trim((string) config($key, ''));
 
-        return $email;
+        return ($email === '' || ! filter_var($email, FILTER_VALIDATE_EMAIL)) ? null : $email;
     }
 
     private function sandboxFallback(): bool

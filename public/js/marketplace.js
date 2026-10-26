@@ -81,7 +81,7 @@
           if (!res.ok) throw new Error('HTTP ' + res.status);
           var j = await res.json();
           this.listings = (j.data || []).map(function (i) {
-            return { id: i.id, app: i.app, emoji: i.emoji || (APPS[i.app] || {}).emoji || '🍿', daysLeft: i.daysLeft, original: i.original, price: i.price, description: i.description || i.title, title: i.title };
+            return { id: i.id, app: i.app, emoji: i.emoji || (APPS[i.app] || {}).emoji || '🍿', daysLeft: i.daysLeft, original: i.original, price: i.price, redeem_url: i.redeem_url || null, description: i.description || i.title, title: i.title };
           });
         } catch (e) {
           this.error = 'Could not load listings. Please refresh.';
@@ -131,7 +131,10 @@
       },
 
       // ---- buy
-      openBuy: function (item) { Object.assign(this, { buyOpen: true, buyItem: item, buyEmail: '', buyError: '', buyBusy: false }); },
+      openBuy: function (item) {
+        // Merchant resale tokens redeem on the hosted checkout page
+        if (item && item.redeem_url) { global.location.href = item.redeem_url; return; }
+        Object.assign(this, { buyOpen: true, buyItem: item, buyEmail: '', buyError: '', buyBusy: false }); },
 
       confirmBuy: async function () {
         if (this.buyBusy || !this.buyItem) return;

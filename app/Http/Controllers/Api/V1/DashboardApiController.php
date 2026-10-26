@@ -105,6 +105,8 @@ final class DashboardApiController
         // In mock mode withdrawals are simulated, so the wallet never needs a PayPal link.
         $data['can_withdraw'] = $data['integrations']['payment_driver'] !== 'paypal'
             || $data['integrations']['paypal_merchant_connected'];
+        $data['payout_fee'] = \App\Support\PayoutFee::config();
+        $data['payout_email'] = (string) (DB::table('merchants')->where('id', $m)->value('payout_email') ?? '');
         $data['project'] = MerchantProject::current()->toArray();
         $data['recent_events'] = $data['events'] = $this->recentEventsForMerchant($m, 40);
 

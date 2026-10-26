@@ -47,6 +47,7 @@
                 </div>
                 <div class="act">
                     <button type="button" class="c-btn c-btn-light" x-show="paypalConnected" x-on:click="withdrawToPayPal()" x-bind:disabled="walletWithdrawing || walletBalanceMinor <= 0"><span x-text="walletWithdrawing ? 'Sending…' : 'Withdraw to PayPal'"></span></button>
+                    <p class="dim" x-show="walletBalanceMinor > 0" x-cloak style="margin:8px 0 0;font-size:.8rem">PayPal fee <strong x-text="'−' + money(walletQuote.fee, walletCurrency)"></strong> from your wallet · you receive <strong x-text="money(walletQuote.net, walletCurrency)"></strong></p>
                     <a href="{{ route('settings') }}" class="c-btn c-btn-light" x-show="!paypalConnected" x-cloak>Connect PayPal to withdraw</a>
                     <span class="dim" style="color:#7ee2b8" x-show="walletBalanceMinor <= 0 && paypalConnected" x-cloak>Balance is clear. It refills on the next charge, resale, or retention.</span>
                     <span class="dim" x-show="!paypalConnected" x-cloak>Link PayPal in Settings to enable withdrawals.</span>
@@ -167,106 +168,7 @@
         </div>
     </x-ui.modal>
 
-    {{-- Missed Cancellation decision modal — Demo Mode: Mock vs Real PayPal Sandbox --}}
-    <x-ui.modal show="decisionOpen" title="Missed Cancellation Journey" size="lg">
-        <div class="p-5">
-            <p class="mb-4 text-sm text-muted">
-                H-7 → Day H flow for <span class="font-semibold text-white" x-text="decisionCustomer"></span>.
-            </p>
-            <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
-                <p class="text-[11px] font-semibold uppercase tracking-wider text-muted">Dual-view simulator · backend + user UX</p>
-                <button type="button" class="text-xs font-semibold text-brand-soft hover:underline"
-                        x-on:click="showUserPreview = !showUserPreview"
-                        x-text="showUserPreview ? 'Hide user perspective' : '👁️ View User Perspective'"></button>
-            </div>
-            <div class="grid gap-4 lg:grid-cols-[1fr_280px]">
-              <div class="min-w-0">
-
-            {{-- Demo Mode toggle --}}
-            <div class="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-edge bg-black/30 px-4 py-3">
-                <div>
-                    <p class="text-[11px] font-semibold uppercase tracking-wider text-muted">Demo Mode</p>
-                    <p class="mt-0.5 text-xs text-faint" x-text="apiMode === 'mock' ? 'Instant UI — no PayPal network wait' : 'Routes through PayPal Sandbox latency path'"></p>
-                </div>
-                <div class="inline-flex rounded-lg border border-edge bg-slate-900/80 p-0.5 text-xs font-semibold" role="group" aria-label="Demo mode">
-                    <button type="button"
-                            class="rounded-md px-3 py-1.5 transition"
-                            x-bind:class="apiMode === 'mock' ? 'bg-emerald-500/20 text-emerald-300 shadow-sm' : 'text-slate-400 hover:text-slate-200'"
-                            x-on:click="apiMode = 'mock'"
-                            x-bind:disabled="decisionBusy">Mock (Instant)</button>
-                    <button type="button"
-                            class="rounded-md px-3 py-1.5 transition"
-                            x-bind:class="apiMode === 'paypal' ? 'bg-emerald-500/20 text-emerald-300 shadow-sm' : 'text-slate-400 hover:text-slate-200'"
-                            x-on:click="apiMode = 'paypal'"
-                            x-bind:disabled="decisionBusy">Real PayPal Sandbox</button>
-                </div>
-            </div>
-
-            {{-- PayPal connecting spinner --}}
-            <div x-show="paypalConnecting" x-cloak x-transition class="mb-4 flex items-center gap-3 rounded-xl border border-brand/30 bg-brand/10 px-4 py-3">
-                <svg class="size-5 animate-spin text-brand-soft" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9"/></svg>
-                <p class="text-sm font-medium text-slate-100">Connecting to PayPal Sandbox API…</p>
-            </div>
-
-            <div id="decision-log" class="mb-4 max-h-48 space-y-1.5 overflow-auto rounded-xl border border-edge bg-black/40 p-3 font-mono text-[11px]">
-                <template x-for="(line, i) in decisionLogs" x-bind:key="i">
-                    <p x-bind:class="decisionToneClass(line.tone)"><span class="text-faint">▸ </span><span x-text="line.text"></span></p>
-                </template>
-            </div>
-
-            <div class="flex flex-wrap gap-2" x-show="decisionReady && !decisionOutcome" x-cloak>
-                <x-ui.button variant="success" x-on:click="choose('renew')" x-bind:disabled="decisionBusy">
-                    <span x-text="decisionBusy && !paypalConnecting ? 'Working…' : 'Retry payment → ACTIVE'"></span>
-                </x-ui.button>
-                <x-ui.button variant="success" x-on:click="choose('partial_refund')" x-bind:disabled="decisionBusy">
-                    Partial refund / store credit → AI-RETAINED
-                </x-ui.button>
-                <x-ui.button variant="warn" x-on:click="choose('resale')" x-bind:disabled="decisionBusy">
-                    Resell remaining → PENDING RESALE
-                </x-ui.button>
-                <x-ui.button variant="warn" x-on:click="choose('donate')" x-bind:disabled="decisionBusy">
-                    Donate residual → Charity
-                </x-ui.button>
-                <x-ui.button variant="danger" x-on:click="choose('cancel')" x-bind:disabled="decisionBusy">
-                    Let expire → CHURNED
-                </x-ui.button>
-            </div>
-
-            <div x-show="decisionOutcome" x-cloak x-transition class="rounded-xl border border-ok/30 bg-ok/10 p-4">
-                <p class="font-semibold text-ok" x-text="decisionOutcomeLabel"></p>
-                <p class="mt-1 text-xs text-muted" x-text="decisionResultLog"></p>
-            </div>
-              </div>{{-- end backend column --}}
-
-              {{-- User perspective (mobile frame) --}}
-              <div x-show="showUserPreview" x-cloak class="mx-auto" style="width:260px">
-                <div class="rounded-[1.75rem] border border-slate-300 bg-slate-50 p-3 shadow-inner" style="min-height:420px">
-                  <div class="mb-3 text-center">
-                    <span class="inline-block rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">🔒 Sandbox Authenticated Session</span>
-                  </div>
-                  <p class="mb-2 text-center text-xs font-semibold text-slate-700" x-text="decisionCustomer || 'Subscriber'"></p>
-
-                  {{-- Step 1: payment failed --}}
-                  <div x-show="userPreviewStep === 1" class="rounded-xl border border-amber-200 bg-white p-3 shadow-sm">
-                    <p class="text-xs font-semibold text-amber-800">Payment failed</p>
-                    <p class="mt-1 text-[11px] leading-relaxed text-slate-600">You have 48 hours to claim a 20% partial refund, resell remaining access, or donate unused value.</p>
-                    <div class="mt-3 grid grid-cols-2 gap-2">
-                      <button type="button" class="rounded-lg bg-purple-600 py-2 text-[10px] font-semibold text-white" x-on:click="userPreviewStep = 2; choose('resale')">Resell Access</button>
-                      <button type="button" class="rounded-lg bg-pink-500 py-2 text-[10px] font-semibold text-white" x-on:click="userPreviewStep = 2; choose('cancel')">Donate</button>
-                    </div>
-                  </div>
-
-                  {{-- Step 2: success --}}
-                  <div x-show="userPreviewStep === 2" x-cloak class="rounded-xl border border-emerald-200 bg-white p-4 text-center shadow-sm">
-                    <p class="text-2xl">✅</p>
-                    <p class="mt-2 text-xs font-semibold text-emerald-700">Action successful</p>
-                    <p class="mt-1 text-[11px] text-slate-500">Merchant dashboard & ledger updated.</p>
-                  </div>
-                </div>
-              </div>
-            </div>{{-- end dual grid --}}
-        </div>
-    </x-ui.modal>
+    @include('dashboard.partials.journey-modal')
 
     {{-- Receipt modal --}}
     <x-ui.modal show="receiptOpen" title="Transaction receipt" size="md">

@@ -373,6 +373,24 @@ class MerchantPanelController extends Controller
         return back()->with('toast_success', 'Invoice details saved. New invoices and emails will use them.');
     }
 
+    public function savePayoutEmail(Request $request)
+    {
+        $merchant = $this->resolveMerchant($request);
+        abort_unless($merchant, 404);
+        $user = $request->user('merchant_web') ?? $request->user();
+        $data = $request->validate([
+            'payout_email' => ['required', 'email:rfc', 'max:190'],
+            'password' => ['required', 'string'],
+        ]);
+        // Changing where money is sent is sensitive: re-authenticate.
+        if (! $user || ! \Illuminate\Support\Facades\Hash::check($data['password'], (string) $user->password)) {
+            return back()->withErrors(['password' => 'Password is incorrect.'])->withInput(['payout_email' => $data['payout_email']]);
+        }
+        $merchant->forceFill(['payout_email' => strtolower(trim($data['payout_email']))])->save();
+
+        return back()->with('toast_success', 'Payout PayPal email saved. Withdrawals now go to this account.');
+    }
+
     public function removeLogo(Request $request)
     {
         $merchant = $this->resolveMerchant($request);

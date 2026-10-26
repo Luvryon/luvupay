@@ -21,6 +21,7 @@
         <nav class="snav" aria-label="Settings sections">
             <a href="#paypal">PayPal</a>
             <a href="#branding">Company logo</a>
+            <a href="#payouts">Payouts</a>
             <a href="#invoice-details">Invoice details</a>
             <a href="#api">API credentials</a>
             <a href="#project">Project</a>
@@ -104,6 +105,22 @@
                         <button type="submit" class="c-btn">Rotate secret key</button>
                     </form>
                 </div>
+            </section>
+
+            <section class="c-card" id="payouts">
+                <div class="c-head"><div><h2 class="c-title">Payouts</h2><p class="c-sub">Where withdrawals are sent. Your wallet is debited; PayPal's fee is paid from your wallet, never from the platform balance.</p></div></div>
+                @php $fee = \App\Support\PayoutFee::config(); @endphp
+                <form method="post" action="{{ route('settings.payout') }}" class="c-pad stack-sm">
+                    @csrf
+                    <div class="field" style="margin:0"><label class="label" for="po-email">Your PayPal email</label>
+                        <input id="po-email" name="payout_email" class="input" type="email" required maxlength="190" placeholder="you@yourbusiness.com" value="{{ old('payout_email', $merchant->payout_email ?? '') }}">
+                        @error('payout_email')<p style="color:#b4232f;font-size:.8rem;margin:4px 0 0">{{ $message }}</p>@enderror</div>
+                    <div class="field" style="margin:0"><label class="label" for="po-pass">Confirm with your password</label>
+                        <input id="po-pass" name="password" class="input" type="password" required autocomplete="current-password">
+                        @error('password')<p style="color:#b4232f;font-size:.8rem;margin:4px 0 0">{{ $message }}</p>@enderror</div>
+                    <p class="dim" style="margin:0;font-size:.82rem">PayPal payout fee: <strong>{{ rtrim(rtrim(number_format($fee['bps'] / 100, 2), '0'), '.') }}%</strong>@if($fee['fixed_minor'] > 0) + ${{ number_format($fee['fixed_minor'] / 100, 2) }}@endif @if($fee['cap_minor'] > 0) (max ${{ number_format($fee['cap_minor'] / 100, 2) }})@endif. Example: wallet $100.00 → fee $2.00 → you receive $98.00. A receipt is emailed to {{ $merchant->email ?? 'your account email' }}.</p>
+                    <div><button type="submit" class="c-btn c-btn-brand">Save payout email</button></div>
+                </form>
             </section>
 
             <section class="c-card" id="invoice-details">

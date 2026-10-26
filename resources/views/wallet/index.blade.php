@@ -19,11 +19,17 @@
             <div>
                 <p class="dim" style="margin:0;font-size:.75rem;text-transform:uppercase;letter-spacing:.06em;font-weight:600">Available balance</p>
                 <p style="margin:6px 0 0;font-size:2rem;font-weight:700;letter-spacing:-0.03em;color:#0f172a" x-text="balanceLabel">$0.00</p>
-                <p class="dim" style="margin:6px 0 0;font-size:.8rem">Completed charges − partial refunds − charity − withdrawals + your resale fees.</p>
+                <p class="dim" style="margin:6px 0 0;font-size:.8rem">Your earnings: completed charges − partial refunds − charity − withdrawals + your resale fees. Held by LuvuPay as merchant of record until you withdraw.</p>
             </div>
             <button type="button" class="c-btn c-btn-brand" x-on:click="withdraw()" x-bind:disabled="withdrawing || balanceMinor <= 0">
                 <span x-text="withdrawing ? 'Sending…' : 'Withdraw to PayPal'"></span>
             </button>
+            <p class="dim" x-show="balanceMinor > 0" x-cloak style="margin:8px 0 0;font-size:.8rem">
+                PayPal fee <strong x-text="'−' + money(quote.fee, currency)"></strong> (from your wallet) →
+                you receive <strong style="color:#4338ca" x-text="money(quote.net, currency)"></strong>
+                <span x-show="payoutEmail"> at <span x-text="payoutEmail"></span></span>
+                <span x-show="!payoutEmail"> · <a href="{{ route('settings') }}#payouts">set your PayPal email</a></span>
+            </p>
         </div>
         <div class="c-pad" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;border-top:1px solid var(--line)">
             <template x-for="b in breakdown" x-bind:key="b.label">

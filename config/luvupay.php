@@ -1,6 +1,12 @@
 <?php
 
 return [
+    // PayPal charges the sender of a payout; LuvuPay takes that fee from the MERCHANT wallet (never the platform balance).
+    'payout_fee' => [
+        'bps' => (int) env('LUVUPAY_PAYOUT_FEE_BPS', 200),
+        'fixed_minor' => (int) env('LUVUPAY_PAYOUT_FEE_FIXED_MINOR', 0),
+        'cap_minor' => (int) env('LUVUPAY_PAYOUT_FEE_CAP_MINOR', 0),
+    ],
     // In PayPal sandbox, a rejected payout is recorded as a labelled simulation instead of an HTTP 502.
     'payout_sandbox_fallback' => env('LUVUPAY_PAYOUT_SANDBOX_FALLBACK', true),
 

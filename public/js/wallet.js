@@ -12,6 +12,9 @@
       loading: false,
       withdrawing: false,
       balanceMinor: 0,
+      payoutFee: { bps: 200, fixed_minor: 0, cap_minor: 0 },
+      payoutEmail: '',
+      money: function (m, c) { return money(m, c); },
       currency: 'USD',
       rows: [],
       wallet: {},
@@ -29,6 +32,13 @@
           { label: 'Resale fees', value: '+' + money(w.resale_fees_minor, c), color: '#4338ca' },
           { label: 'Withdrawn', value: '−' + money(w.withdrawn_minor, c), color: '#64748b' },
         ];
+      },
+      get quote() {
+        var f = this.payoutFee || {}; var g = Number(this.balanceMinor) || 0;
+        var fee = Math.round(g * (Number(f.bps) || 0) / 10000) + (Number(f.fixed_minor) || 0);
+        if (Number(f.cap_minor) > 0) fee = Math.min(fee, Number(f.cap_minor));
+        fee = Math.max(0, Math.min(fee, g));
+        return { fee: fee, net: g - fee };
       },
       get balanceLabel() { return money(this.balanceMinor, this.currency); },
       get filteredRows() {
@@ -60,6 +70,8 @@
           var json = txRes.ok ? await txRes.json() : { data: [] };
           var data = Array.isArray(json.data) ? json.data : [];
           this.currency = sum.currency || 'USD';
+          this.payoutFee = sum.payout_fee || this.payoutFee;
+          this.payoutEmail = sum.payout_email || '';
           this.wallet = sum.wallet || {};
           this.balanceMinor = Number(sum.wallet_balance_minor != null ? sum.wallet_balance_minor : sum.available_balance_minor) || 0;
           this.rows = data.map(function (r) {
@@ -125,7 +137,7 @@
           var j = await res.json().catch(function () { return {}; });
           if (res.ok && j.ok) {
             if (window.LuvuToast) {
-              window.LuvuToast.success('Withdrawal submitted', j.message || ('Batch ' + (j.payout_batch_id || '')));
+              window.LuvuToast.success('Withdrawal submitted', 'You receive ' + money(j.net_minor, j.currency) + ' (fee ' + money(j.fee_minor, j.currency) + ').' + (j.receipt_email_sent ? ' Receipt emailed to ' + j.receipt_email_to + '.' : ''));
               if (j.warning) window.LuvuToast.info('PayPal Sandbox note', j.warning);
             }
             await this.load();

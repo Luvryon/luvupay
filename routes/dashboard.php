@@ -35,6 +35,7 @@ Route::middleware($console)->group(function () {
 
     Route::post('/settings/rotate-key', [MerchantPanelController::class, 'rotateKey'])->middleware('merchant.can:keys.rotate')->name('settings.rotate');
     Route::post('/settings/logo', [MerchantPanelController::class, 'uploadLogo'])->middleware(['merchant.can:settings.read', 'throttle:10,1,dashboard37'])->name('settings.logo');
+    Route::post('/settings/payout-email', [MerchantPanelController::class, 'savePayoutEmail'])->middleware(['merchant.can:settings.read', 'throttle:6,1,payoutemail'])->name('settings.payout');
     Route::post('/settings/invoice-details', [MerchantPanelController::class, 'saveInvoiceDetails'])->middleware(['merchant.can:settings.read', 'throttle:20,1,dashboard38'])->name('settings.invoice');
     Route::post('/settings/logo/remove', [MerchantPanelController::class, 'removeLogo'])->middleware(['merchant.can:settings.read', 'throttle:10,1,dashboard39'])->name('settings.logo.remove');
     Route::post('/settings/payout-recipients', [MerchantPanelController::class, 'requestPayoutRecipient'])->middleware('merchant.can:payouts.write')->name('settings.payout');

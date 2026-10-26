@@ -46,8 +46,8 @@ final class MerchantBranding
 
     public static function logoUrl(object $merchant): ?string
     {
-        if (empty($merchant->logo_path)) {
-            return null;
+        if (empty($merchant->logo_path) || self::logo($merchant) === null) {
+            return null; // no file on disk (e.g. wiped storage): fall back to the initials badge instead of a broken image
         }
 
         return route('brand.logo', ['id' => $merchant->id, 'v' => substr(md5((string) $merchant->logo_path), 0, 8)]);

@@ -35,3 +35,10 @@ Wallet = charges − partial refunds − charity − withdrawals + resale fees.
 - IDR removed from currency pickers (PayPal does not support it).
 - New migration: `resale_listings.redeem_token` (run `php artisan migrate --force`).
 - Tailwind for the hosted pages is compiled to `public/css/hosted.css` (no CDN, works with the CSP).
+
+# Round 3 (25 Oct 2026)
+- **Withdrawals**: the merchant wallet (earnings ledger) is debited the gross amount; PayPal's payout fee comes out of that wallet (`LUVUPAY_PAYOUT_FEE_*`); the NET is paid to the merchant's OWN PayPal email (Settings -> Payouts, password-confirmed, new column `merchants.payout_email`). A receipt email (gross, fee, net, PayPal batch id) goes to the merchant. Customer payments land in the platform's PayPal app account (merchant of record) and are credited to merchant wallets in the ledger.
+- **Missed Cancellation Journey** is now a dual-view simulator (backend log | user's phone, 5 synced actions). It runs on a real completed charge, calls the real `forgot`/`decision` endpoints and prints real webhook events, AI source/nudge and sandbox status. The separate floating Preview button was removed.
+- **Resale -> /marketplace**: merchant resale listings are merged into the public marketplace; Buy now -> /redeem/{token}.
+- **Toasts**: solid colours (success green, info blue, warning yellow, error red).
+- New migration: `merchants.payout_email` (run `php artisan migrate --force`).
