@@ -13,7 +13,6 @@
             $item('wallet', 'Wallet & Transactions', 'card', 'wallet'),
             $item('subscriptions', 'Subscriptions', 'users', 'subscriptions'),
             $item('resale', 'Resale', 'store', 'resale'),
-            $item('developers', 'Developers', 'code', 'developers'),
             $item('analytics', 'Analytics', 'chart', 'analytics', 'analytics.read'),
         ]),
         'Account' => array_filter([

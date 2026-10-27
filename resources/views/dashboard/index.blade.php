@@ -123,26 +123,72 @@
         </div>
 
 @if(config('luvupay.demo_simulator'))
-    {{-- Sandbox / Demo Controls — clearly marked, professional labels --}}
-    <section class="c-card demo" x-show="demoEnabled" x-cloak>
-        <div class="demo-bar"><x-ui.icon name="alert" :size="16" /><span><b>Sandbox controls.</b> These run real backend logic against PayPal Sandbox and are disabled in production.</span></div>
-        <div class="demo-body">
-            <div class="row" style="align-items:flex-start">
-                <div>
-                    <h2 class="c-title" style="font-size:1.1rem">{{ $project->product() }} · {{ $project->price() }}/{{ $project->interval === 'month' ? 'mo' : $project->interval }}</h2>
-                    <p class="c-sub" style="max-width:560px">Each simulation writes real database rows, split math, an AI nudge, webhook events and charity receipts.</p>
-                </div>
-                <p class="mono" style="margin:0;color:var(--muted)" x-show="selectedId" x-cloak>Selected <b x-text="String(selectedId).slice(0, 8) + '…'"></b> · <b style="color:var(--ok)" x-text="selectedLifecycle || '—'"></b></p>
-            </div>
-            <div class="demo-btns">
-                <button type="button" class="c-btn c-btn-brand" x-on:click="openCheckout()" x-bind:disabled="simBusy || checkoutPaying">New subscription checkout</button>
-                <button type="button" class="c-btn c-btn-warn" x-on:click="openDecision()" x-bind:disabled="simBusy || decisionOpen || (selectedLifecycle && selectedLifecycle !== 'ACTIVE')">Missed cancellation journey</button>
-                <button type="button" class="c-btn" x-on:click="openWebhookLogs()">Webhook logs</button>
-                <button type="button" class="c-btn c-btn-bad" x-on:click="maxRateLimit()" x-bind:disabled="simBusy"><span x-text="simBusy === 'ratelimit' ? 'Working…' : 'Trigger rate limit'"></span></button>
-                <button type="button" class="c-btn" x-on:click="resetRateLimit()">Reset quota</button>
-            </div>
-            <p style="margin:0;font-size:.9rem" x-show="simMsg" x-cloak x-bind:style="simMsgOk ? 'color:#0f8f5f' : 'color:#b4232f'" x-text="simMsg" role="status"></p>
+    {{-- Sandbox Controls — professional SaaS workflow triggers --}}
+    <section class="bg-amber-50 border border-amber-200 rounded-xl p-6" x-show="demoEnabled" x-cloak>
+        <p class="text-amber-800 text-sm font-medium mb-4">
+            ⚠️ Sandbox controls. These run real backend logic against PayPal Sandbox and are disabled in production.
+        </p>
+
+        <div class="mb-4">
+            <h2 class="text-lg font-bold text-slate-900 mb-1">
+                {{ $project->product() }} · {{ $project->price() }}/{{ $project->interval === 'month' ? 'mo' : $project->interval }}
+            </h2>
+            <p class="text-sm text-slate-600 max-w-xl">
+                Each action writes real database rows, revenue split math, an AI retention nudge, webhook events, and charity receipts.
+            </p>
+            <p class="mt-1 text-xs font-mono text-slate-500" x-show="selectedId" x-cloak>
+                Selected <span class="font-semibold" x-text="String(selectedId).slice(0, 8) + '…'"></span>
+                · <span class="text-emerald-600 font-semibold" x-text="selectedLifecycle || '—'"></span>
+            </p>
         </div>
+
+        <div class="flex flex-wrap items-center gap-3">
+            {{-- Primary: start of lifecycle --}}
+            <button
+                type="button"
+                class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 font-medium shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                x-on:click="openCheckout()"
+                x-bind:disabled="simBusy || checkoutPaying"
+            >
+                New subscription checkout
+            </button>
+
+            {{-- Secondary: retention flow / Dual-View Simulator --}}
+            <button
+                type="button"
+                class="bg-white border border-slate-300 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-50 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                x-on:click="openDecision()"
+                x-bind:disabled="simBusy || decisionOpen || (selectedLifecycle && selectedLifecycle !== 'ACTIVE')"
+            >
+                Missed cancellation journey
+            </button>
+
+            {{-- Tertiary: debug --}}
+            <button
+                type="button"
+                class="text-slate-500 hover:text-indigo-600 px-4 py-2 font-medium text-sm"
+                x-on:click="openWebhookLogs()"
+            >
+                Webhook logs
+            </button>
+
+            <button
+                type="button"
+                class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 font-medium shadow-sm text-sm"
+                x-on:click="campaignStudioOpen = true"
+            >
+                AI Retention Campaign Studio
+            </button>
+        </div>
+
+        <p
+            class="mt-3 text-sm"
+            x-show="simMsg"
+            x-cloak
+            x-bind:class="simMsgOk ? 'text-emerald-600' : 'text-red-600'"
+            x-text="simMsg"
+            role="status"
+        ></p>
     </section>
 
     {{-- Checkout modal --}}
@@ -169,6 +215,12 @@
     </x-ui.modal>
 
     @include('dashboard.partials.journey-modal')
+
+    @include('dashboard.partials.campaign-studio-modal')
+
+    @include('dashboard.partials.evidence-modal')
+
+    @include('dashboard.partials.withdrawal-receipt-modal')
 
     {{-- Receipt modal --}}
     <x-ui.modal show="receiptOpen" title="Transaction receipt" size="md">
@@ -203,58 +255,8 @@
     @endif {{-- demo_simulator --}}
 
     
-    {{-- Seed / Simulate 30 Days review modal --}}
     <x-ui.toasts />
         </div>{{-- hasData --}}
-
-    {{-- Seed modal must live outside hasData so empty-state can open it --}}
-    {{-- Simulate 30 days modal (outside hasData) --}}
-    <div x-show="seedModalOpen" x-cloak class="modal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="seed-modal-title">
-        <div class="modal-scrim" x-on:click="seedModalOpen = false"></div>
-        <div class="modal-box modal-lg" x-on:click.stop
-             x-show="seedModalOpen"
-             x-transition:enter="m-enter" x-transition:enter-start="m-from" x-transition:enter-end="m-to">
-            <div class="modal-head">
-                <div>
-                    <h3 id="seed-modal-title">Simulate 30 days</h3>
-                    <p style="margin:4px 0 0;font-size:.82rem;color:var(--muted);font-weight:400">Review rows, then send real PayPal Sandbox checkouts for this project.</p>
-                </div>
-                <button type="button" class="modal-x" x-on:click="seedModalOpen = false" aria-label="Close">
-                    <x-ui.icon name="x" :size="18" />
-                </button>
-            </div>
-            <div class="modal-body" style="padding:20px 24px">
-                <div class="field" style="margin-bottom:16px">
-                    <label class="label" for="seed-project">Project</label>
-                    <input id="seed-project" type="text" x-model="seedProjectName" class="input" readonly
-                           style="background:var(--bg);font-weight:600" />
-                    <p class="help" x-show="!seedProjectName" style="color:#d92d20">Create a project first before simulating.</p>
-                </div>
-                <p class="label" style="margin-bottom:8px">Subscribers to charge <span style="font-weight:400;color:var(--muted)">(edit name / email)</span></p>
-                <div style="max-height:280px;overflow:auto;display:grid;gap:8px">
-                    <template x-for="(row, idx) in seedDraftRows" :key="idx">
-                        <label class="flex items-start gap-3" style="border:1px solid var(--line);border-radius:12px;padding:12px;background:#fff;cursor:pointer">
-                            <input type="checkbox" x-model="row.selected" style="margin-top:10px;accent-color:var(--brand)" />
-                            <div style="flex:1;min-width:0;display:grid;gap:8px;grid-template-columns:1fr 1fr">
-                                <input type="text" x-model="row.name" class="input" placeholder="Display name" style="padding:9px 12px" />
-                                <input type="email" x-model="row.email" class="input" placeholder="Email" style="padding:9px 12px" />
-                            </div>
-                        </label>
-                    </template>
-                </div>
-            </div>
-            <div class="modal-foot">
-                <button type="button" class="c-btn" x-on:click="seedModalOpen = false">Cancel</button>
-                <button type="button" class="c-btn c-btn-brand"
-                        x-bind:disabled="loadingSeed || !seedProjectName"
-                        x-on:click="confirmSeedSandbox()">
-                    <span x-show="!loadingSeed">Send to PayPal Sandbox</span>
-                    <span x-show="loadingSeed" x-cloak style="display:none">Sending…</span>
-                </button>
-            </div>
-        </div>
-    </div>
-
 
 </div>
 

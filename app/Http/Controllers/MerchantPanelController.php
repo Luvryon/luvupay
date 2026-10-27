@@ -227,9 +227,7 @@ class MerchantPanelController extends Controller
 
     public function developers(Request $request)
     {
-        $merchant = $this->resolveMerchant($request);
-
-        return view('developers.index', compact('merchant'));
+        return redirect()->route('analytics');
     }
 
     public function subscriptions(Request $request)

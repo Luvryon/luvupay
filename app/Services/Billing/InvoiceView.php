@@ -93,6 +93,10 @@ final class InvoiceView
             'payment_method' => str_starts_with(strtoupper($ref), 'PAYPAL') || $ref === '' ? 'PayPal' : 'Card',
             'payment_ref' => $ref,
             'merchant_id' => $inv->merchant_id,
+            'kind' => (string) ($meta['kind'] ?? ''),
+            'access_code' => (string) ($meta['access_code'] ?? ''),
+            'access_days' => $meta['access_days'] ?? null,
+            'product' => (string) ($meta['product'] ?? ''),
         ];
     }
 

@@ -5,7 +5,7 @@
     { title: 'Dashboard', href: '/dashboard', group: 'Console', keywords: 'home overview ledger' },
     { title: 'Wallet & Transactions', href: '/wallet', group: 'Console', keywords: 'balance withdraw money' },
     { title: 'Subscriptions', href: '/subscriptions', group: 'Console', keywords: 'customers crm churn' },
-    { title: 'Developers', href: '/developers', group: 'Console', keywords: 'api keys webhook' },
+    { title: 'API keys { title: 'Developers', href: '/developers', group: 'Console', keywords: 'api keys webhook' }, webhooks', href: '/settings', group: 'Console', keywords: 'api keys webhook developers' },
     { title: 'Marketplace', href: '/marketplace', group: 'Console', keywords: 'resale listings' },
     { title: 'Settings', href: '/settings', group: 'Console', keywords: 'paypal logo api webhook' },
     { title: 'Analytics', href: '/analytics', group: 'Console', keywords: 'charts revenue' },

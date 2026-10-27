@@ -75,6 +75,7 @@
     'PENDING RESALE': 'text-brand-soft',
     'AI-RETAINED': 'text-info',
     CHURNED: 'text-bad',
+    DISPUTED: 'text-bad',
     RESOLD: 'text-brand-soft',
     AWAITING_USER: 'text-warn',
   };
@@ -88,6 +89,7 @@
     if (s === 'AI_RETAINED' || s === 'AI-RETAINED') return 'AI-RETAINED';
     if (s === 'ACTIVE') return 'ACTIVE';
     if (s === 'CHURNED' || s === 'CANCELLED' || s === 'EXPIRED') return 'CHURNED';
+    if (s === 'DISPUTED' || s === 'DISPUTE' || s === 'CHARGEBACK') return 'DISPUTED';
     if (s === 'AWAITING USER' || s === 'AWAITING_USER') return 'GRACE PERIOD';
     return s || '—';
   }
@@ -130,13 +132,29 @@
           var m = map[String(p.value || '').toLowerCase()] || ['—', 'text-faint'];
           return h('span', 'text-xs font-bold ' + m[1], m[0]);
         } },
-      { field: 'actions', headerName: '', width: 110, sortable: false, filter: false,
+      { field: 'actions', headerName: 'Actions', width: 200, sortable: false, filter: false,
         cellRenderer: function (p) {
-          var wrap = h('div', 'flex gap-1');
-          if (p.data && p.data.invoice_id) {
+          var wrap = h('div', 'flex flex-wrap gap-1 items-center');
+          var d = p.data || {};
+          var life = normalizeLifecycle(d.lifecycle);
+          var name = String(d.display_name || d.email || '').toLowerCase();
+          var highRisk = life === 'DISPUTED'
+            || String(d.chargeback_risk || '').toLowerCase() === 'high'
+            || (String(d.churn_risk || '').toLowerCase() === 'high' && Number(d.trust_score) > 0 && Number(d.trust_score) < 55)
+            || name.indexOf('john doe') !== -1
+            || name.indexOf('john.doe') !== -1;
+          if (highRisk) {
+            wrap.appendChild(h(
+              'button',
+              'bg-rose-50 text-rose-600 border border-rose-200 text-xs px-3 py-1.5 rounded-lg hover:bg-rose-100 font-medium',
+              'Generate Evidence',
+              { type: 'button', 'data-action': 'evidence' }
+            ));
+          }
+          if (d.invoice_id) {
             wrap.appendChild(h('button', 'text-[10px] font-semibold text-brand-soft hover:underline', 'Invoice', { type: 'button', 'data-action': 'invoice' }));
           }
-          if (p.data && (p.data.receipt_id || p.data.id)) {
+          if (d.receipt_id || d.id) {
             wrap.appendChild(h('button', 'text-[10px] font-semibold text-muted hover:underline', 'Receipt', { type: 'button', 'data-action': 'receipt' }));
           }
           return wrap;
@@ -181,9 +199,20 @@
       checkoutPaying: false,
       checkoutForm: { name: 'John Doe', email: 'john@example.com' },
       decisionOpen: false,
+      campaignStudioOpen: false,
+      evidenceOpen: false,
+      withdrawalReceiptOpen: false,
+      withdrawalReceipt: {},
+      evidenceRow: null,
+      evidenceExporting: false,
+      evidenceExported: false,
       decisionRow: null,
       selectedAction: null,
       phoneView: 'options',
+      phoneTab: 'options',
+      journeyStep: 'ready',
+      aiThinkingLabel: 'Analyzing LTV…',
+      aiThinkingProgress: 8,
       journey: { brand: '', name: '', first: '', email: '', amount: '', hours: 48, refundPct: 20, nudge: '', sandbox: false, nebius: false, features: { resale: true, charity: true }, doneMessage: '', listingUrl: '' },
       _journeySeen: {},
       decisionBusy: false,
@@ -243,6 +272,39 @@
       init: function () {
         this.load();
         if (this.demoEnabled) this.loadDeliveries();
+        this.handlePayPalReturn();
+      },
+
+      /** After PayPal Sandbox approve, Capture runs server-side and redirects here with ?paypal= */
+      handlePayPalReturn: function () {
+        try {
+          var params = new URLSearchParams(global.location.search || '');
+          var flag = params.get('paypal');
+          if (!flag) return;
+          if (flag === 'captured') {
+            this.pushToast('Payment captured — funds deposited to PayPal Sandbox business balance', '✅');
+            try {
+              var pending = sessionStorage.getItem('lp_pending_checkout');
+              if (pending) {
+                var p = JSON.parse(pending);
+                if (p && p.invoice) this.pushToast('Invoice: ' + p.invoice, '🧾');
+                sessionStorage.removeItem('lp_pending_checkout');
+              }
+            } catch (e) {}
+            // Refresh ledger so ACTIVE row appears after capture
+            if (typeof this.load === 'function') this.load();
+          } else if (flag === 'capture_failed') {
+            var err = params.get('err') || 'Capture failed';
+            this.pushToast('PayPal capture failed: ' + err, '❌');
+          } else if (flag === 'cancelled') {
+            this.pushToast('PayPal checkout cancelled — no funds moved', '⚠️');
+          }
+          // Clean query string without reload
+          if (global.history && global.history.replaceState) {
+            var clean = global.location.pathname + (global.location.hash || '');
+            global.history.replaceState({}, '', clean);
+          }
+        } catch (e) {}
       },
 
       setTab: function (id) { this.tab = id; },
@@ -443,7 +505,9 @@
             var target = e.event && e.event.target;
             var action = target && target.getAttribute && target.getAttribute('data-action');
             if (!action || !e.data) return;
-            if (action === 'invoice' && e.data.invoice_id && /^[A-Za-z0-9-]+$/.test(String(e.data.invoice_id))) {
+            if (action === 'evidence') {
+              self.openEvidenceBuilder(e.data);
+            } else if (action === 'invoice' && e.data.invoice_id && /^[A-Za-z0-9-]+$/.test(String(e.data.invoice_id))) {
               global.location.assign('/dashboard/invoices/' + encodeURIComponent(String(e.data.invoice_id)));
             } else if (action === 'receipt') {
               self.openReceipt(e.data.receipt_id || e.data.id);
@@ -542,10 +606,35 @@
           var res = await request('POST', 'wallet/withdraw', { amount_minor: amountMinor, payout_type: 'merchant_withdrawal' });
           if (res && res.ok) {
             this.walletBalanceMinor = 0;
-            this.pushToast('Withdrew ' + amount + ' — you receive ' + money((res.data && res.data.net_minor) || 0, this.walletCurrency || 'USD') + ' after the ' + money((res.data && res.data.fee_minor) || 0, this.walletCurrency || 'USD') + ' PayPal fee' + (res.data && res.data.mock ? ' (simulated).' : '.') + (res.data && res.data.receipt_email_sent ? ' Receipt emailed.' : ''), '💸');
+            var netLabel = money((res.data && res.data.net_minor) || 0, this.walletCurrency || 'USD');
+            var feeLabel = money((res.data && res.data.fee_minor) || 0, this.walletCurrency || 'USD');
+            this.pushToast('Withdrew ' + amount + ' — you receive ' + netLabel + ' after the ' + feeLabel + ' PayPal fee' + (res.data && res.data.mock ? ' (simulated).' : '.') + (res.data && res.data.receipt_email_sent ? ' Receipt emailed.' : ''), '💸');
             if (res.data && res.data.warning) { this.pushToast(res.data.warning, '⚠️'); }
             if (res.data && res.data.payout_batch_id) {
               this.pushToast('Payout batch: ' + res.data.payout_batch_id, '🔗');
+            }
+            // Always show in-app receipt so merchant can download even if email SMTP fails
+            if (res.data && res.data.receipt) {
+              this.withdrawalReceipt = res.data.receipt;
+              this.withdrawalReceiptOpen = true;
+            } else {
+              this.withdrawalReceipt = {
+                merchant_name: 'Merchant',
+                gross: amount,
+                fee: feeLabel,
+                net: netLabel,
+                status: (res.data && res.data.batch_status) || 'SUCCESS',
+                batch_id: (res.data && res.data.payout_batch_id) || null,
+                receiver: (res.data && res.data.receiver_display) || null,
+                simulated: !!(res.data && res.data.mock),
+                ledger_id: null,
+                issued_at: new Date().toISOString(),
+                html: '',
+              };
+              this.withdrawalReceiptOpen = true;
+            }
+            if (res.data && res.data.receipt_email_error && !res.data.receipt_email_sent) {
+              this.pushToast('Email receipt not sent: ' + res.data.receipt_email_error + ' — download from the receipt panel.', '📧');
             }
             await this.load();
           } else {
@@ -604,27 +693,44 @@
         this.checkoutPaying = true;
         this.preview = { phase: 'checkout', name: name, email: email, product: PROJECT.product, status: 'PENDING', trust_score: null, churn_risk: null, ai_nudge: null, spinning: true, certificate_code: null };
 
-        await sleep(1400);
+        await sleep(600);
         var j = await this.sim('checkout', { display_name: name, email: email }, 'checkout');
         var invoice = (j && j.invoice && j.invoice.invoice_number) || (j && j.row && j.row.invoice_number) || ('LUVI-' + new Date().getFullYear() + '-001');
 
-        if (j && j.email_sent) this.pushToast('Confirmation email sent to ' + email, '📧');
-        else this.pushToast('Email not sent — configure MAIL_* in .env', '📧');
-
-        await sleep(550);
         var pp = j && j.paypal_sandbox;
-        if (pp && pp.live && pp.approve_url && isPayPalUrl(pp.approve_url)) {
-          this.pushToast('PayPal order created — opening Sandbox checkout…', '💳');
-          global.open(pp.approve_url, 'paypal_sandbox', 'noopener,noreferrer,width=520,height=720');
-        } else if (pp && pp.live) {
+        var needsApproval = !!(j && j.requires_approval) || !!(pp && pp.live && pp.approve_url && isPayPalUrl(pp.approve_url));
+
+        // Real PayPal Sandbox: full-page redirect so return URL always hits Capture.
+        // Funds only land in the sandbox business balance after buyer approves + capture.
+        if (needsApproval && pp && pp.approve_url && isPayPalUrl(pp.approve_url)) {
+          if (j && j.email_sent) this.pushToast('Confirmation email sent to ' + email, '📧');
+          else if (j && j.email_error) this.pushToast('Email not sent: ' + j.email_error, '📧');
+          this.pushToast('Redirecting to PayPal Sandbox — approve to deposit funds…', '💳');
+          try { sessionStorage.setItem('lp_pending_checkout', JSON.stringify({ name: name, email: email, invoice: invoice })); } catch (e) {}
+          this.showCheckoutModal = false;
+          this.checkoutPaying = false;
+          global.location.href = pp.approve_url;
+          return;
+        }
+
+        if (j && j.email_sent) {
+          this.pushToast('Confirmation email sent to ' + email, '📧');
+        } else {
+          var emailErr = (j && (j.email_error || (j.paypal_sandbox && j.paypal_sandbox.error))) || '';
+          if (emailErr) this.pushToast('Email not sent: ' + emailErr, '📧');
+          else this.pushToast('Email not sent — check MAIL_MAILER=smtp, MAIL_HOST, MAIL_PORT, MAIL_USERNAME, MAIL_PASSWORD, MAIL_FROM_ADDRESS in .env (then php artisan config:clear)', '📧');
+        }
+
+        await sleep(400);
+        if (pp && pp.live) {
           this.pushToast('PayPal Sandbox order live', '💳');
         } else {
           this.pushToast("'New Subscription' webhook dispatched to Merchant API", '📩');
         }
 
-        await sleep(550);
+        await sleep(400);
         this.pushToast('Invoice generated: ' + invoice, '🧾');
-        await sleep(600);
+        await sleep(400);
 
         if (j && j.recent_events && j.recent_events.length) this.webhookLogs = j.recent_events;
         var row = j && j.row ? Object.assign({}, j.row) : {
@@ -632,12 +738,12 @@
           amount_minor: PROJECT.price_minor, currency: PROJECT.currency, status: 'completed', lifecycle: 'ACTIVE',
           type: 'Charge', product: PROJECT.product, invoice_number: invoice, trust_score: 88, churn_risk: 'low',
         };
-        row.lifecycle = 'ACTIVE';
+        row.lifecycle = row.lifecycle || 'ACTIVE';
         row.product = row.product || PROJECT.product;
         this.applyRow(row, true);
-        this.preview = { phase: 'checkout', name: name, email: email, product: row.product, status: 'ACTIVE', trust_score: row.trust_score, churn_risk: row.churn_risk, ai_nudge: null, spinning: false, certificate_code: null };
+        this.preview = { phase: 'checkout', name: name, email: email, product: row.product, status: row.lifecycle || 'ACTIVE', trust_score: row.trust_score, churn_risk: row.churn_risk, ai_nudge: null, spinning: false, certificate_code: null };
 
-        await sleep(450);
+        await sleep(300);
         this.showCheckoutModal = false;
         this.checkoutPaying = false;
       },
@@ -692,6 +798,10 @@
         this.decisionReady = false;
         this.decisionBusy = true;
         this.phoneView = 'options';
+        this.phoneTab = 'options';
+        this.journeyStep = 'loading';
+        this.aiThinkingLabel = 'Analyzing LTV…';
+        this.aiThinkingProgress = 8;
         this.selectedAction = null;
         this.journey = {
           brand: PROJECT.name || 'Your product', name: name, first: String(name).split(' ')[0], email: row.email || '',
@@ -702,6 +812,24 @@
         };
         this.decisionOpen = true;
         this._journeyStart = Date.now();
+
+        // Feature 1: AI thinking animation (~2s) before dual-view is shown
+        var selfThink = this;
+        var labels = ['Analyzing LTV…', 'Calculating Safe Refund…', 'Generating Micro-Payment Offer…', 'Preparing negotiator…'];
+        var li = 0;
+        selfThink.aiThinkingLabel = labels[0];
+        selfThink.aiThinkingProgress = 12;
+        var thinkTimer = setInterval(function () {
+          li += 1;
+          if (li < labels.length) selfThink.aiThinkingLabel = labels[li];
+          selfThink.aiThinkingProgress = Math.min(95, 12 + li * 22);
+        }, 450);
+        setTimeout(function () {
+          clearInterval(thinkTimer);
+          selfThink.aiThinkingProgress = 100;
+          selfThink.aiThinkingLabel = 'Ready';
+          selfThink.journeyStep = 'ready';
+        }, 2000);
 
         var seen = {};
         var renew = new Date(new Date(row.created_at || Date.now()).getTime() + 30 * 86400000);
@@ -736,7 +864,12 @@
         var risk = g.ai_churn && (g.ai_churn.risk || g.ai_churn.level || (typeof g.ai_churn === 'string' ? g.ai_churn : ''));
         this.logDecision('[Nebius AI] Source: ' + src + (risk ? ' · churn risk ' + risk : '') + '.', 'gold');
         if (g.ai_nudge) this.logDecision('[Nebius AI] Nudge: "' + g.ai_nudge + '"', 'gold');
-        await sleep(350);
+        await sleep(300);
+        // Feature 2 & 3: Safe Refund + Micro-Payment (demo logs for dual-view)
+        this.logDecision('[Nebius AI] Calculating Safe Refund… Tagihan $50. Fee PayPal $2.50. Max Safe Refund: $47.50.', 'green');
+        await sleep(280);
+        this.logDecision('[Nebius AI] Generating Micro-Payment Offer: Pay $25 now, $25 next week.', 'gold');
+        await sleep(280);
         var opts = ['Retry payment (' + this.journey.amount + ')', 'Partial refund ' + this.journey.refundPct + '%'];
         opts.push(this.journey.features.resale ? 'Resell on marketplace' : 'Resell (off in Settings)');
         opts.push(this.journey.features.charity ? 'Donate to charity' : 'Donate (off in Settings)');
@@ -788,6 +921,61 @@
           product: PROJECT.product, trust_score: 64, churn_risk: 'high',
         }, row || {}, { lifecycle: normalizeLifecycle(lifecycle), status: status });
         this.applyRow(next, !row);
+      },
+
+
+      downloadWithdrawalReceipt: function () {
+        var r = this.withdrawalReceipt || {};
+        var html = r.html;
+        if (!html) {
+          html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Withdrawal receipt</title></head><body style="font-family:system-ui,sans-serif;padding:32px;color:#0f172a">'
+            + '<h1>Withdrawal receipt</h1>'
+            + '<p><b>Merchant:</b> ' + (r.merchant_name || '') + '</p>'
+            + '<p><b>Gross:</b> ' + (r.gross || '') + '</p>'
+            + '<p><b>PayPal fee:</b> ' + (r.fee || '') + '</p>'
+            + '<p><b>Net received:</b> ' + (r.net || '') + '</p>'
+            + '<p><b>Status:</b> ' + (r.status || '') + '</p>'
+            + '<p><b>PayPal batch:</b> ' + (r.batch_id || '') + '</p>'
+            + '<p><b>To:</b> ' + (r.receiver || '') + '</p>'
+            + '<p><b>Ledger:</b> ' + (r.ledger_id || '') + '</p>'
+            + '<p style="color:#64748b;font-size:12px">Generated by LuvuPay · PayPal holds the official payout record.</p>'
+            + '</body></html>';
+        }
+        var blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'luvupay-withdrawal-receipt-' + String(r.batch_id || Date.now()).replace(/[^a-zA-Z0-9_-]/g, '') + '.html';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        this.pushToast('Receipt downloaded', '🧾');
+      },
+
+      printWithdrawalReceipt: function () {
+        var r = this.withdrawalReceipt || {};
+        var w = global.open('', '_blank', 'noopener,noreferrer,width=640,height=800');
+        if (!w) { this.pushToast('Popup blocked — use Download instead', '⚠️'); return; }
+        var html = r.html || ('<pre>' + JSON.stringify(r, null, 2) + '</pre>');
+        w.document.write(html);
+        w.document.close();
+        setTimeout(function () { try { w.focus(); w.print(); } catch (e) {} }, 300);
+      },
+
+      openEvidenceBuilder: function (row) {
+        this.evidenceRow = row || null;
+        this.evidenceOpen = true;
+        this.evidenceExporting = false;
+        this.evidenceExported = false;
+      },
+
+      exportEvidenceToPayPal: async function () {
+        if (this.evidenceExporting) return;
+        this.evidenceExporting = true;
+        await sleep(1100);
+        this.evidenceExporting = false;
+        this.evidenceExported = true;
+        var who = (this.evidenceRow && (this.evidenceRow.display_name || this.evidenceRow.email)) || 'subscriber';
+        this.pushToast('Evidence package exported for ' + who + ' — ready for PayPal Resolution Center', '⚖️');
       },
 
       // ---- receipts, webhooks, rate limit, deliveries

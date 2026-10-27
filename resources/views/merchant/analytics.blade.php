@@ -3,126 +3,175 @@
 @section('heading', 'Analytics')
 
 @section('content')
-<div class="stack" x-data="analyticsApp()" x-init="init()">
-    <div class="row">
+<div class="max-w-7xl mx-auto space-y-6" x-data="analyticsApp()" x-init="init()">
+    {{-- Header --}}
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-            <h1 class="page-title">Analytics</h1>
-            <p class="page-sub">Live metrics from your ledger for <strong x-text="d.project && d.project.name ? d.project.name : 'your project'"></strong>. Same numbers as Overview and Wallet.</p>
+            <p class="text-xs font-semibold uppercase tracking-wider text-indigo-600 mb-1">Insights</p>
+            <h1 class="text-2xl font-bold text-slate-900 tracking-tight">Analytics</h1>
+            <p class="mt-1 text-sm text-slate-500 max-w-xl">
+                Live metrics from your ledger for
+                <strong class="text-slate-700" x-text="d.project && d.project.name ? d.project.name : 'your project'"></strong>.
+                Same source of truth as Overview and Wallet.
+            </p>
         </div>
-        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px">
-            <div style="display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden">
+        <div class="flex flex-wrap items-center gap-2">
+            <div class="inline-flex rounded-xl border border-slate-200 bg-white p-0.5 shadow-sm">
                 <template x-for="r in ranges" :key="r">
-                    <button type="button" class="c-btn c-btn-sm" style="border:0;border-radius:0"
-                            x-bind:style="days === r ? 'background:var(--brand);color:#fff' : ''"
-                            x-on:click="pick(r)" x-text="r + 'd'"></button>
+                    <button type="button"
+                            class="rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors"
+                            x-bind:class="days === r ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50'"
+                            x-on:click="pick(r)"
+                            x-text="r + 'd'"></button>
                 </template>
             </div>
-            <button type="button" class="c-btn c-btn-sm" x-on:click="downloadCsv()" x-bind:disabled="loading || !hasData">Export CSV</button>
-            <button type="button" class="c-btn c-btn-brand c-btn-sm" x-on:click="load()" x-bind:disabled="loading">
+            <button type="button"
+                    class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-40"
+                    x-on:click="downloadCsv()"
+                    x-bind:disabled="loading || !hasData">Export CSV</button>
+            <button type="button"
+                    class="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50"
+                    x-on:click="load()"
+                    x-bind:disabled="loading">
                 <span x-text="loading ? 'Refreshing…' : 'Refresh'"></span>
             </button>
         </div>
     </div>
 
-    <div class="c-alert" x-show="error" x-cloak><p x-text="error"></p></div>
+    {{-- Error --}}
+    <div x-show="error" x-cloak class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" x-text="error"></div>
 
-    <div class="c-card" x-show="loaded && !hasData" x-cloak>
-        <div class="c-pad" style="text-align:center;padding:36px 20px">
-            <p style="margin:0;font-weight:700;font-size:1.05rem">No activity in the last <span x-text="days"></span> days</p>
-            <p class="dim" style="margin:8px 0 16px">Open Overview and run <strong>Simulate 30 days</strong> (or a single checkout) to populate every chart here.</p>
-            <a href="{{ route('dashboard') }}" class="c-btn c-btn-brand">Go to Overview</a>
-        </div>
+    {{-- Empty --}}
+    <div x-show="loaded && !hasData" x-cloak class="rounded-2xl border border-slate-200 bg-white p-10 text-center shadow-sm">
+        <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-50 text-2xl">📊</div>
+        <p class="text-lg font-bold text-slate-900">No activity in the last <span x-text="days"></span> days</p>
+        <p class="mt-2 text-sm text-slate-500 max-w-md mx-auto">
+            Run a subscription checkout from Overview to populate revenue, retention, and charity charts.
+        </p>
+        <a href="{{ route('dashboard') }}" class="mt-5 inline-flex rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Go to Overview</a>
     </div>
 
-    <section style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:16px" x-show="hasData" x-cloak>
+    {{-- KPI grid --}}
+    <section x-show="hasData" x-cloak class="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <template x-for="k in kpis" :key="k.label">
-            <div class="c-card" style="padding:18px 20px">
-                <p class="dim" style="margin:0;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;font-weight:600" x-text="k.label"></p>
-                <p style="margin:6px 0 0;font-size:1.6rem;font-weight:700;letter-spacing:-0.02em" x-bind:style="'color:' + k.color" x-text="k.value"></p>
-                <p class="dim" style="margin:4px 0 0;font-size:.78rem" x-text="k.hint"></p>
+            <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm hover:border-slate-300 transition-colors">
+                <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400" x-text="k.label"></p>
+                <p class="mt-2 text-2xl font-bold tracking-tight text-slate-900" x-bind:style="k.color ? 'color:' + k.color : ''" x-text="k.value"></p>
+                <p class="mt-1 text-xs text-slate-500" x-text="k.hint"></p>
             </div>
         </template>
     </section>
 
-    <section class="c-card" x-show="hasData" x-cloak>
-        <div class="c-head"><div><h2 class="c-title">Revenue vs. revenue saved</h2><p class="c-sub">Daily completed charges (bars) and value LuvuPay retained (line).</p></div>
-            <div class="dim" style="font-size:.78rem;display:flex;gap:12px"><span><i style="display:inline-block;width:10px;height:10px;background:#6366f1;border-radius:2px"></i> Revenue</span><span><i style="display:inline-block;width:10px;height:10px;background:#10b981;border-radius:2px"></i> Saved</span></div></div>
-        <div class="c-pad" style="overflow-x:auto"><div x-html="chartMain()"></div></div>
+    {{-- Charts --}}
+    <section x-show="hasData" x-cloak class="grid gap-4 lg:grid-cols-2">
+        <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div class="mb-4 flex items-center justify-between gap-2">
+                <div>
+                    <h2 class="text-sm font-bold text-slate-900">Revenue vs saved</h2>
+                    <p class="text-xs text-slate-500">Charges and retention saves over time</p>
+                </div>
+                <div class="flex items-center gap-3 text-[10px] font-semibold">
+                    <span class="flex items-center gap-1.5 text-slate-600"><span class="h-2 w-2 rounded-sm bg-indigo-500"></span> Revenue</span>
+                    <span class="flex items-center gap-1.5 text-slate-600"><span class="h-2 w-2 rounded-full bg-emerald-500"></span> Saved</span>
+                </div>
+            </div>
+            <div class="overflow-x-auto">
+                <div x-html="chartMain()" class="min-w-[280px]"></div>
+            </div>
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div class="mb-4 flex items-center justify-between gap-2">
+                <div>
+                    <h2 class="text-sm font-bold text-slate-900">Charity &amp; resale</h2>
+                    <p class="text-xs text-slate-500">Second Chance donations and marketplace volume</p>
+                </div>
+                <div class="flex items-center gap-3 text-[10px] font-semibold">
+                    <span class="flex items-center gap-1.5 text-slate-600"><span class="h-2 w-2 rounded-sm bg-emerald-500"></span> Charity</span>
+                    <span class="flex items-center gap-1.5 text-slate-600"><span class="h-2 w-2 rounded-sm bg-amber-500"></span> Resale</span>
+                </div>
+            </div>
+            <div class="overflow-x-auto">
+                <div x-html="chartSecondary()" class="min-w-[280px]"></div>
+            </div>
+        </div>
     </section>
 
-    <section style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px" x-show="hasData" x-cloak>
-        <div class="c-card">
-            <div class="c-head"><div><h2 class="c-title">Charity &amp; resale per day</h2><p class="c-sub">Donations (green) and marketplace resale volume (amber).</p></div></div>
-            <div class="c-pad" style="overflow-x:auto"><div x-html="chartSecondary()"></div></div>
+    {{-- Insights + outcomes --}}
+    <section x-show="hasData" x-cloak class="grid gap-4 lg:grid-cols-3">
+        <div class="lg:col-span-2 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <h2 class="text-sm font-bold text-slate-900 mb-3">AI insights</h2>
+            <ul class="space-y-2">
+                <template x-for="(ins, i) in (d.insights || [])" :key="i">
+                    <li class="flex gap-3 rounded-xl bg-slate-50 border border-slate-100 px-3 py-2.5">
+                        <span class="text-base shrink-0" x-text="ins.icon || '💡'"></span>
+                        <p class="text-sm text-slate-700 leading-relaxed" x-text="ins.text || ins"></p>
+                    </li>
+                </template>
+                <li x-show="!(d.insights && d.insights.length)" class="text-sm text-slate-400 py-4 text-center">
+                    Insights appear once there is enough ledger activity.
+                </li>
+            </ul>
         </div>
-        <div class="c-card">
-            <div class="c-head"><div><h2 class="c-title">Lifecycle outcomes</h2><p class="c-sub">What happened to each charge.</p></div></div>
-            <div class="c-pad stack-sm">
-                <template x-for="o in outcomes" :key="o.label">
-                    <div>
-                        <div style="display:flex;justify-content:space-between;font-size:.84rem"><span x-text="o.label"></span><strong x-text="o.count"></strong></div>
-                        <div style="height:8px;border-radius:99px;background:var(--line);margin-top:4px;overflow:hidden"><div style="height:100%;border-radius:99px" x-bind:style="'width:' + o.pct + '%;background:' + o.color"></div></div>
+        <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+            <h2 class="text-sm font-bold text-slate-900">Retention outcomes</h2>
+            <template x-for="row in outcomes" :key="row.label">
+                <div>
+                    <div class="flex justify-between text-xs mb-1">
+                        <span class="font-medium text-slate-600" x-text="row.label"></span>
+                        <span class="font-semibold text-slate-900" x-text="row.count + ' · ' + row.pct + '%'"></span>
                     </div>
-                </template>
-            </div>
+                    <div class="h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                        <div class="h-full rounded-full transition-all" x-bind:style="'width:' + row.pct + '%;background:' + row.color"></div>
+                    </div>
+                </div>
+            </template>
+            <p x-show="!outcomes.length" class="text-xs text-slate-400">No outcome mix yet.</p>
         </div>
     </section>
 
-    <section style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px" x-show="hasData" x-cloak>
-        <div class="c-card">
-            <div class="c-head"><div><h2 class="c-title">Where revenue saved comes from</h2></div></div>
-            <div class="c-pad stack-sm">
-                <template x-for="s in savedParts" :key="s.label">
-                    <div style="display:flex;justify-content:space-between;font-size:.9rem"><span><i style="display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:8px" x-bind:style="'background:' + s.color"></i><span x-text="s.label"></span></span><strong x-text="s.value"></strong></div>
-                </template>
-                <div style="display:flex;justify-content:space-between;border-top:1px solid var(--line);padding-top:10px;font-weight:700"><span>Total saved</span><span x-text="money(d.revenue_saved_minor)"></span></div>
+    {{-- Recent activity --}}
+    <section x-show="hasData" x-cloak class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+            <div>
+                <h2 class="text-sm font-bold text-slate-900">Recent activity</h2>
+                <p class="text-xs text-slate-500">Latest ledger events in this window</p>
             </div>
         </div>
-        <div class="c-card">
-            <div class="c-head"><div><h2 class="c-title">Subscribers</h2></div></div>
-            <div class="c-pad stack-sm">
-                <template x-for="s in subs" :key="s.label">
-                    <div style="display:flex;justify-content:space-between;font-size:.9rem"><span x-text="s.label"></span><strong x-text="s.value"></strong></div>
-                </template>
-                <div style="display:flex;justify-content:space-between;border-top:1px solid var(--line);padding-top:10px;font-weight:700"><span>Churn rate</span><span x-text="(d.churn_rate || 0) + '%'"></span></div>
-            </div>
-        </div>
-        <div class="c-card">
-            <div class="c-head"><div><h2 class="c-title">Project settings in effect</h2><p class="c-sub">Edited in <a href="{{ route('settings') }}#project">Settings</a>.</p></div></div>
-            <div class="c-pad stack-sm" style="font-size:.9rem">
-                <template x-for="p in projectRows" :key="p.label">
-                    <div style="display:flex;justify-content:space-between"><span class="dim" x-text="p.label"></span><strong x-text="p.value"></strong></div>
-                </template>
-            </div>
-        </div>
-    </section>
-
-    <section class="c-card" x-show="hasData && (d.insights || []).length" x-cloak>
-        <div class="c-head"><div><h2 class="c-title">Insights</h2></div></div>
-        <div class="c-pad stack-sm">
-            <template x-for="(i, idx) in d.insights" :key="idx"><div class="c-item"><span x-text="i.icon"></span><p style="margin:0" x-text="i.text"></p></div></template>
-        </div>
-    </section>
-
-    <section class="c-card" x-show="hasData" x-cloak>
-        <div class="c-head"><div><h2 class="c-title">Recent activity</h2><p class="c-sub">Latest ledger rows in this range.</p></div></div>
-        <div class="c-pad" style="overflow-x:auto">
-            <table style="width:100%;border-collapse:collapse;font-size:.86rem">
-                <thead><tr class="dim" style="text-align:left"><th style="padding:6px 8px">When</th><th style="padding:6px 8px">Customer</th><th style="padding:6px 8px">Type</th><th style="padding:6px 8px">Status</th><th style="padding:6px 8px;text-align:right">Amount</th></tr></thead>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm text-left">
+                <thead>
+                    <tr class="text-[11px] uppercase tracking-wider text-slate-400 border-b border-slate-100">
+                        <th class="px-5 py-3 font-semibold">When</th>
+                        <th class="px-5 py-3 font-semibold">Type</th>
+                        <th class="px-5 py-3 font-semibold">Customer</th>
+                        <th class="px-5 py-3 font-semibold text-right">Amount</th>
+                        <th class="px-5 py-3 font-semibold">Status</th>
+                    </tr>
+                </thead>
                 <tbody>
-                    <template x-for="r in d.recent" :key="r.id">
-                        <tr style="border-top:1px solid var(--line)">
-                            <td style="padding:8px" x-text="new Date(r.created_at).toLocaleString()"></td>
-                            <td style="padding:8px" x-text="r.customer_name || r.email || '—'"></td>
-                            <td style="padding:8px" x-text="r.type"></td>
-                            <td style="padding:8px" x-text="r.lifecycle || r.status"></td>
-                            <td style="padding:8px;text-align:right;font-weight:600" x-text="money(r.amount_minor)"></td>
+                    <template x-for="(r, i) in (d.recent || [])" :key="i">
+                        <tr class="border-b border-slate-50 hover:bg-slate-50/80">
+                            <td class="px-5 py-3 text-xs text-slate-500 whitespace-nowrap font-mono" x-text="(r.created_at || r.date || '').replace('T',' ').slice(0,16)"></td>
+                            <td class="px-5 py-3 font-medium text-slate-800" x-text="r.type || r.event || '—'"></td>
+                            <td class="px-5 py-3 text-slate-600" x-text="r.email || r.display_name || '—'"></td>
+                            <td class="px-5 py-3 text-right font-semibold text-slate-900" x-text="money(r.amount_minor || r.amount || 0, r.currency)"></td>
+                            <td class="px-5 py-3">
+                                <span class="inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+                                      x-bind:class="String(r.status || r.lifecycle || '').toLowerCase().indexOf('active') !== -1 || String(r.status).toLowerCase() === 'completed' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'"
+                                      x-text="r.status || r.lifecycle || '—'"></span>
+                            </td>
                         </tr>
                     </template>
+                    <tr x-show="!(d.recent && d.recent.length)">
+                        <td colspan="5" class="px-5 py-10 text-center text-sm text-slate-400">No recent rows in this range.</td>
+                    </tr>
                 </tbody>
             </table>
         </div>
     </section>
 </div>
-<script src="/js/analytics.js?v={{ @filemtime(public_path('js/analytics.js')) ?: time() }}" defer></script>
 @endsection
+
+@push('scripts')
+<script src="/js/analytics.js?v={{ @filemtime(public_path('js/analytics.js')) }}" defer></script>
+@endpush

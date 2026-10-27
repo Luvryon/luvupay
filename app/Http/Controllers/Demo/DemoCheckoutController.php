@@ -48,11 +48,19 @@ final class DemoCheckoutController
         $churn = $trust >= 80 ? 'low' : ($trust >= 50 ? 'medium' : 'high');
 
         $driver = (string) (config('luvupay.payment.driver') ?: env('LUVUPAY_PAYMENT_DRIVER', 'mock'));
-        $provider = $driver === 'paypal' ? 'paypal' : 'mock';
+        $clientId = trim((string) config('services.paypal.client_id', env('PAYPAL_CLIENT_ID', '')));
+        $secret = trim((string) config('services.paypal.secret', env('PAYPAL_SECRET', '')));
+        $hasPayPalCreds = $clientId !== '' && $secret !== '';
+        // Real sandbox path: hold local rows as pending until Capture succeeds on return.
+        $useLiveSandbox = $hasPayPalCreds && ($driver === 'paypal' || $hasPayPalCreds);
+        $provider = $useLiveSandbox ? 'paypal' : ($driver === 'paypal' ? 'paypal' : 'mock');
+        $txStatus = $useLiveSandbox ? 'pending' : 'completed';
+        $subStatus = $useLiveSandbox ? 'pending_approval' : 'active';
+        $lifecycle = $useLiveSandbox ? 'PENDING_PAYMENT' : 'ACTIVE';
 
         DB::transaction(function () use (
             $merchantId, $currency, $now, $userId, $email, $subId, $txId, $paypalRef,
-            $trust, $churn, $first, $product, $amountMinor, $provider
+            $trust, $churn, $first, $product, $amountMinor, $provider, $txStatus, $subStatus, $lifecycle, $useLiveSandbox
         ) {
             DB::table('subscriptions')->insert([
                 'id' => $subId,
@@ -62,7 +70,7 @@ final class DemoCheckoutController
                 'provider' => $provider,
                 'provider_subscription_id' => 'I-DEMO-'.strtoupper(Str::random(8)),
                 'provider_plan_id' => 'premium_monthly',
-                'status' => 'active',
+                'status' => $subStatus,
                 'amount_minor' => $amountMinor,
                 'currency' => $currency,
                 'current_period_start' => $now,
@@ -74,6 +82,7 @@ final class DemoCheckoutController
                     'source' => 'developer_sandbox',
                     'display_name' => $first,
                     'product' => $product,
+                    'awaiting_paypal_capture' => $useLiveSandbox,
                 ]),
                 'created_at' => $now,
                 'updated_at' => $now,
@@ -84,7 +93,7 @@ final class DemoCheckoutController
                 'merchant_id' => $merchantId,
                 'subscription_id' => $subId,
                 'type' => 'charge',
-                'status' => 'completed',
+                'status' => $txStatus,
                 'idempotency_key' => 'sandbox-checkout-'.$txId,
                 'merchant_user_id' => $userId,
                 'email' => $email,
@@ -92,41 +101,52 @@ final class DemoCheckoutController
                 'currency' => $currency,
                 'provider' => $provider,
                 'provider_reference' => $paypalRef,
-                'processed_at' => $now,
+                'processed_at' => $useLiveSandbox ? null : $now,
                 'trust_score' => $trust,
                 'churn_risk' => $churn,
                 'metadata' => json_encode([
                     'demo' => true,
-                    'lifecycle' => 'ACTIVE',
+                    'lifecycle' => $lifecycle,
                     'source' => 'developer_sandbox',
                     'plan_id' => 'premium_monthly',
                     'display_name' => $first,
                     'product' => $product,
+                    'awaiting_paypal_capture' => $useLiveSandbox,
                 ]),
                 'created_at' => $now,
                 'updated_at' => $now,
             ]);
 
-            $this->logWebhookEvent('paypal', 'PAYMENT.CAPTURE.COMPLETED', [
-                'id' => $paypalRef,
-                'status' => 'COMPLETED',
-                'amount' => ['currency_code' => $currency, 'value' => number_format($amountMinor / 100, 2, '.', '')],
-                'custom_id' => $txId,
-            ]);
-            $this->logWebhookEvent('paypal', 'CHECKOUT.ORDER.APPROVED', [
-                'id' => 'ORDER-'.strtoupper(Str::random(10)),
-                'status' => 'APPROVED',
-                'custom_id' => $txId,
-            ]);
-            $this->logWebhookEvent('paypal', 'BILLING.SUBSCRIPTION.ACTIVATED', [
-                'id' => 'I-DEMO-'.strtoupper(Str::random(8)),
-                'status' => 'ACTIVE',
-                'custom_id' => $txId,
-            ]);
-            $this->logWebhookEvent('luvupay', 'subscription.activated', [
-                'transaction_id' => $txId,
-                'email' => $email,
-            ]);
+            // Only emit "captured / activated" webhooks immediately in mock mode.
+            // Live sandbox: those fire after real Capture on /dashboard/paypal/return.
+            if (! $useLiveSandbox) {
+                $this->logWebhookEvent('paypal', 'PAYMENT.CAPTURE.COMPLETED', [
+                    'id' => $paypalRef,
+                    'status' => 'COMPLETED',
+                    'amount' => ['currency_code' => $currency, 'value' => number_format($amountMinor / 100, 2, '.', '')],
+                    'custom_id' => $txId,
+                ]);
+                $this->logWebhookEvent('paypal', 'CHECKOUT.ORDER.APPROVED', [
+                    'id' => 'ORDER-'.strtoupper(Str::random(10)),
+                    'status' => 'APPROVED',
+                    'custom_id' => $txId,
+                ]);
+                $this->logWebhookEvent('paypal', 'BILLING.SUBSCRIPTION.ACTIVATED', [
+                    'id' => 'I-DEMO-'.strtoupper(Str::random(8)),
+                    'status' => 'ACTIVE',
+                    'custom_id' => $txId,
+                ]);
+                $this->logWebhookEvent('luvupay', 'subscription.activated', [
+                    'transaction_id' => $txId,
+                    'email' => $email,
+                ]);
+            } else {
+                $this->logWebhookEvent('paypal', 'CHECKOUT.ORDER.PENDING', [
+                    'transaction_id' => $txId,
+                    'status' => 'PENDING_BUYER_APPROVAL',
+                    'amount' => ['currency_code' => $currency, 'value' => number_format($amountMinor / 100, 2, '.', '')],
+                ]);
+            }
 
             $txObj = (object) [
                 'id' => $txId,
@@ -171,9 +191,15 @@ final class DemoCheckoutController
         } catch (\Throwable $e) {
         }
 
+        $needsApproval = ! empty($paypalSandbox['live']) && ! empty($paypalSandbox['approve_url']);
+        $message = $needsApproval
+            ? 'PayPal Sandbox order created — approve payment to deposit funds into your sandbox business account'
+            : ('Checkout captured — subscription ACTIVE · Invoice '.($row['invoice_number'] ?? 'n/a'));
+
         return response()->json([
             'ok' => true,
-            'message' => 'Checkout captured — subscription ACTIVE · Invoice '.($row['invoice_number'] ?? 'n/a'),
+            'message' => $message,
+            'requires_approval' => $needsApproval,
             'email_sent' => $emailResult['user_sent'] ?? false,
             'merchant_email_sent' => $emailResult['merchant_sent'] ?? false,
             'email_error' => $emailResult['error'] ?? null,
@@ -198,14 +224,18 @@ final class DemoCheckoutController
         ], 201);
     }
 
-    /** Browser return from PayPal Sandbox approve */
+    /** Browser return from PayPal Sandbox approve — Capture and finalize local rows so funds land in sandbox business balance. */
     public function paypalReturn(Request $request)
     {
         $txId = (string) $request->query('tx', '');
         $token = (string) $request->query('token', ''); // PayPal order id on return
         $orderId = $token !== '' ? $token : null;
+        $captured = false;
+        $captureId = null;
+        $error = null;
 
         try {
+            $row = null;
             if ($txId !== '') {
                 $row = DB::table('transactions')->where('id', $txId)->first();
                 if ($row) {
@@ -216,32 +246,75 @@ final class DemoCheckoutController
             if ($orderId) {
                 $client = \App\Services\PayPal\PayPalClient::fromConfig();
                 $cap = $client->capturePayment($orderId, 'demo-capture-'.$orderId);
+                $captureId = $cap['purchase_units'][0]['payments']['captures'][0]['id'] ?? null;
+                $capStatus = $cap['purchase_units'][0]['payments']['captures'][0]['status']
+                    ?? ($cap['status'] ?? null);
+                $captured = in_array(strtoupper((string) $capStatus), ['COMPLETED', 'PENDING'], true)
+                    || ($capStatus === null && is_array($cap));
+
                 $this->logWebhookEvent('paypal', 'PAYMENT.CAPTURE.COMPLETED', [
                     'order_id' => $orderId,
-                    'status' => $cap['status'] ?? null,
+                    'status' => $capStatus,
                     'transaction_id' => $txId,
-                    'capture' => $cap['purchase_units'][0]['payments']['captures'][0]['id'] ?? null,
+                    'capture' => $captureId,
                 ]);
-                if ($txId !== '') {
-                    $meta = json_decode(DB::table('transactions')->where('id', $txId)->value('metadata') ?? '{}', true) ?: [];
+
+                if ($txId !== '' && $row) {
+                    $meta = json_decode($row->metadata ?? '{}', true) ?: [];
                     $meta['paypal_captured'] = true;
-                    $meta['paypal_capture_status'] = $cap['status'] ?? null;
+                    $meta['paypal_capture_status'] = $capStatus;
+                    $meta['paypal_capture_id'] = $captureId;
+                    $meta['paypal_order_id'] = $orderId;
+                    $meta['lifecycle'] = 'ACTIVE';
+                    $meta['awaiting_paypal_capture'] = false;
+
                     DB::table('transactions')->where('id', $txId)->update([
+                        'status' => 'completed',
                         'provider' => 'paypal',
-                        'provider_reference' => $orderId,
+                        'provider_reference' => $captureId ?: $orderId,
+                        'processed_at' => now(),
                         'metadata' => json_encode($meta),
                         'updated_at' => now(),
                     ]);
+
+                    if (! empty($row->subscription_id)) {
+                        DB::table('subscriptions')->where('id', $row->subscription_id)->update([
+                            'status' => 'active',
+                            'updated_at' => now(),
+                        ]);
+                    }
+
+                    $this->logWebhookEvent('paypal', 'BILLING.SUBSCRIPTION.ACTIVATED', [
+                        'transaction_id' => $txId,
+                        'subscription_id' => $row->subscription_id ?? null,
+                        'status' => 'ACTIVE',
+                        'order_id' => $orderId,
+                        'capture_id' => $captureId,
+                    ]);
+                    $this->logWebhookEvent('luvupay', 'subscription.activated', [
+                        'transaction_id' => $txId,
+                        'email' => $row->email ?? null,
+                        'funds' => 'deposited_to_paypal_sandbox_business',
+                    ]);
                 }
+            } else {
+                $error = 'missing_order_id';
             }
         } catch (\Throwable $e) {
+            $error = $e->getMessage();
             $this->logWebhookEvent('paypal', 'PAYMENT.CAPTURE.FAILED', [
                 'order_id' => $orderId,
+                'transaction_id' => $txId,
                 'error' => $e->getMessage(),
             ], 'failed');
         }
 
-        return redirect('/dashboard?paypal=captured');
+        $qs = $captured ? 'paypal=captured' : 'paypal=capture_failed';
+        if ($error && ! $captured) {
+            $qs .= '&err='.urlencode(mb_substr($error, 0, 120));
+        }
+
+        return redirect('/dashboard?'.$qs);
     }
 
     public function paypalCancel(Request $request)
@@ -414,6 +487,14 @@ final class DemoCheckoutController
             'invoice_attached' => $userSent,
             'error' => $error,
         ], $userSent ? 'processed' : 'failed');
+
+        // Escape values for the merchant notification HTML body
+        $safeName = e($userName);
+        $safeEmail = e($userEmail);
+        $safeProduct = e($product);
+        $safeAmount = e($amountLabel);
+        $safePaypal = e($paypalRef);
+        $safeInv = $invNum ? e((string) $invNum) : null;
 
         try {
             $merchant = DB::table('merchants')->where('id', $merchantId)->first();

@@ -20,26 +20,89 @@ final class PayoutMailer
     public static function sendWithdrawalReceipt(string $merchantId, array $p): array
     {
         $m = DB::table('merchants')->where('id', $merchantId)->first();
-        $to = $m->email ?? null;
-        if (! $to || ! filter_var($to, FILTER_VALIDATE_EMAIL)) {
-            return ['sent' => false, 'to' => null, 'error' => 'merchant has no email'];
+        if (! $m) {
+            return ['sent' => false, 'to' => null, 'error' => 'merchant not found', 'recipients' => []];
         }
+
+        $candidates = array_filter([
+            trim((string) ($m->email ?? '')),
+            trim((string) ($m->payout_email ?? '')),
+        ]);
+        $recipients = [];
+        foreach ($candidates as $email) {
+            if (filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                $recipients[$email] = true;
+            }
+        }
+        $recipients = array_keys($recipients);
+
+        if ($recipients === []) {
+            return ['sent' => false, 'to' => null, 'error' => 'merchant has no email', 'recipients' => []];
+        }
+
+        $subject = 'Withdrawal receipt — '.InvoiceView::money($p['net_minor'], $p['currency']).' to PayPal';
+        $body = self::html($m, $p);
+        $sentTo = [];
+        $error = null;
+
         try {
-            Mail::to($to)->sendNow(new PlainHtmlMail(
-                'Withdrawal receipt — '.InvoiceView::money($p['net_minor'], $p['currency']).' to PayPal',
-                self::html($m, $p)
-            ));
+            foreach ($recipients as $to) {
+                Mail::to($to)->sendNow(new PlainHtmlMail($subject, $body));
+                $sentTo[] = $to;
+            }
 
-            return ['sent' => true, 'to' => $to, 'error' => null];
+            return [
+                'sent' => $sentTo !== [],
+                'to' => $sentTo[0] ?? null,
+                'recipients' => $sentTo,
+                'error' => null,
+            ];
         } catch (\Throwable $e) {
-            Log::warning('payout.receipt_email_failed', ['err' => $e->getMessage()]);
+            Log::warning('payout.receipt_email_failed', ['err' => $e->getMessage(), 'tried' => $recipients]);
 
-            return ['sent' => false, 'to' => $to, 'error' => $e->getMessage()];
+            return [
+                'sent' => $sentTo !== [],
+                'to' => $sentTo[0] ?? null,
+                'recipients' => $sentTo,
+                'error' => $e->getMessage(),
+            ];
         }
     }
 
+    /**
+     * Structured receipt for in-app display / download (PayPal already has the payout; this is the merchant-facing copy).
+     *
+     * @param  array<string,mixed>  $p
+     * @return array<string,mixed>
+     */
+    public static function receiptPayload(string $merchantId, array $p): array
+    {
+        $m = DB::table('merchants')->where('id', $merchantId)->first();
+        $currency = (string) ($p['currency'] ?? 'USD');
+        $money = fn (int $v) => InvoiceView::money($v, $currency);
+
+        return [
+            'title' => 'Withdrawal receipt',
+            'merchant_name' => $m->name ?? 'Merchant',
+            'gross' => $money((int) $p['gross_minor']),
+            'fee' => $money((int) $p['fee_minor']),
+            'net' => $money((int) $p['net_minor']),
+            'gross_minor' => (int) $p['gross_minor'],
+            'fee_minor' => (int) $p['fee_minor'],
+            'net_minor' => (int) $p['net_minor'],
+            'currency' => $currency,
+            'batch_id' => $p['batch_id'] ?? null,
+            'status' => $p['status'] ?? 'SUCCESS',
+            'receiver' => $p['receiver_masked'] ?? null,
+            'simulated' => (bool) ($p['simulated'] ?? false),
+            'ledger_id' => $p['ledger_id'] ?? null,
+            'issued_at' => now()->toIso8601String(),
+            'html' => $m ? self::html($m, $p) : '',
+        ];
+    }
+
     /** @param array<string,mixed> $p */
-    private static function html(object $m, array $p): string
+    public static function html(object $m, array $p): string
     {
         $e = fn ($v) => e((string) $v);
         $money = fn (int $v) => InvoiceView::money($v, $p['currency']);

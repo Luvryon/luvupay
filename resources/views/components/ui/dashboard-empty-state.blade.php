@@ -12,12 +12,12 @@
     <p style="margin:0;font-size:1.1rem;font-weight:700;color:var(--ink)">Your ledger is empty</p>
     <p style="margin:10px auto 0;max-width:380px;font-size:.9rem;color:var(--muted);line-height:1.5">
         Once subscribers pay, transactions appear here automatically.
-        For the hackathon demo, seed a month of activity with one click.
+        Start with a new subscription checkout to see the full lifecycle.
     </p>
-    <button type="button" class="c-btn c-btn-brand" style="margin-top:24px"
-            x-on:click="seedDemoData()"
-            x-bind:disabled="loadingSeed">
-        <span x-show="!loadingSeed">Simulate 30 days</span>
-        <span x-show="loadingSeed" x-cloak style="display:none">Working…</span>
+    <button type="button"
+            class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 font-medium shadow-sm mt-6 disabled:opacity-50"
+            x-on:click="openCheckout()"
+            x-bind:disabled="simBusy || checkoutPaying">
+        New subscription checkout
     </button>
 </div>

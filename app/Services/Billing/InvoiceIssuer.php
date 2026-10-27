@@ -57,11 +57,15 @@ final class InvoiceIssuer
             'status' => 'paid',
             'pdf_url' => null,
             'line_items' => json_encode($lineItems),
-            'metadata' => json_encode([
+            'metadata' => json_encode(array_filter([
                 'provider_reference' => $tx->provider_reference ?? null,
                 'email' => $tx->email ?? null,
                 'customer_name' => $extra['customer_name'] ?? null,
-            ]),
+                'kind' => $extra['kind'] ?? null,
+                'access_code' => $extra['access_code'] ?? null,
+                'access_days' => $extra['access_days'] ?? null,
+                'product' => $extra['product'] ?? null,
+            ], fn ($v) => $v !== null && $v !== '')),
             'issued_at' => $now,
             'paid_at' => $now,
             'created_at' => $now,

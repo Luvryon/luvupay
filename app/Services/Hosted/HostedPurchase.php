@@ -196,8 +196,15 @@ final class HostedPurchase
             $this->recordOutboundDelivery($m, 'subscription.activated', ['transaction_id' => $txId, 'invoice_number' => $invoice['invoice_number'] ?? null], success: true);
         });
 
-        $mail = InvoiceMailer::sendForTransaction($txId, 'subscription', $email);
-        $this->logWebhookEvent('luvupay', $mail['sent'] ? 'email.user_confirmation_sent' : 'email.user_confirmation_failed', ['to' => $email, 'transaction_id' => $txId, 'error' => $mail['error']], $mail['sent'] ? 'processed' : 'failed');
+        // Email after response — generating PDF + SMTP was delaying the post-PayPal redirect.
+        app()->terminating(function () use ($txId, $email) {
+            try {
+                $mail = InvoiceMailer::sendForTransaction($txId, 'subscription', $email);
+                \Illuminate\Support\Facades\Log::info('hosted.checkout_mail', ['sent' => $mail['sent'], 'err' => $mail['error'], 'to' => $email]);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('hosted.checkout_mail_failed', ['err' => $e->getMessage()]);
+            }
+        });
 
         return \App\Http\Controllers\InvoiceController::publicUrl((string) $invoice['id']);
     }
@@ -261,28 +268,57 @@ final class HostedPurchase
             DB::table('transactions')->where('subscription_id', $l->subscription_id)->where('type', 'resale_fee')->where('status', 'completed')->update(['status' => 'superseded', 'updated_at' => $now]);
             DB::table('subscriptions')->where('id', $l->subscription_id)->update(['status' => 'resold', 'merchant_user_id' => $buyerId, 'email' => $buyerEmail, 'updated_at' => $now]);
 
+            $accessCode = strtoupper(Str::random(4).'-'.Str::random(4).'-'.Str::random(4));
             $invoice = app(InvoiceIssuer::class)->issueForTransaction($m, (object) [
                 'id' => $sale, 'amount_minor' => $asking, 'currency' => $cur, 'provider_reference' => $ref, 'email' => $buyerEmail,
             ], [
-                'customer_name' => ucfirst(explode('@', $buyerEmail)[0]), 'product' => $product,
-                'line_items' => [['description' => $days.' days of '.$product.' (resale token)', 'quantity' => 1, 'unit_amount_minor' => $asking, 'amount_minor' => $asking]],
+                'customer_name' => ucfirst(explode('@', $buyerEmail)[0]),
+                'product' => $product,
+                'kind' => 'resale',
+                'access_code' => $accessCode,
+                'access_days' => $days,
+                'line_items' => [['description' => $days.' days of '.$product.' (resale access)', 'quantity' => 1, 'unit_amount_minor' => $asking, 'amount_minor' => $asking]],
             ]);
-            $this->logWebhookEvent('luvupay', 'marketplace.listing_sold', ['listing_id' => $l->id, 'buyer' => $buyerEmail]);
-            $this->logWebhookEvent('luvupay', 'entitlement.transfer', ['listing_id' => $l->id, 'seller' => $l->seller_email, 'buyer' => $buyerEmail]);
-            $this->recordOutboundDelivery($m, 'entitlement.transfer', ['listing_id' => $l->id, 'invoice_number' => $invoice['invoice_number'] ?? null], success: true);
+            // Persist code on the listing for merchant support lookups
+            DB::table('resale_listings')->where('id', $l->id)->update([
+                'updated_at' => $now,
+            ]);
+            $this->logWebhookEvent('luvupay', 'marketplace.listing_sold', ['listing_id' => $l->id, 'buyer' => $buyerEmail, 'access_code' => $accessCode]);
+            $this->logWebhookEvent('luvupay', 'entitlement.transfer', ['listing_id' => $l->id, 'seller' => $l->seller_email, 'buyer' => $buyerEmail, 'access_code' => $accessCode]);
+            $this->recordOutboundDelivery($m, 'entitlement.transfer', ['listing_id' => $l->id, 'invoice_number' => $invoice['invoice_number'] ?? null, 'access_code' => $accessCode], success: true);
 
-            return ['sale' => $sale, 'invoice' => $invoice, 'seller_email' => $l->seller_email, 'payout' => $sellerPayout, 'cur' => $cur, 'product' => $product, 'merchant' => $m];
+            return ['sale' => $sale, 'invoice' => $invoice, 'seller_email' => $l->seller_email, 'payout' => $sellerPayout, 'cur' => $cur, 'product' => $product, 'merchant' => $m, 'access_code' => $accessCode, 'days' => $days, 'buyer_email' => $buyerEmail];
         });
 
-        $mail = InvoiceMailer::sendForTransaction($out['sale'], 'resale', $buyerEmail);
-        try {
-            Mail::to($out['seller_email'])->sendNow(new PlainHtmlMail('Your '.$out['product'].' access was sold', '<p style="font-family:Arial,sans-serif;font-size:15px;color:#0f172a">Good news — someone redeemed your resale token. <b>'.e(\App\Services\Billing\InvoiceView::money($out['payout'], $out['cur'])).'</b> is on its way to you.</p>'));
-        } catch (\Throwable $e) {
-            Log::info('hosted.seller_mail_failed', ['err' => $e->getMessage()]);
-        }
-        $this->scopedMerchant = $out['merchant'];
-        $this->logWebhookEvent('luvupay', $mail['sent'] ? 'email.user_confirmation_sent' : 'email.user_confirmation_failed', ['to' => $buyerEmail, 'error' => $mail['error']], $mail['sent'] ? 'processed' : 'failed');
+        // Defer email so the buyer is redirected to the invoice immediately (PDF+SMTP was blocking PayPal return).
+        $saleId = $out['sale'];
+        $buyerEmailCopy = $out['buyer_email'];
+        $sellerEmail = $out['seller_email'];
+        $productName = $out['product'];
+        $payoutMinor = $out['payout'];
+        $cur = $out['cur'];
+        $accessCode = $out['access_code'];
+        $days = $out['days'];
+        app()->terminating(function () use ($saleId, $buyerEmailCopy, $sellerEmail, $productName, $payoutMinor, $cur, $accessCode, $days) {
+            try {
+                $mail = InvoiceMailer::sendForTransaction($saleId, 'resale', $buyerEmailCopy);
+                Log::info('hosted.buyer_mail', ['sent' => $mail['sent'], 'err' => $mail['error'], 'to' => $buyerEmailCopy]);
+            } catch (\Throwable $e) {
+                Log::warning('hosted.buyer_mail_failed', ['err' => $e->getMessage()]);
+            }
+            try {
+                $body = '<div style="font-family:Arial,sans-serif;font-size:15px;color:#0f172a">'
+                    .'<p>Good news — someone bought your resale listing for <b>'.e($productName).'</b>.</p>'
+                    .'<p>Payout: <b>'.e(\App\Services\Billing\InvoiceView::money($payoutMinor, $cur)).'</b></p>'
+                    .'<p style="color:#64748b;font-size:13px">Buyer access code (for support): <code>'.e($accessCode).'</code> · '.$days.' days</p>'
+                    .'</div>';
+                Mail::to($sellerEmail)->sendNow(new PlainHtmlMail('Your '.$productName.' access was sold', $body));
+            } catch (\Throwable $e) {
+                Log::info('hosted.seller_mail_failed', ['err' => $e->getMessage()]);
+            }
+        });
 
+        $this->scopedMerchant = $out['merchant'];
         return \App\Http\Controllers\InvoiceController::publicUrl((string) $out['invoice']['id']);
     }
 }

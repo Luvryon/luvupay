@@ -28,7 +28,8 @@ Route::middleware($console)->group(function () {
     Route::post('/api/v1/dashboard/payouts', [PayoutController::class, 'executePayout'])
         ->middleware(['throttle:10,1,dashboard29'])
         ->name('dashboard.payouts.execute');
-    Route::get('/developers', [MerchantPanelController::class, 'developers'])->name('developers');
+    // Developers console page removed — API docs live at /docs
+    Route::redirect('/developers', '/analytics')->name('developers');
     Route::get('/subscriptions', [MerchantPanelController::class, 'subscriptions'])->name('subscriptions');
     Route::get('/resale', fn () => view('merchant.resale'))->name('resale');
     Route::get('/settings', [MerchantPanelController::class, 'settings'])->middleware('merchant.can:settings.read')->name('settings');

@@ -183,12 +183,15 @@ final class PayoutController extends Controller
             }
 
             $receipt = ['sent' => false, 'to' => null, 'error' => null];
+            $receiptPayload = null;
             if ($type === 'merchant_withdrawal') {
-                $receipt = \App\Services\Payout\PayoutMailer::sendWithdrawalReceipt((string) $merchantId, [
+                $receiptArgs = [
                     'gross_minor' => $quote['gross_minor'], 'fee_minor' => $quote['fee_minor'], 'net_minor' => $quote['net_minor'],
                     'currency' => $currency, 'batch_id' => $batchId ?: null, 'status' => $status, 'receiver_masked' => $this->maskEmail($receiver),
                     'simulated' => $simulated, 'ledger_id' => $ledgerId,
-                ]);
+                ];
+                $receipt = \App\Services\Payout\PayoutMailer::sendWithdrawalReceipt((string) $merchantId, $receiptArgs);
+                $receiptPayload = \App\Services\Payout\PayoutMailer::receiptPayload((string) $merchantId, $receiptArgs);
             }
 
             return response()->json([
@@ -208,6 +211,8 @@ final class PayoutController extends Controller
                 'net_minor' => $quote['net_minor'],
                 'receipt_email_sent' => $receipt['sent'],
                 'receipt_email_to' => $receipt['to'] ? $this->maskEmail($receipt['to']) : null,
+                'receipt_email_error' => $receipt['error'] ?? null,
+                'receipt' => $receiptPayload,
                 'currency' => $currency,
                 // UI-safe: never return the sandbox email
                 'receiver_display' => $type === 'merchant_withdrawal'

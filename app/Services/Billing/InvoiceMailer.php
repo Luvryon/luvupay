@@ -24,6 +24,18 @@ final class InvoiceMailer
             return ['sent' => false, 'error' => 'no recipient'];
         }
 
+        $mailer = (string) config('mail.default', env('MAIL_MAILER', 'log'));
+        if ($mailer === 'log' || $mailer === 'array') {
+            // Still attempt send so it appears in log, but report clearly that nothing leaves the server.
+            Log::info('invoice.email_using_non_smtp_mailer', ['mailer' => $mailer, 'to' => $to]);
+        }
+        if ($mailer === 'smtp') {
+            $host = trim((string) config('mail.mailers.smtp.host', env('MAIL_HOST', '')));
+            if ($host === '') {
+                return ['sent' => false, 'error' => 'MAIL_MAILER=smtp but MAIL_HOST is empty — set MAIL_HOST / MAIL_PORT / MAIL_USERNAME / MAIL_PASSWORD'];
+            }
+        }
+
         try {
             $subject = match ($kind) {
                 'resale' => 'Your access is ready — invoice '.$d['number'].' from '.$d['from']['name'],
@@ -37,9 +49,18 @@ final class InvoiceMailer
 
             return ['sent' => true, 'error' => null];
         } catch (\Throwable $e) {
-            Log::warning('invoice.email_failed', ['to' => $to, 'err' => $e->getMessage()]);
+            Log::warning('invoice.email_failed', [
+                'to' => $to,
+                'mailer' => $mailer,
+                'err' => $e->getMessage(),
+            ]);
 
-            return ['sent' => false, 'error' => $e->getMessage()];
+            $hint = $e->getMessage();
+            if ($mailer === 'log') {
+                $hint = 'MAIL_MAILER is "log" (emails only written to storage/logs). Set MAIL_MAILER=smtp and MAIL_HOST=... for real delivery. Underlying: '.$e->getMessage();
+            }
+
+            return ['sent' => false, 'error' => $hint];
         }
     }
 
