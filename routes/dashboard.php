@@ -36,10 +36,10 @@ Route::middleware($console)->group(function () {
 
     Route::post('/settings/rotate-key', [MerchantPanelController::class, 'rotateKey'])->middleware('merchant.can:keys.rotate')->name('settings.rotate');
     Route::post('/settings/logo', [MerchantPanelController::class, 'uploadLogo'])->middleware(['merchant.can:settings.read', 'throttle:10,1,dashboard37'])->name('settings.logo');
-    Route::post('/settings/payout-email', [MerchantPanelController::class, 'savePayoutEmail'])->middleware(['merchant.can:settings.read', 'throttle:6,1,payoutemail'])->name('settings.payout');
+    Route::post('/settings/payout-email', [MerchantPanelController::class, 'savePayoutEmail'])->middleware(['merchant.can:settings.read', 'throttle:6,1,payoutemail'])->name('settings.payout.email');
     Route::post('/settings/invoice-details', [MerchantPanelController::class, 'saveInvoiceDetails'])->middleware(['merchant.can:settings.read', 'throttle:20,1,dashboard38'])->name('settings.invoice');
     Route::post('/settings/logo/remove', [MerchantPanelController::class, 'removeLogo'])->middleware(['merchant.can:settings.read', 'throttle:10,1,dashboard39'])->name('settings.logo.remove');
-    Route::post('/settings/payout-recipients', [MerchantPanelController::class, 'requestPayoutRecipient'])->middleware('merchant.can:payouts.write')->name('settings.payout');
+    Route::post('/settings/payout-recipients', [MerchantPanelController::class, 'requestPayoutRecipient'])->middleware('merchant.can:payouts.write')->name('settings.payout.recipients');
     Route::post('/settings/webhook-url', [MerchantPanelController::class, 'requestWebhookUrlChange'])->middleware('merchant.can:webhooks.write')->name('settings.webhook');
     Route::post('/settings/webhook-url/confirm', [MerchantPanelController::class, 'confirmWebhookUrlChange'])->middleware('merchant.can:webhooks.write')->name('settings.webhook.confirm');
     Route::post('/settings/deactivate', [MerchantPanelController::class, 'deactivate'])->middleware('merchant.can:account.deactivate')->name('settings.deactivate');

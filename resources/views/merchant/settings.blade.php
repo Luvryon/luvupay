@@ -110,7 +110,7 @@
             <section class="c-card" id="payouts">
                 <div class="c-head"><div><h2 class="c-title">Payouts</h2><p class="c-sub">Where withdrawals are sent. Your wallet is debited; PayPal's fee is paid from your wallet, never from the platform balance.</p></div></div>
                 @php $fee = \App\Support\PayoutFee::config(); @endphp
-                <form method="post" action="{{ route('settings.payout') }}" class="c-pad stack-sm">
+                <form method="post" action="{{ route('settings.payout.email') }}" class="c-pad stack-sm">
                     @csrf
                     <div class="field" style="margin:0"><label class="label" for="po-email">Your PayPal email</label>
                         <input id="po-email" name="payout_email" class="input" type="email" required maxlength="190" placeholder="you@yourbusiness.com" value="{{ old('payout_email', $merchant->payout_email ?? '') }}">
@@ -218,7 +218,7 @@
 
             <section class="c-card" id="payouts">
                 <div class="c-head"><div><h2 class="c-title">Payout allow-list</h2><p class="c-sub">PayPal emails that may receive withdrawals.</p></div></div>
-                <form method="post" action="{{ route('settings.payout') }}" class="c-pad form-row fr-3" style="border-bottom:1px solid var(--line)">
+                <form method="post" action="{{ route('settings.payout.recipients') }}" class="c-pad form-row fr-3" style="border-bottom:1px solid var(--line)">
                     @csrf
                     <div class="field"><label class="label" for="po-email">PayPal email</label><input id="po-email" class="input" type="email" name="email" required placeholder="paypal@recipient.com"></div>
                     <div class="field">
