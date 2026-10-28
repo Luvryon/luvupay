@@ -682,8 +682,12 @@
       // ---- 1. New Subscription Checkout
       openCheckout: function () {
         if (this.simBusy || this.checkoutPaying) return;
+        // Project is optional for demo charge, but surface a clear status
         this.checkoutForm = { name: 'John Doe', email: 'john@example.com' };
         this.showCheckoutModal = true;
+        this.$nextTick(function () {
+          // ensure modal is not trapped under display:none parent
+        });
       },
 
       confirmCheckout: async function () {

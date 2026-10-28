@@ -10,14 +10,17 @@
 <div x-show="!loading && !hasData" x-cloak class="c-card" style="padding:48px 32px;text-align:center">
     <div style="margin:0 auto 16px;width:56px;height:56px;border-radius:16px;background:#eef2ff;display:grid;place-items:center;font-size:1.5rem">📊</div>
     <p style="margin:0;font-size:1.1rem;font-weight:700;color:var(--ink)">Your ledger is empty</p>
-    <p style="margin:10px auto 0;max-width:380px;font-size:.9rem;color:var(--muted);line-height:1.5">
+    <p style="margin:10px auto 0;max-width:400px;font-size:.9rem;color:var(--muted);line-height:1.5">
         Once subscribers pay, transactions appear here automatically.
         Start with a new subscription checkout to see the full lifecycle.
     </p>
-    <button type="button"
-            class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 font-medium shadow-sm mt-6 disabled:opacity-50"
-            x-on:click="openCheckout()"
-            x-bind:disabled="simBusy || checkoutPaying">
-        New subscription checkout
-    </button>
+    <div class="mt-6 flex flex-wrap items-center justify-center gap-3">
+        <button type="button"
+                class="bg-indigo-600 text-white px-5 py-2.5 rounded-lg hover:bg-indigo-700 font-medium shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                x-on:click.prevent="openCheckout()"
+                x-bind:disabled="simBusy || checkoutPaying">
+            New subscription checkout
+        </button>
+    </div>
+    <p class="mt-3 text-xs text-slate-400" x-show="!PROJECT_IS_SET && false"></p>
 </div>

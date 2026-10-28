@@ -3,7 +3,7 @@
     <div class="mx-auto flex h-16 max-w-7xl items-center justify-between gap-6 px-5 sm:px-8">
         <a href="/" class="flex items-center gap-2.5 text-[1.05rem] font-semibold tracking-tight">
             @include('partials.logo', ['size' => 28])
-            <span>LuvuPay</span>
+            <img src="{{ asset('images/logo-luvupay-v2.png') }}" alt="" width="28" height="28" style="width:28px;height:28px;object-fit:contain" /><span>LuvuPay</span>
         </a>
 
         <nav class="hidden items-center gap-7 lg:flex" aria-label="Primary">

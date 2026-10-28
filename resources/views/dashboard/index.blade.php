@@ -191,6 +191,8 @@
         ></p>
     </section>
 
+        </div>{{-- hasData --}}
+
     {{-- Checkout modal --}}
     <x-ui.modal show="showCheckoutModal" title="New Subscription Checkout" size="md">
         <div class="space-y-4 p-5">
@@ -256,7 +258,7 @@
 
     
     <x-ui.toasts />
-        </div>{{-- hasData --}}
+
 
 </div>
 
