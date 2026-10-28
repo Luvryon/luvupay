@@ -118,7 +118,6 @@ class PayPalClient
         $payload = array_replace_recursive([
             'plan_id' => $planId,
             'custom_id' => $customId,                                  // our merchant_user_id / subscription uuid (max 127 chars)
-            'subscriber' => ['email_address' => $subscriberEmail],
             'application_context' => [
                 'brand_name' => 'LuvuPay',
                 'shipping_preference' => 'NO_SHIPPING',
@@ -129,7 +128,48 @@ class PayPalClient
             ],
         ], $extra);
 
+        // Only prefill the PayPal login when we really know the payer's PayPal email.
+        if ($subscriberEmail !== '') {
+            $payload['subscriber'] = ['email_address' => $subscriberEmail];
+        }
+
         return $this->post('/v1/billing/subscriptions', $payload, $requestId);
+    }
+
+    /** POST /v1/catalogs/products: a PayPal catalog product, required before a billing plan can exist. */
+    public function createProduct(string $name, string $requestId): array
+    {
+        return $this->post('/v1/catalogs/products', [
+            'name' => mb_substr($name, 0, 127),
+            'type' => 'SERVICE',
+            'category' => 'SOFTWARE',
+        ], $requestId);
+    }
+
+    /**
+     * POST /v1/billing/plans: an open-ended recurring plan charged immediately on approval.
+     *
+     * @param  string  $intervalUnit  DAY|WEEK|MONTH|YEAR
+     */
+    public function createPlan(string $productId, string $name, Money $price, string $intervalUnit, string $requestId): array
+    {
+        return $this->post('/v1/billing/plans', [
+            'product_id' => $productId,
+            'name' => mb_substr($name, 0, 127),
+            'status' => 'ACTIVE',
+            'billing_cycles' => [[
+                'frequency' => ['interval_unit' => $intervalUnit, 'interval_count' => 1],
+                'tenure_type' => 'REGULAR',
+                'sequence' => 1,
+                'total_cycles' => 0,                                   // 0 = until cancelled
+                'pricing_scheme' => ['fixed_price' => PayPalAmount::fromMoney($price)],
+            ]],
+            'payment_preferences' => [
+                'auto_bill_outstanding' => true,
+                'setup_fee_failure_action' => 'CANCEL',
+                'payment_failure_threshold' => 3,
+            ],
+        ], $requestId);
     }
 
     public function getSubscription(string $subscriptionId): array
@@ -173,6 +213,12 @@ class PayPalClient
                 'cancel_url' => $cancelUrl,
             ]]],
         ], $requestId);
+    }
+
+    /** GET /v2/checkout/orders/{id} */
+    public function getOrder(string $orderId): array
+    {
+        return $this->get('/v2/checkout/orders/'.rawurlencode($orderId));
     }
 
     /** POST /v2/checkout/orders/{id}/capture */

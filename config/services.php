@@ -20,7 +20,8 @@ return [
         'mode' => env('PAYPAL_MODE', 'sandbox'),            // sandbox | live
         'client_id' => env('PAYPAL_CLIENT_ID'),
         'secret' => env('PAYPAL_SECRET'),
-        'webhook_id' => env('PAYPAL_WEBHOOK_ID'),           // from the PayPal developer dashboard, per environment
+        'webhook_id' => env('PAYPAL_WEBHOOK_ID'),
+        'plan_id' => env('PAYPAL_PLAN_ID'),                 // optional: force one pre-made sandbox plan (must match the project price)           // from the PayPal developer dashboard, per environment
         /*
          | Environment-swap receivers (NEVER hardcode sb-*** emails in PHP/Blade).
          | Sandbox: ugly auto-generated Business accounts from developer.paypal.com

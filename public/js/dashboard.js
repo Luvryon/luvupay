@@ -47,6 +47,54 @@
     return node;
   }
 
+  /**
+   * Resolves when the PayPal popup reports a result (BroadcastChannel / storage / postMessage) or is closed.
+   * Resolves { state: 'closed' } when the window disappears without a message (buyer closed it).
+   */
+  function waitForPopup(pop, tx, check) {
+    return new Promise(function (resolve) {
+      var finished = false, bc = null, poll = null, cap = null, srv = null, srvBusy = false;
+      function done(payload) {
+        if (finished) return;
+        finished = true;
+        clearInterval(poll); clearInterval(srv); clearTimeout(cap);
+        try { if (bc) bc.close(); } catch (e) {}
+        global.removeEventListener('message', onMessage);
+        global.removeEventListener('storage', onStorage);
+        resolve(payload);
+      }
+      function accept(d) {
+        if (d && d.type === 'lp-paypal-result' && (!d.tx || d.tx === tx)) { done(d); return true; }
+        return false;
+      }
+      function onMessage(ev) { if (ev.origin === global.location.origin) accept(ev.data); }
+      function onStorage(ev) {
+        if (ev.key !== 'lp_paypal_result' || !ev.newValue) return;
+        try { accept(JSON.parse(ev.newValue)); } catch (e) {}
+      }
+      try { bc = new BroadcastChannel('luvupay-paypal'); bc.onmessage = function (ev) { accept(ev.data); }; } catch (e) { bc = null; }
+      global.addEventListener('message', onMessage);
+      global.addEventListener('storage', onStorage);
+      poll = setInterval(function () {
+        var closed = false;
+        try { closed = !pop || pop.closed; } catch (e) { closed = false; }
+        if (closed) {
+          clearInterval(poll);
+          setTimeout(function () { done({ state: 'closed' }); }, 800);   // let a late message win
+        }
+      }, 500);
+      // Safety net when the popup message gets lost: ask the server (which asks PayPal) every few seconds.
+      if (typeof check === 'function') {
+        srv = setInterval(function () {
+          if (finished || srvBusy) return;
+          srvBusy = true;
+          Promise.resolve(check()).then(function (d) { if (d) done(d); }).catch(function () {}).then(function () { srvBusy = false; });
+        }, 4000);
+      }
+      cap = setTimeout(function () { done({ state: 'closed' }); }, 15 * 60 * 1000);
+    });
+  }
+
   function request(method, path, body) {
     var headers = { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' };
     var init = { method: method, credentials: 'same-origin', headers: headers };
@@ -199,6 +247,9 @@
       checkoutPaying: false,
       checkoutForm: { name: 'John Doe', email: 'john@example.com' },
       checkoutRows: [],
+      /** 'paypal' = each subscriber approves in a PayPal popup; 'mock' = simulated instantly. Decided by the server (LUVUPAY_PAYMENT_DRIVER). */
+      checkoutMode: CFG.paymentMode === 'paypal' ? 'paypal' : 'mock',
+      checkoutEnv: CFG.paypalEnv || 'sandbox',
       decisionOpen: false,
       campaignStudioOpen: false,
       evidenceOpen: false,
@@ -249,6 +300,27 @@
       get checkoutSelectedCount() {
         return (this.checkoutRows || []).filter(function (r) { return r.selected; }).length;
       },
+      get checkoutRemaining() {
+        return (this.checkoutRows || []).filter(function (r) { return r.selected && r.status !== 'done'; }).length;
+      },
+      get checkoutDoneCount() {
+        return (this.checkoutRows || []).filter(function (r) { return r.status === 'done'; }).length;
+      },
+      get checkoutAllDone() {
+        return this.checkoutSelectedCount > 0 && this.checkoutRemaining === 0;
+      },
+      get checkoutTotalLabel() {
+        return money(this.checkoutRemaining * (Number(PROJECT.price_minor) || 0), PROJECT.currency);
+      },
+      get checkoutCta() {
+        if (this.checkoutAllDone) return 'Done';
+        if (this.checkoutMode === 'paypal') {
+          if (this.checkoutPaying) return 'Waiting for PayPal…';
+          return this.checkoutDoneCount > 0 ? 'Continue with next subscriber' : 'Pay with PayPal';
+        }
+        if (this.checkoutPaying) return 'Processing…';
+        return 'Charge ' + this.checkoutRemaining + ' subscriber' + (this.checkoutRemaining === 1 ? '' : 's');
+      },
 
       get walletQuote() {
         var f = this.payoutFee || {}; var g = Number(this.walletBalanceMinor) || 0;
@@ -280,34 +352,40 @@
         this.handlePayPalReturn();
       },
 
-      /** After PayPal Sandbox approve, Capture runs server-side and redirects here with ?paypal= */
+      /** Full-page fallback (popup blocked): PayPal returned to /dashboard?paypal=... after the server settled the checkout. */
       handlePayPalReturn: function () {
         try {
           var params = new URLSearchParams(global.location.search || '');
           var flag = params.get('paypal');
           if (!flag) return;
+          var self = this;
+          var queue = null;
+          try {
+            queue = JSON.parse(sessionStorage.getItem('lp_checkout_queue') || 'null');
+            sessionStorage.removeItem('lp_checkout_queue');
+            sessionStorage.removeItem('lp_pending_checkout');
+          } catch (e) {}
+
           if (flag === 'captured') {
-            this.pushToast('Payment captured — funds deposited to PayPal Sandbox business balance', '✅');
-            try {
-              var pending = sessionStorage.getItem('lp_pending_checkout');
-              if (pending) {
-                var p = JSON.parse(pending);
-                if (p && p.invoice) this.pushToast('Invoice: ' + p.invoice, '🧾');
-                sessionStorage.removeItem('lp_pending_checkout');
-              }
-            } catch (e) {}
-            // Refresh ledger so ACTIVE row appears after capture
-            if (typeof this.load === 'function') this.load();
+            this.pushToast('Payment confirmed. Subscription is active and the funds are in your PayPal sandbox business balance.', '✅');
+          } else if (flag === 'processing') {
+            this.pushToast('Approved. PayPal is still confirming the payment, refresh in a moment.', '⏳');
           } else if (flag === 'capture_failed') {
-            var err = params.get('err') || 'Capture failed';
-            this.pushToast('PayPal capture failed: ' + err, '❌');
+            this.pushToast('PayPal payment not completed: ' + (params.get('err') || 'unknown error'), '❌');
           } else if (flag === 'cancelled') {
-            this.pushToast('PayPal checkout cancelled — no funds moved', '⚠️');
+            this.pushToast('PayPal checkout cancelled. No money moved.', '⚠️');
           }
-          // Clean query string without reload
+          if (typeof this.load === 'function') this.load();
+
+          if (queue && queue.length && (flag === 'captured' || flag === 'cancelled')) {
+            setTimeout(function () {
+              self.checkoutRows = self._checkoutSeedRows(queue);
+              self.showCheckoutModal = true;
+              self.pushToast(queue.length + ' subscriber' + (queue.length === 1 ? '' : 's') + ' still to go.', '➡️');
+            }, 600);
+          }
           if (global.history && global.history.replaceState) {
-            var clean = global.location.pathname + (global.location.hash || '');
-            global.history.replaceState({}, '', clean);
+            global.history.replaceState({}, '', global.location.pathname + (global.location.hash || ''));
           }
         } catch (e) {}
       },
@@ -685,142 +763,218 @@
       },
 
       // ---- 1. New Subscription Checkout
-      openCheckout: function () {
-        if (this.simBusy || this.checkoutPaying) return;
+      //  mock   : every selected subscriber is charged instantly (simulated).
+      //  paypal : one subscriber at a time; the buyer approves in a PayPal popup, the server then verifies the
+      //           payment with PayPal, activates the subscription, issues the invoice and sends the emails.
+      _checkoutSeedRows: function (list) {
         var product = (PROJECT && PROJECT.product) || 'Premium';
         var amount = (PROJECT && PROJECT.price) || '$20.00';
-        this.checkoutRows = [
-          { name: 'Sarah Johnson', email: 'sarah@streamnet.com', product: product, amount: amount, selected: true },
-          { name: 'Mario Chen', email: 'mario@gmail.com', product: product, amount: amount, selected: true },
-          { name: 'Emma Wilson', email: 'emma.w@outlook.com', product: product, amount: amount, selected: true },
-          { name: 'David Kim', email: 'david.kim@yahoo.com', product: product, amount: amount, selected: true },
-          { name: 'Lisa Anderson', email: 'lisa.a@proton.me', product: product, amount: amount, selected: true },
+        var base = list || [
+          { name: 'Sarah Johnson', email: 'sarah@streamnet.com' },
+          { name: 'Mario Chen', email: 'mario@gmail.com' },
+          { name: 'Emma Wilson', email: 'emma.w@outlook.com' },
+          { name: 'David Kim', email: 'david.kim@yahoo.com' },
+          { name: 'Lisa Anderson', email: 'lisa.a@proton.me' },
         ];
-        this.checkoutForm = { name: this.checkoutRows[0].name, email: this.checkoutRows[0].email };
+        var pre = this.checkoutMode === 'paypal' ? 1 : 3;
+        return base.map(function (p, i) {
+          return { name: p.name, email: p.email, product: product, amount: amount, selected: list ? true : i < pre, status: 'idle', note: '' };
+        });
+      },
+
+      openCheckout: function () {
+        if (this.simBusy || this.checkoutPaying) return;
+        this.checkoutRows = this._checkoutSeedRows();
         this.showCheckoutModal = true;
+      },
+
+      closeCheckout: function () {
+        if (this.checkoutPaying) return;
+        this.showCheckoutModal = false;
       },
 
       addCheckoutRow: function () {
         var product = (PROJECT && PROJECT.product) || 'Premium';
         var amount = (PROJECT && PROJECT.price) || '$20.00';
         var n = (this.checkoutRows || []).length + 1;
-        this.checkoutRows.push({
-          name: 'Subscriber ' + n,
-          email: 'user' + n + '@example.com',
-          product: product,
-          amount: amount,
-          selected: true,
-        });
+        this.checkoutRows.push({ name: 'Subscriber ' + n, email: 'user' + n + '@example.com', product: product, amount: amount, selected: true, status: 'idle', note: '' });
       },
 
+      removeCheckoutRow: function (idx) {
+        if (this.checkoutPaying) return;
+        var r = this.checkoutRows[idx];
+        if (r && r.status !== 'idle' && r.status !== 'failed') return;
+        this.checkoutRows.splice(idx, 1);
+      },
+
+      /** Selecting a row in PayPal mode is just "who goes next"; the CTA always takes the first selected one. */
       confirmCheckoutBatch: async function () {
         if (this.checkoutPaying) return;
-        var rows = (this.checkoutRows || []).filter(function (r) { return r.selected; });
-        if (!rows.length) {
-          this.pushToast('Select at least one subscriber', '⚠️');
+        if (this.checkoutAllDone) { this.showCheckoutModal = false; return; }
+        var EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        var todo = [];
+        (this.checkoutRows || []).forEach(function (r) {
+          if (!r.selected || r.status === 'done') return;
+          r.email = (r.email || '').trim();
+          r.name = (r.name || '').trim();
+          if (!EMAIL.test(r.email)) { r.status = 'failed'; r.note = 'Enter a valid email'; return; }
+          if (r.status === 'failed' || r.status === 'cancelled') { r.status = 'idle'; r.note = ''; }
+          todo.push(r);
+        });
+        if (!todo.length) {
+          this.pushToast((this.checkoutRows || []).some(function (r) { return r.selected; }) ? 'Fix the highlighted rows first' : 'Select at least one subscriber', '⚠️');
           return;
         }
+        // NB: no await before this call: window.open must run inside the click, or popup blockers eat it.
+        if (this.checkoutMode === 'paypal') return this._checkoutPaypalOne(todo[0], todo.slice(1));
+        return this._checkoutMockAll(todo);
+      },
+
+      _checkoutMockAll: async function (todo) {
         this.checkoutPaying = true;
-        var ok = 0, fail = 0, lastApprove = null;
+        var ok = 0, fail = 0, emailed = 0, lastErr = '';
         try {
-          for (var i = 0; i < rows.length; i++) {
-            var name = (rows[i].name || '').trim() || ('Subscriber ' + (i + 1));
-            var email = (rows[i].email || '').trim() || ('user' + (i + 1) + '@example.com');
-            this.checkoutForm = { name: name, email: email };
-            this.preview = { phase: 'checkout', name: name, email: email, product: PROJECT.product, status: 'PENDING', trust_score: null, churn_risk: null, ai_nudge: null, spinning: true, certificate_code: null };
-            var j = await this.sim('checkout', { display_name: name, email: email }, 'checkout');
-            if (!j) { fail++; continue; }
-            var pp = j.paypal_sandbox || {};
-            var needsApproval = !!(j.requires_approval) || !!(pp.live && pp.approve_url);
-            if (needsApproval && pp.approve_url) {
-              lastApprove = pp.approve_url;
-              // For batch: only redirect on the last PayPal approval needed; record others as pending
-              ok++;
-              if (i === rows.length - 1) {
-                try { sessionStorage.setItem('lp_pending_checkout', JSON.stringify({ name: name, email: email, batch: true })); } catch (e) {}
-                this.showCheckoutModal = false;
-                this.checkoutPaying = false;
-                this.pushToast('Redirecting to PayPal for the last subscriber…', '💳');
-                global.location.href = pp.approve_url;
-                return;
-              }
-              continue;
-            }
-            ok++;
-            var invoice = (j.invoice && j.invoice.invoice_number) || (j.row && j.row.invoice_number) || '';
+          for (var i = 0; i < todo.length; i++) {
+            var r = todo[i];
+            r.status = 'working'; r.note = 'Charging…';
+            this.preview = { phase: 'checkout', name: r.name, email: r.email, product: PROJECT.product, status: 'PENDING', trust_score: null, churn_risk: null, ai_nudge: null, spinning: true, certificate_code: null };
+            var j = await this.sim('checkout', { display_name: r.name, email: r.email }, 'checkout');
+            if (!j) { r.status = 'failed'; r.note = this.simMsg || 'Checkout failed'; lastErr = r.note; fail++; continue; }
+            ok++; if (j.email_sent) emailed++;
+            r.status = 'done';
+            r.note = (j.invoice && j.invoice.invoice_number) ? ('Invoice ' + j.invoice.invoice_number) : 'Active';
             if (j.row) this.applyRow(j.row, true);
-            else if (j.id) this.applyRow(Object.assign({ display_name: name, email: email }, j), true);
+            if (j.recent_events && j.recent_events.length) this.webhookLogs = j.recent_events;
+            if (j.preview) this.preview = Object.assign({}, j.preview, { spinning: false });
+            await sleep(250);
           }
-          this.showCheckoutModal = false;
           await this.load();
-          this.pushToast('Checkout done: ' + ok + ' ok' + (fail ? (', ' + fail + ' failed') : ''), ok ? '✅' : '❌');
+          if (ok) this.pushToast(ok + ' subscription' + (ok === 1 ? '' : 's') + ' active' + (emailed ? ' · ' + emailed + ' receipt email' + (emailed === 1 ? '' : 's') + ' sent' : ''), '✅');
+          if (fail) this.pushToast(fail + ' failed: ' + lastErr, '❌');
+          if (!fail) { await sleep(500); this.showCheckoutModal = false; }
         } catch (e) {
-          this.pushToast('Checkout batch error', '❌');
+          this.pushToast('Checkout error', '❌');
         } finally {
           this.checkoutPaying = false;
         }
       },
 
-      confirmCheckout: async function () {
-        if (this.checkoutPaying) return;
-        var name = (this.checkoutForm.name || '').trim() || 'John Doe';
-        var email = (this.checkoutForm.email || '').trim() || 'john@example.com';
+      _checkoutPaypalOne: async function (row, rest) {
+        var self = this;
+        var pop = null;
+        try {
+          var w = 500, hgt = 740;
+          var left = Math.max(0, Math.round((global.screenX || 0) + ((global.outerWidth || 1000) - w) / 2));
+          var top = Math.max(0, Math.round((global.screenY || 0) + ((global.outerHeight || 800) - hgt) / 2));
+          pop = global.open('', 'luvupay_paypal', 'popup=yes,width=' + w + ',height=' + hgt + ',left=' + left + ',top=' + top);
+          if (pop && pop.document && pop.document.body) {
+            pop.document.title = 'PayPal';
+            pop.document.body.style.cssText = 'margin:0;display:grid;place-items:center;min-height:100vh;font:14px system-ui,sans-serif;color:#475569;background:#f8fafc';
+            pop.document.body.textContent = 'Contacting PayPal…';
+          }
+        } catch (e) { pop = null; }
+
         this.checkoutPaying = true;
-        this.preview = { phase: 'checkout', name: name, email: email, product: PROJECT.product, status: 'PENDING', trust_score: null, churn_risk: null, ai_nudge: null, spinning: true, certificate_code: null };
+        row.status = 'working'; row.note = 'Creating PayPal checkout…';
+        this.preview = { phase: 'checkout', name: row.name, email: row.email, product: PROJECT.product, status: 'PENDING', trust_score: null, churn_risk: null, ai_nudge: null, spinning: true, certificate_code: null };
 
-        await sleep(600);
-        var j = await this.sim('checkout', { display_name: name, email: email }, 'checkout');
-        var invoice = (j && j.invoice && j.invoice.invoice_number) || (j && j.row && j.row.invoice_number) || ('LUVI-' + new Date().getFullYear() + '-001');
+        var j = await this.sim('checkout', { display_name: row.name, email: row.email, popup: !!pop }, 'checkout');
+        var pp = (j && j.paypal_sandbox) || {};
+        if (!j || !(j.requires_approval && pp.approve_url && isPayPalUrl(pp.approve_url))) {
+          try { if (pop) pop.close(); } catch (e) {}
+          row.status = 'failed';
+          row.note = (j ? 'PayPal returned no approval link' : (this.simMsg || 'Checkout failed'));
+          this.checkoutPaying = false;
+          this.preview.spinning = false;
+          return;
+        }
+        if (j.row) this.applyRow(j.row, true);
+        if (j.recent_events && j.recent_events.length) this.webhookLogs = j.recent_events;
+        row.status = 'awaiting'; row.note = 'Waiting for approval on PayPal…';
 
-        var pp = j && j.paypal_sandbox;
-        var needsApproval = !!(j && j.requires_approval) || !!(pp && pp.live && pp.approve_url && isPayPalUrl(pp.approve_url));
-
-        // Real PayPal Sandbox: full-page redirect so return URL always hits Capture.
-        // Funds only land in the sandbox business balance after buyer approves + capture.
-        if (needsApproval && pp && pp.approve_url && isPayPalUrl(pp.approve_url)) {
-          if (j && j.email_sent) this.pushToast('Confirmation email sent to ' + email, '📧');
-          else if (j && j.email_error) this.pushToast('Email not sent: ' + j.email_error, '📧');
-          this.pushToast('Redirecting to PayPal Sandbox — approve to deposit funds…', '💳');
-          try { sessionStorage.setItem('lp_pending_checkout', JSON.stringify({ name: name, email: email, invoice: invoice })); } catch (e) {}
+        // Popup blocked: fall back to a full-page redirect and resume the remaining subscribers on return.
+        if (!pop) {
+          try {
+            sessionStorage.setItem('lp_checkout_queue', JSON.stringify(rest.map(function (r) { return { name: r.name, email: r.email }; })));
+          } catch (e) {}
+          this.pushToast('Popup blocked, redirecting to PayPal…', '💳');
           this.showCheckoutModal = false;
           this.checkoutPaying = false;
           global.location.href = pp.approve_url;
           return;
         }
 
-        if (j && j.email_sent) {
-          this.pushToast('Confirmation email sent to ' + email, '📧');
-        } else {
-          var emailErr = (j && (j.email_error || (j.paypal_sandbox && j.paypal_sandbox.error))) || '';
-          if (emailErr) this.pushToast('Email not sent: ' + emailErr, '📧');
-          else this.pushToast('Email not sent — check MAIL_MAILER=smtp, MAIL_HOST, MAIL_PORT, MAIL_USERNAME, MAIL_PASSWORD, MAIL_FROM_ADDRESS in .env (then php artisan config:clear)', '📧');
-        }
-
-        await sleep(400);
-        if (pp && pp.live) {
-          this.pushToast('PayPal Sandbox order live', '💳');
-        } else {
-          this.pushToast("'New Subscription' webhook dispatched to Merchant API", '📩');
-        }
-
-        await sleep(400);
-        this.pushToast('Invoice generated: ' + invoice, '🧾');
-        await sleep(400);
-
-        if (j && j.recent_events && j.recent_events.length) this.webhookLogs = j.recent_events;
-        var row = j && j.row ? Object.assign({}, j.row) : {
-          id: 'local-' + Date.now(), created_at: new Date().toISOString(), email: email, display_name: name,
-          amount_minor: PROJECT.price_minor, currency: PROJECT.currency, status: 'completed', lifecycle: 'ACTIVE',
-          type: 'Charge', product: PROJECT.product, invoice_number: invoice, trust_score: 88, churn_risk: 'low',
-        };
-        row.lifecycle = row.lifecycle || 'ACTIVE';
-        row.product = row.product || PROJECT.product;
-        this.applyRow(row, true);
-        this.preview = { phase: 'checkout', name: name, email: email, product: row.product, status: row.lifecycle || 'ACTIVE', trust_score: row.trust_score, churn_risk: row.churn_risk, ai_nudge: null, spinning: false, certificate_code: null };
-
-        await sleep(300);
-        this.showCheckoutModal = false;
+        pop.location.href = pp.approve_url;
+        var txId = j.transaction_id;
+        var msg = await waitForPopup(pop, txId, function () {
+          return request('GET', 'demo/checkout/' + txId + '/status').then(function (r) {
+            var d = r.data || {};
+            return (r.ok && (d.state === 'captured' || d.state === 'failed' || d.state === 'gone')) ? d : null;
+          });
+        });
+        var res = await this._checkoutResolve(msg, j.transaction_id);
+        await this._checkoutApplyResult(row, res);
         this.checkoutPaying = false;
+        this.preview.spinning = false;
+        await this.load();
+
+        if (res.state === 'captured' && this.checkoutRemaining > 0) {
+          this.pushToast('Next up: ' + (this.checkoutRows.filter(function (r) { return r.selected && r.status !== 'done'; })[0] || {}).name + '. Click continue.', '➡️');
+        } else if (res.state === 'captured') {
+          await sleep(900);
+          this.showCheckoutModal = false;
+        }
+      },
+
+      /** The popup said something (or was closed): confirm with the server, which asks PayPal. */
+      _checkoutResolve: async function (msg, tx) {
+        var abandoned = !msg || msg.state === 'closed';
+        var r, d, i;
+        if (msg && !abandoned && msg.state === 'cancelled') return { state: 'cancelled', message: msg.message };
+        if (msg && !abandoned && msg.state === 'failed') return { state: 'failed', message: msg.message || msg.error || 'Payment failed' };
+
+        if (abandoned) {
+          // Window closed with no message. Give PayPal / the return page a moment before treating it as cancelled.
+          for (i = 0; i < 6; i++) {
+            r = await request('GET', 'demo/checkout/' + tx + '/status');
+            d = r.data || {};
+            if (!r.ok) return { state: 'failed', message: d.message || 'Could not check the payment status.' };
+            if (d.state !== 'processing' || !d.awaiting_buyer) return d;
+            await sleep(2500);
+          }
+          r = await request('GET', 'demo/checkout/' + tx + '/status?abandon=1');
+          return r.ok ? (r.data || { state: 'cancelled' }) : { state: 'failed', message: (r.data && r.data.message) || 'Could not cancel the checkout.' };
+        }
+
+        for (i = 0; i < 4; i++) {
+          r = await request('GET', 'demo/checkout/' + tx + '/status');
+          d = r.data || {};
+          if (!r.ok) return { state: 'failed', message: d.message || 'Could not check the payment status.' };
+          if (d.state === 'processing' && !d.awaiting_buyer && i < 3) { await sleep(2000); continue; }
+          return d;
+        }
+        return { state: 'processing', message: 'PayPal is still confirming the payment.' };
+      },
+
+      _checkoutApplyResult: async function (row, res) {
+        if (res.state === 'captured') {
+          row.status = 'done';
+          var inv = res.row && res.row.invoice_number;
+          row.note = inv ? ('Paid · invoice ' + inv) : 'Paid via PayPal';
+          if (res.row) this.applyRow(res.row, true);
+          this.pushToast('Payment confirmed for ' + row.email + '. Funds are in your PayPal sandbox business balance.', '✅');
+          if (inv) this.pushToast('Invoice generated: ' + inv, '🧾');
+          this.preview = { phase: 'checkout', name: row.name, email: row.email, product: PROJECT.product, status: 'ACTIVE', trust_score: res.row && res.row.trust_score, churn_risk: res.row && res.row.churn_risk, ai_nudge: null, spinning: false, certificate_code: null };
+        } else if (res.state === 'processing') {
+          row.status = 'awaiting'; row.note = 'Approved, waiting for PayPal to confirm…';
+          this.pushToast(res.message || 'PayPal is still confirming the payment.', '⏳');
+        } else if (res.state === 'cancelled' || res.state === 'gone') {
+          row.status = 'idle'; row.note = 'Cancelled on PayPal, nothing was charged';
+          this.pushToast('PayPal checkout cancelled. No money moved.', '⚠️');
+        } else {
+          row.status = 'failed'; row.note = res.message || 'Payment failed';
+          this.pushToast(row.note, '❌');
+        }
       },
 
       // ---- 2. Missed Cancellation journey

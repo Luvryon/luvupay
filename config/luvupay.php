@@ -10,7 +10,12 @@ return [
     // In PayPal sandbox, a rejected payout is recorded as a labelled simulation instead of an HTTP 502.
     'payout_sandbox_fallback' => env('LUVUPAY_PAYOUT_SANDBOX_FALLBACK', true),
 
-    'payment' => ['driver' => env('LUVUPAY_PAYMENT_DRIVER', 'mock')],   // mock | paypal (sandbox or live per PAYPAL_MODE)
+    'payment' => ['driver' => env('LUVUPAY_PAYMENT_DRIVER', 'mock')],
+
+    // Dashboard "New subscription checkout" with the paypal driver:
+    //   subscription = PayPal Billing Subscriptions (approve once, PayPal bills every period) [default]
+    //   order        = one-off Orders API payment (fallback when the Subscriptions API is unavailable)
+    'checkout' => ['mode' => env('LUVUPAY_CHECKOUT_MODE', 'subscription')],   // mock | paypal (sandbox or live per PAYPAL_MODE)
 
     // Platform defaults; each merchant can override in the merchants table. Basis points, sum = 10000.
     'defaults' => [

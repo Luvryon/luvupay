@@ -42,3 +42,25 @@ Wallet = charges − partial refunds − charity − withdrawals + resale fees.
 - **Resale -> /marketplace**: merchant resale listings are merged into the public marketplace; Buy now -> /redeem/{token}.
 - **Toasts**: solid colours (success green, info blue, warning yellow, error red).
 - New migration: `merchants.payout_email` (run `php artisan migrate --force`).
+
+
+# Round 4 (28 Oct 2026): New Subscription Checkout rebuilt
+**Why checkout jumped straight to PayPal and money did not "just appear"**: PayPal never moves money without the buyer approving it, not even in the sandbox, so approval cannot be skipped. What was wrong around it:
+- `LUVUPAY_PAYMENT_DRIVER=mock` still went to PayPal whenever `PAYPAL_CLIENT_ID/SECRET` were filled (`$hasPayPalCreds && ($driver === 'paypal' || $hasPayPalCreds)` was always true). Now **only the driver decides**; mock never calls PayPal. If the driver is `paypal` but credentials are empty you get a clear 422 instead of a fake "paypal" row.
+- It used a one-off Orders payment but stored a fake subscription id (`I-DEMO-...`). Now it creates a **real PayPal Billing Subscription**: product + plan are created automatically for the project price (cached; override with `PAYPAL_PLAN_ID`), the buyer approves ONCE, PayPal bills every period. If Subscriptions is unavailable it falls back to a one-off order (`LUVUPAY_CHECKOUT_MODE=order` forces that).
+- Full-page redirect replaced by a **PayPal popup** (no CSP change needed: the popup is a normal window). Popup blocked -> automatic full redirect, and the remaining subscribers resume on return.
+
+**Bugs fixed in the flow**
+- Receipt email, invoice and the merchant notification were sent *before* the buyer paid. They now run only after PayPal confirms, exactly once.
+- Batch with PayPal created N orders but redirected only for the last one; the others stayed `pending_approval` forever. Now one approval per subscriber, processed one after another; never-paid rows are deleted (cancel, popup closed, or older than 30 min) so they no longer pollute the ledger or count as churn.
+- `paypalReturn` trusted the query string: it did not check the transaction belongs to the logged-in merchant, did not check the order id or the paid amount, and was not idempotent (refresh = second capture attempt). Now merchant-scoped, order/subscription id must match what we stored, amount + currency verified, activation is a single conditional UPDATE.
+- `paypalReturn`/`paypalCancel` wrote webhook events with `merchant_id = NULL`, so they never appeared in the Live event log. Fixed.
+- Currency came from the merchant row while the amount came from the project; both now come from the project.
+- New status endpoint `GET /api/v1/dashboard/demo/checkout/{tx}/status` (merchant-scoped) so the dashboard can confirm the payment even if the popup message is lost.
+
+**New modal** (`dashboard/partials/checkout-modal.blade.php` + `public/css/checkout-modal.css`, scoped CSS so it does not depend on the partial Tailwind build): plan + price header, mode badge (PayPal Sandbox / Mock), 3-step explainer, subscriber cards with per-row status (Ready / Waiting for PayPal / Paid / Needs attention), live "Due now" total, Esc/backdrop to close.
+
+**Housekeeping**: `.env.example` had every PayPal key twice; deduped and documented (`LUVUPAY_CHECKOUT_MODE`, `PAYPAL_PLAN_ID`). No migration needed; run `php artisan config:clear && php artisan route:clear`.
+
+**Sandbox checklist**: .env -> `LUVUPAY_PAYMENT_DRIVER=paypal`, `PAYPAL_MODE=sandbox`, Client ID/Secret of a sandbox REST app; pay with a sandbox **personal** account (not the business one). The money appears in the **business** account that owns that REST app. Subscriptions must be enabled for the app (default on for sandbox apps).
+

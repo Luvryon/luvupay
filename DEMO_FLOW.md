@@ -11,8 +11,12 @@ Then: `php artisan migrate && php artisan config:clear`
 
 ## Minute 0–1 · Merchant (B2B)
 1. Login console → `/dashboard`
-2. **Trigger Test: New Subscription Checkout**
-   - Modal pre-filled → **Pay with PayPal** → processing → toasts (email, webhook, invoice) → row ACTIVE
+2. **New subscription checkout**
+   - `mock` driver: pick subscribers → **Charge N subscribers** → instant, row ACTIVE, receipt emailed.
+   - `paypal` driver: **Pay with PayPal** opens a popup → log in with a sandbox **personal (buyer)** account → approve ONCE.
+     PayPal confirms → the dashboard turns the row ACTIVE, issues the invoice, emails the receipt, and the money shows in the
+     sandbox **business** balance. Several subscribers = one approval each (click *Continue with next subscriber*).
+   - Popup blocked? You are redirected to PayPal instead and the remaining subscribers resume after you return.
 3. Select ACTIVE row → **Missed Cancellation** → GRACE_PERIOD
 4. **Smart-Convert** (optional) · watch **Live event log** fill with PayPal-style events
 

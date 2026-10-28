@@ -97,6 +97,7 @@ Route::middleware($console)->group(function () {
 
     Route::prefix('api/v1/dashboard/demo')->name('dashboard.demo.')->middleware(['demo.simulator', 'throttle:30,1,dashboard96'])->group(function () {
         Route::post('checkout', [DemoCheckoutController::class, 'simulateCheckout'])->name('checkout');
+        Route::get('checkout/{tx}/status', [DemoCheckoutController::class, 'checkoutStatus'])->whereUuid('tx')->name('checkout.status');
         Route::post('simulate-month', DemoMonthController::class)->name('simulate-month');
         Route::post('forgot', [DemoLifecycleController::class, 'simulateForgot'])->name('forgot');
         Route::post('decision', [DemoLifecycleController::class, 'decision'])->name('decision');
