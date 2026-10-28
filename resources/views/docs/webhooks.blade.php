@@ -1,6 +1,6 @@
 @extends('layouts.docs')
 @section('title', 'Webhooks · LuvuPay')
-@section('meta_description', 'LuvuPay webhook verification, event types, Entitlement Bridge, retries, nonce protection, and secure URL changes.')
+@section('meta_description', 'LuvuPay webhook verification, event types, Entitlement Bridge, retries, nonce protection, and secure URL changes')
 @section('guides')
 {{-- sidebar from layout --}}
 @endsection
@@ -76,7 +76,7 @@
 
     <article class="min-w-0 w-full max-w-3xl mx-auto">
       <h1>Webhooks</h1>
-      <p class="lead text-muted">LuvuPay sends signed HTTPS callbacks to your application. You own user access, and we never write to your database. Every delivery can be verified, is protected against replay, and expires quickly.</p>
+      <p class="lead text-muted">LuvuPay sends signed HTTPS callbacks to your application. You own user access, and we never write to your database. Every delivery can be verified, is protected against replay, and expires quickly</p>
 
       <dl class="facts not-prose mt-6">
         <div><dt>Signature</dt><dd>HMAC-SHA256</dd></div>
@@ -88,17 +88,17 @@
       {{-- VERIFY --}}
       <section id="verify">
         <h2>Verify every request</h2>
-        <p>Each delivery carries three headers. Check them in this order and reject the request at the first failure.</p>
+        <p>Each delivery carries three headers. Check them in this order and reject the request at the first failure</p>
 
         <ol class="steps">
-          <li><strong>Check the timestamp.</strong> Read <code>X-LuvuPay-Timestamp</code> and reject anything older than <strong>5 minutes</strong>. The tolerance is configurable.</li>
-          <li><strong>Check the nonce.</strong> Read <code>X-LuvuPay-Nonce</code> and reject replays. The nonce store TTL is typically 10 minutes.</li>
-          <li><strong>Check the signature.</strong> Compute HMAC-SHA256 over the canonical string with your endpoint secret. Compare it to <code>X-LuvuPay-Signature</code> with a constant-time compare.</li>
+          <li><strong>Check the timestamp</strong> Read <code>X-LuvuPay-Timestamp</code> and reject anything older than <strong>5 minutes</strong>. The tolerance is configurable</li>
+          <li><strong>Check the nonce</strong> Read <code>X-LuvuPay-Nonce</code> and reject replays. The nonce store TTL is typically 10 minutes</li>
+          <li><strong>Check the signature</strong> Compute HMAC-SHA256 over the canonical string with your endpoint secret. Compare it to <code>X-LuvuPay-Signature</code> with a constant-time compare</li>
         </ol>
 
         <h3>Canonical string</h3>
 <pre><code>{timestamp}.{nonce}.{raw_body}</code></pre>
-        <p class="text-sm text-muted">Use the raw request body exactly as received. Parsing and re-serializing the JSON changes the bytes and breaks the signature.</p>
+        <p class="text-sm text-muted">Use the raw request body exactly as received. Parsing and re-serializing the JSON changes the bytes and breaks the signature</p>
 
         <h3>Example code</h3>
         <div class="tabs not-prose" id="code-tabs">
@@ -145,21 +145,21 @@ if (! hash_equals($expected, $signature)) {
             <thead><tr><th>Event</th><th>When it fires</th></tr></thead>
             <tbody>
               <tr><td>entitlement.transfer</td><td>A resale completed. Revoke the seller and grant the buyer access until <code>access_expires_at</code>.</td></tr>
-              <tr><td>subscription.cancelled</td><td>A Second Chance outcome, or a cancellation started by the merchant.</td></tr>
-              <tr><td>second_chance.triggered</td><td>The end user accepted the 48-hour window outcome.</td></tr>
+              <tr><td>subscription.cancelled</td><td>A Second Chance outcome, or a cancellation started by the merchant</td></tr>
+              <tr><td>second_chance.triggered</td><td>The end user accepted the 48-hour window outcome</td></tr>
             </tbody>
           </table>
         </div>
-        <p>Payloads include merchant-scoped IDs, the emails you supplied, and correlation fields. Process every event idempotently on your side.</p>
+        <p>Payloads include merchant-scoped IDs, the emails you supplied, and correlation fields. Process every event idempotently on your side</p>
       </section>
 
       {{-- ENTITLEMENT --}}
       <section id="entitlement">
         <h2>Entitlement Bridge</h2>
-        <p>LuvuPay never holds your product entitlements. On a resale or a Second Chance outcome, we send a signed webhook and your service updates access.</p>
+        <p>LuvuPay never holds your product entitlements. On a resale or a Second Chance outcome, we send a signed webhook and your service updates access</p>
         <div class="split not-prose">
-          <div><strong>LuvuPay</strong><p class="text-sm text-muted">Sends the signed webhook. Retries failed deliveries with backoff.</p></div>
-          <div><strong>Your service</strong><p class="text-sm text-muted">Verifies the request and grants or revokes access. Acknowledges through the signed entitlement ack endpoints when your product contract requires it.</p></div>
+          <div><strong>LuvuPay</strong><p class="text-sm text-muted">Sends the signed webhook. Retries failed deliveries with backoff</p></div>
+          <div><strong>Your service</strong><p class="text-sm text-muted">Verifies the request and grants or revokes access. Acknowledges through the signed entitlement ack endpoints when your product contract requires it</p></div>
         </div>
       </section>
 
@@ -167,12 +167,12 @@ if (! hash_equals($expected, $signature)) {
       <section id="url-change">
         <h2>Changing the webhook URL</h2>
         <ol class="steps">
-          <li><strong>Request the change.</strong> In Console, open Settings and request a new URL.</li>
-          <li><strong>Confirm by email.</strong> Enter the verification code we send you.</li>
-          <li><strong>Wait for the cooling-off period.</strong> It ends at <code>pending_url_activates_at</code>. Until then the previous URL stays active.</li>
-          <li><strong>Lock window (optional).</strong> <code>url_locked_until</code> blocks rapid successive changes after a compromise.</li>
+          <li><strong>Request the change</strong> In Console, open Settings and request a new URL</li>
+          <li><strong>Confirm by email</strong> Enter the verification code we send you</li>
+          <li><strong>Wait for the cooling-off period</strong> It ends at <code>pending_url_activates_at</code>. Until then the previous URL stays active</li>
+          <li><strong>Lock window (optional)</strong> <code>url_locked_until</code> blocks rapid successive changes after a compromise</li>
         </ol>
-        <p>The endpoint ID is shown on the settings page. Production accepts HTTPS endpoints only. For local development, set <code>LUVUPAY_ALLOW_INSECURE_WEBHOOK_TARGETS=true</code>. Production ignores this setting.</p>
+        <p>The endpoint ID is shown on the settings page. Production accepts HTTPS endpoints only. For local development, set <code>LUVUPAY_ALLOW_INSECURE_WEBHOOK_TARGETS=true</code>. Production ignores this setting</p>
       </section>
 
       {{-- LOCAL --}}
@@ -180,8 +180,8 @@ if (! hash_equals($expected, $signature)) {
         <h2>Local development</h2>
         <ul>
           <li>Point the webhook URL at <code>http://127.0.0.1:PORT/your-path</code>.</li>
-          <li>Use a tunnel such as ngrok or Cloudflare Tunnel if PayPal or a remote LuvuPay instance must reach you.</li>
-          <li>Log the raw body and headers while you integrate. Never log the full secret.</li>
+          <li>Use a tunnel such as ngrok or Cloudflare Tunnel if PayPal or a remote LuvuPay instance must reach you</li>
+          <li>Log the raw body and headers while you integrate. Never log the full secret</li>
         </ul>
       </section>
 
@@ -190,10 +190,10 @@ if (! hash_equals($expected, $signature)) {
         <h2>Security checklist</h2>
         <ul class="checks not-prose">
           <li>Reject unsigned requests and failed HMAC checks with <code>401</code>.</li>
-          <li>Enforce timestamp skew and nonce uniqueness.</li>
-          <li>Process deliveries idempotently, keyed on the event ID or a business key.</li>
-          <li>Keep the endpoint secret in a secrets manager, and rotate it in Console if it is compromised.</li>
-          <li>Add IP allow-lists at your edge if your stack supports them.</li>
+          <li>Enforce timestamp skew and nonce uniqueness</li>
+          <li>Process deliveries idempotently, keyed on the event ID or a business key</li>
+          <li>Keep the endpoint secret in a secrets manager, and rotate it in Console if it is compromised</li>
+          <li>Add IP allow-lists at your edge if your stack supports them</li>
         </ul>
         <nav class="related not-prose" aria-label="Related pages">
           <a href="/docs/api">API reference</a>

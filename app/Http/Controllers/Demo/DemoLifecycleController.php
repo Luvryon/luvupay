@@ -132,7 +132,7 @@ final class DemoLifecycleController
 
         return response()->json([
             'ok' => true,
-            'message' => 'Missed cancellation — 48h GRACE PERIOD opened. Partial refund offered. Default if no response: expire (churn).',
+            'message' => 'Missed cancellation — 48h GRACE PERIOD opened. Partial refund offered. Default if no response: expire (churn)',
             'grace' => $result,
             'row' => $this->formatRow($result['transaction_id']),
             'project_features' => [
@@ -467,7 +467,7 @@ final class DemoLifecycleController
 
             /** @var NebiusAIContract $ai */
             $ai = app(NebiusAIContract::class);
-            $res = $ai->chatJson('grace_period_nudge', [
+            $res = $ai->chatText('grace_period_nudge', [
                 [
                     'role' => 'system',
                     'content' => 'You write short, ethical subscription recovery messages for LuvuPay. Respect user agency. Never pressure. Max 2 sentences. Plain text only.',
@@ -487,18 +487,16 @@ final class DemoLifecycleController
                 ],
             ], $merchantId);
 
-            $text = trim((string) ($res['content'] ?? ''));
-            $decoded = json_decode($text, true);
-            if (is_array($decoded)) {
-                $text = (string) ($decoded['message'] ?? $decoded['nudge'] ?? $decoded['text'] ?? (is_string(reset($decoded)) ? reset($decoded) : $text));
-            }
+            $text = trim((string) ($res['content'] ?? ''), " \t\n\r\0\x0B\"");
             if ($text === '') {
-                $text = $fallback;
+                throw new \UnexpectedValueException('Model returned an empty nudge');
             }
 
             return [
                 'nudge' => $text,
                 'source' => 'nebius',
+                'model' => $res['model'] ?? config('nebius.model'),
+                'churn_source' => $prediction->source ?? null,
                 'churn' => method_exists($prediction, 'toArray') ? $prediction->toArray() : [
                     'risk_level' => $prediction->riskLevel ?? null,
                     'score' => $prediction->churnRiskScore ?? null,

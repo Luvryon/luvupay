@@ -38,13 +38,13 @@ final class EnsureDemoSimulator
             return response()->json([
                 'ok' => false,
                 'error' => 'paypal_not_connected',
-                'message' => 'Connect PayPal in Settings (Merchant ID is enough) before running Sandbox simulations. Or set LUVUPAY_PAYMENT_DRIVER=mock in .env for offline demo.',
+                'message' => 'Connect PayPal in Settings (Merchant ID is enough) before running Sandbox simulations. Or set LUVUPAY_PAYMENT_DRIVER=mock in .env for offline demo',
             ], 403);
         }
 
         $key = 'demo-sim:'.($merchantId ?: $request->ip());
         if (RateLimiter::tooManyAttempts($key, 120)) {
-            return response()->json(['error' => 'rate_limited', 'message' => 'Demo simulator rate limit exceeded.'], 429);
+            return response()->json(['error' => 'rate_limited', 'message' => 'Demo simulator rate limit exceeded'], 429);
         }
         RateLimiter::hit($key, 60);
 

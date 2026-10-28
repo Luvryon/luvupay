@@ -55,9 +55,28 @@ final class HostedController
             'brand' => $this->brand($m),
             'project' => $project,
             'price' => $project->price(),
-            'listings' => $project->marketplaceResale ? array_map(fn ($l) => $l + ['price' => $this->money($l['price_minor'], $l['currency'])], $this->hosted->activeListings($m)) : [],
             'resaleOn' => $project->marketplaceResale,
         ]);
+    }
+
+    /** GET /m/{merchant}/listings: resale listings for the storefront, loaded over AJAX */
+    public function listings(string $merchant): JsonResponse
+    {
+        $m = $this->hosted->merchant($merchant);
+        abort_unless($m, 404);
+        $project = MerchantProject::forMerchant($m->id);
+
+        $rows = $project->marketplaceResale
+            ? array_map(fn ($l) => [
+                'days' => $l['days'],
+                'product' => $l['product'],
+                'seller' => $l['seller'],
+                'price' => $this->money($l['price_minor'], $l['currency']),
+                'url' => url('/redeem/'.$l['token']),
+            ], $this->hosted->activeListings($m))
+            : [];
+
+        return response()->json(['enabled' => (bool) $project->marketplaceResale, 'listings' => $rows]);
     }
 
     public function checkout(string $merchant): View
@@ -131,10 +150,10 @@ final class HostedController
         abort_unless($l, 404);
         $data = $request->validate(['email' => ['required', 'email', 'max:190']]);
         if ($l->status !== 'active' || \Illuminate\Support\Carbon::parse($l->access_expires_at)->isPast()) {
-            return response()->json(['ok' => false, 'message' => 'This token has already been redeemed or expired.'], 410);
+            return response()->json(['ok' => false, 'message' => 'This token has already been redeemed or expired'], 410);
         }
         if (strtolower((string) $l->seller_email) === strtolower($data['email'])) {
-            return response()->json(['ok' => false, 'message' => 'You cannot redeem your own listing.'], 422);
+            return response()->json(['ok' => false, 'message' => 'You cannot redeem your own listing'], 422);
         }
 
         return $this->run([

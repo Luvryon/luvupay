@@ -7,7 +7,7 @@
     <div class="row">
         <div>
             <h1 class="page-title">Resale marketplace</h1>
-            <p class="page-sub">Access that your subscribers resell appears on your public merchant page. Buyers click, pay with PayPal, and the token redeems instantly.</p>
+            <p class="page-sub">Access that your subscribers resell appears on your public merchant page. Buyers click, pay with PayPal, and the token redeems instantly</p>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
             <a class="c-btn c-btn-brand" x-bind:href="d.store_url" target="_blank" rel="noopener">Open public merchant page ↗</a>
@@ -16,7 +16,7 @@
     </div>
 
     <div class="c-alert" x-show="loaded && !d.enabled" x-cloak>
-        <p><strong>Marketplace Resale is off.</strong> Turn it on in <a href="{{ route('settings') }}#project">Settings → Project</a> to list forgotten subscriptions.</p>
+        <p><strong>Marketplace Resale is off</strong> Turn it on in <a href="{{ route('settings') }}#project">Settings → Project</a> to list forgotten subscriptions</p>
     </div>
 
     <section style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px">
@@ -25,9 +25,11 @@
     </section>
 
     <section class="c-card">
-        <div class="c-head"><div><h2 class="c-title">Listings</h2><p class="c-sub">Created when a subscriber picks Marketplace Resale during the grace period.</p></div></div>
+        <div class="c-head"><div><h2 class="c-title">Listings</h2><p class="c-sub">Created when a subscriber picks Marketplace Resale during the grace period</p></div></div>
         <div class="c-pad" style="overflow-x:auto">
-            <p x-show="loaded && !(d.listings||[]).length" class="dim" style="margin:0">No listings yet. Run <strong>Simulate 30 days</strong> on Overview, or choose Resale for a subscriber in grace period.</p>
+            <x-ui.loading show="!loaded" title="Loading listings" hint="Checking your public merchant page" />
+            <x-ui.load-error show="loaded && failed" title="Could not load listings" />
+            <div x-show="loaded && !failed && !(d.listings||[]).length" x-cloak class="lp-state"><div><strong>No listings yet</strong>Listings appear when a subscriber picks Marketplace Resale during the grace period</div></div>
             <table x-show="(d.listings||[]).length" style="width:100%;border-collapse:collapse;font-size:.86rem">
                 <thead><tr class="dim" style="text-align:left"><th style="padding:6px 8px">Seller</th><th style="padding:6px 8px">Access</th><th style="padding:6px 8px">Price</th><th style="padding:6px 8px">Status</th><th style="padding:6px 8px">Buyer</th><th style="padding:6px 8px">Link</th></tr></thead>
                 <tbody>

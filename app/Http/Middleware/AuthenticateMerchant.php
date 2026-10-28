@@ -19,7 +19,7 @@ class AuthenticateMerchant
         $merchant = (is_string($token) && str_starts_with($token, 'lp_')) ? Merchant::findByApiKey($token) : null;
 
         if (! $merchant || !$merchant->is_active) {
-            return response()->json(['error' => 'unauthorized', 'message' => 'Invalid or missing API key.'], 401, ['WWW-Authenticate' => 'Bearer']);
+            return response()->json(['error' => 'unauthorized', 'message' => 'Invalid or missing API key'], 401, ['WWW-Authenticate' => 'Bearer']);
         }
 
         $request->attributes->set('merchant', $merchant);

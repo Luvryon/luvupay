@@ -17,7 +17,7 @@ class RequireScope
         if (! $m || ! $m->hasScope(...$scopes)) {
             return response()->json([
                 'error' => 'insufficient_scope',
-                'message' => 'This API key is not allowed to call this endpoint.',
+                'message' => 'This API key is not allowed to call this endpoint',
                 'required' => $scopes,
             ], 403);
         }

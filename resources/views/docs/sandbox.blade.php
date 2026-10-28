@@ -1,6 +1,6 @@
 @extends('layouts.docs')
 @section('title', 'Sandbox & environments · LuvuPay')
-@section('meta_description', 'Configure LuvuPay mock, PayPal sandbox, and live environments. Env vars, verification commands, recommended rollout order, and local merchant samples.')
+@section('meta_description', 'Configure LuvuPay mock, PayPal sandbox, and live environments. Env vars, verification commands, recommended rollout order, and local merchant samples')
 @section('guides')
 {{-- sidebar from layout --}}
 @endsection
@@ -67,7 +67,7 @@
 
     <article class="min-w-0 w-full max-w-3xl mx-auto">
       <h1>Sandbox &amp; environments</h1>
-      <p class="lead text-muted">Use mock for product UI and webhook shape, the PayPal sandbox to validate money paths, and live only after a formal sandbox sign-off.</p>
+      <p class="lead text-muted">Use mock for product UI and webhook shape, the PayPal sandbox to validate money paths, and live only after a formal sandbox sign-off</p>
 
       <dl class="facts not-prose mt-6">
         <div><dt>Payment drivers</dt><dd>mock, paypal</dd></div>
@@ -82,7 +82,7 @@
           <table class="tbl">
             <thead><tr><th>Driver</th><th>Use it for</th></tr></thead>
             <tbody>
-              <tr><td>mock</td><td>No external PayPal calls. The fastest way to work on register, settings, product webhooks and the demo commands.</td></tr>
+              <tr><td>mock</td><td>No external PayPal calls. The fastest way to work on register, settings, product webhooks and the demo commands</td></tr>
               <tr><td>paypal</td><td>The real PayPal API shape. Set the mode with <code>PAYPAL_MODE=sandbox|live</code>.</td></tr>
             </tbody>
           </table>
@@ -110,19 +110,19 @@ APP_URL=https://your-public-host</code></pre>
       <section id="verify">
         <h2>Verify configuration</h2>
 <pre><code><span class="prompt">php artisan luvupay:sandbox-check</span></code></pre>
-        <p>The command checks the database tables and the mailer. When the driver is <code>paypal</code>, it also tests OAuth against the sandbox API. Fix every reported failure before you exercise money flows.</p>
+        <p>The command checks the database tables and the mailer. When the driver is <code>paypal</code>, it also tests OAuth against the sandbox API. Fix every reported failure before you exercise money flows</p>
       </section>
 
       {{-- ORDER --}}
       <section id="order">
         <h2>Recommended rollout order</h2>
         <ol class="steps">
-          <li><strong>Start on mock.</strong> Work through register, console, settings and your product webhook receivers. Try <code>php artisan demo:second-chance</code> and <code>demo:resale</code>.</li>
-          <li><strong>Switch to the sandbox.</strong> Set the <code>paypal</code> driver with sandbox credentials, then run <code>luvupay:sandbox-check</code>.</li>
-          <li><strong>Create a subscription.</strong> Call the API, then complete approval with a PayPal sandbox buyer account.</li>
-          <li><strong>Confirm webhook delivery.</strong> PayPal events should reach LuvuPay, and then your entitlement receiver.</li>
-          <li><strong>Run the money paths.</strong> Exercise Second Chance and resale end to end with sandbox money.</li>
-          <li class="live"><strong>Request live credentials.</strong> Only after a documented sandbox sign-off.</li>
+          <li><strong>Start on mock</strong> Work through register, console, settings and your product webhook receivers. Try <code>php artisan demo:second-chance</code> and <code>demo:resale</code>.</li>
+          <li><strong>Switch to the sandbox</strong> Set the <code>paypal</code> driver with sandbox credentials, then run <code>luvupay:sandbox-check</code>.</li>
+          <li><strong>Create a subscription</strong> Call the API, then complete approval with a PayPal sandbox buyer account</li>
+          <li><strong>Confirm webhook delivery</strong> PayPal events should reach LuvuPay, and then your entitlement receiver</li>
+          <li><strong>Run the money paths</strong> Exercise Second Chance and resale end to end with sandbox money</li>
+          <li class="live"><strong>Request live credentials</strong> Only after a documented sandbox sign-off</li>
         </ol>
       </section>
 
@@ -151,7 +151,7 @@ APP_URL=https://your-public-host</code></pre>
             </tbody>
           </table>
         </div>
-        <p>The two <code>/internal</code> endpoints take <code>Authorization: Bearer $METRICS_TOKEN</code>. They are not public.</p>
+        <p>The two <code>/internal</code> endpoints take <code>Authorization: Bearer $METRICS_TOKEN</code>. They are not public</p>
       </section>
 
       {{-- CHECKLIST --}}

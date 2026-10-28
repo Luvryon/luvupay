@@ -32,7 +32,7 @@
                 credentials: 'same-origin',
                 body: JSON.stringify(body || {}),
             });
-            if (res.status === 419) throw new Error('Session expired (419). Refresh the page and try again.');
+            if (res.status === 419) throw new Error('Session expired (419). Refresh the page and try again');
             const data = await res.json().catch(() => ({}));
             if (!res.ok) throw new Error(data.message || data.error || ('HTTP ' + res.status));
             return data;
@@ -84,7 +84,7 @@
         <header class="border-b border-slate-200 px-6 py-5">
             <p class="text-[11px] font-semibold uppercase tracking-wider text-violet-600">Merchant onboarding</p>
             <h2 class="mt-1 text-xl font-bold text-slate-900">Get ready in 5 steps</h2>
-            <p class="mt-1 text-sm text-slate-500">PayPal must be linked before the console unlocks.</p>
+            <p class="mt-1 text-sm text-slate-500">PayPal must be linked before the console unlocks</p>
             <div class="mt-5 flex items-center gap-1.5">
                 <template x-for="s in [1,2,3,4,5]" :key="s">
                     <div class="h-1.5 flex-1 rounded-full" :class="s <= step ? 'bg-violet-500' : 'bg-slate-200'"></div>
@@ -99,7 +99,7 @@
             {{-- Step 1: native HTML form = solid CSRF (no fetch) --}}
             <div x-show="step === 1" class="space-y-4">
                 <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                    <strong>Required.</strong> Connect PayPal before charges, payouts, or the console.
+                    <strong>Required</strong> Connect PayPal before charges, payouts, or the console
                 </div>
                 <h3 class="text-lg font-semibold text-slate-900">1 · Connect PayPal Business</h3>
                 <a href="{{ url('/oauth/paypal/redirect') }}"
@@ -114,7 +114,7 @@
                         Connect PayPal Sandbox (Demo)
                     </button>
                 </form>
-                <p class="text-center text-[11px] text-slate-400">Sandbox uses a normal form POST so CSRF stays in sync with the session.</p>
+                <p class="text-center text-[11px] text-slate-400">Sandbox uses a normal form POST so CSRF stays in sync with the session</p>
             </div>
 
             <div x-show="step === 2" class="space-y-4" style="display:none" x-cloak>

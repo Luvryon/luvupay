@@ -34,24 +34,24 @@
                 <span class="text-emerald-500 mt-0.5 shrink-0" aria-hidden="true">
                     <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
                 </span>
-                <p class="text-sm text-slate-700">User IP at signup (192.168.1.1) matches last login IP.</p>
+                <p class="text-sm text-slate-700">User IP at signup (192.168.1.1) matches last login IP</p>
             </li>
             <li class="flex items-start gap-3 mb-3">
                 <span class="text-emerald-500 mt-0.5 shrink-0" aria-hidden="true">
                     <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
                 </span>
-                <p class="text-sm text-slate-700">User actively streamed 14 hours of content on Oct 24, 2 days before dispute.</p>
+                <p class="text-sm text-slate-700">User actively streamed 14 hours of content on Oct 24, 2 days before dispute</p>
             </li>
             <li class="flex items-start gap-3">
                 <span class="text-emerald-500 mt-0.5 shrink-0" aria-hidden="true">
                     <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
                 </span>
-                <p class="text-sm text-slate-700">User explicitly accepted Terms of Service v2.1 at 2023-01-15 10:00 AM.</p>
+                <p class="text-sm text-slate-700">User explicitly accepted Terms of Service v2.1 at 2023-01-15 10:00 AM</p>
             </li>
         </ul>
 
         <div class="mt-4 rounded-lg border border-rose-100 bg-rose-50/60 px-3 py-2 text-xs text-rose-700">
-            Chargeback risk flagged · evidence is formatted for PayPal Resolution Center upload.
+            Chargeback risk flagged · evidence is formatted for PayPal Resolution Center upload
         </div>
 
         <button type="button"

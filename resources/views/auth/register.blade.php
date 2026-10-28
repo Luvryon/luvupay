@@ -25,7 +25,7 @@
 
 <div class="lp-card p-7 sm:p-8 shadow-[0_8px_30px_-12px_rgb(20_21_26/0.18)]">
     <h1 class="text-xl font-semibold tracking-tight">Create your merchant account</h1>
-    <p class="mt-1.5 text-sm text-muted">Work email only. Your API key appears after you verify it.</p>
+    <p class="mt-1.5 text-sm text-muted">Work email only. Your API key appears after you verify it</p>
 
     @if($errors->any())<div class="mt-5 lp-alert lp-alert-error" role="alert">{{ $errors->first() }}</div>@endif
 
@@ -47,7 +47,7 @@
         <div>
             <label for="email" class="lp-label">Work email</label>
             <input id="email" type="email" name="email" value="{{ old('email') }}" required autocomplete="email" class="lp-input" placeholder="you@yourcompany.com">
-            <p class="pw-hint is-muted" id="email-hint">Use a company domain (not free webmail).</p>
+            <p class="pw-hint is-muted" id="email-hint">Use a company domain (not free webmail)</p>
             @error('email')<p class="mt-1 text-xs" style="color:#d92d20">{{ $message }}</p>@enderror
         </div>
 
@@ -65,7 +65,7 @@
                 <span class="pw-req" id="req-symbol">Symbol (!@#$…)</span>
                 <span class="pw-req" id="req-len">At least 10 characters</span>
             </div>
-            <p class="pw-hint is-muted" id="pw-strength-hint">Use upper &amp; lower case, a number, and a symbol (min 10 chars).</p>
+            <p class="pw-hint is-muted" id="pw-strength-hint">Use upper &amp; lower case, a number, and a symbol (min 10 chars)</p>
             @error('password')<p class="mt-1 text-xs" style="color:#d92d20">{{ $message }}</p>@enderror
         </div>
 
@@ -76,7 +76,7 @@
         </div>
 
         <button type="submit" class="lp-btn lp-btn-primary w-full lp-btn-lg" id="register-submit" disabled>Create account</button>
-        <p class="text-xs text-muted text-center">If anything goes wrong, no account is created — just submit again.</p>
+        <p class="text-xs text-muted text-center">If anything goes wrong, no account is created — just submit again</p>
     </form>
 </div>
 <p class="mt-6 text-center text-sm text-muted">Already registered? <a href="{{ route('login') }}" class="font-semibold text-brand-700 hover:text-brand-800">Sign in</a></p>

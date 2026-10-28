@@ -128,7 +128,7 @@
 
     <div class="px-5 py-8 text-center" x-show="!hasLedger()" x-cloak style="display:none">
         <p class="text-sm text-slate-600">No ledger rows yet</p>
-        <p class="mt-1 text-xs text-slate-400">Seed demo data or run live traffic — metrics bind to real rowData &amp; summary.</p>
+        <p class="mt-1 text-xs text-slate-400">Seed demo data or run live traffic — metrics bind to real rowData &amp; summary</p>
     </div>
 
     <div class="border-t border-slate-100 px-5 py-3">

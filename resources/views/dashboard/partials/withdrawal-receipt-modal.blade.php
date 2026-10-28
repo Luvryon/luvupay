@@ -13,7 +13,7 @@
                     <span aria-hidden="true">🧾</span> Withdrawal receipt
                 </h2>
                 <p class="text-xs text-slate-500 mt-1">
-                    PayPal has the payout on their side. This is your merchant copy for records.
+                    PayPal has the payout on their side. This is your merchant copy for records
                 </p>
             </div>
             <button type="button" class="text-slate-400 hover:text-slate-600 text-xl leading-none" x-on:click="withdrawalReceiptOpen = false" aria-label="Close">&times;</button>
@@ -55,7 +55,7 @@
                 <span class="font-mono text-[10px] text-slate-400 max-w-[200px] truncate" x-text="withdrawalReceipt.ledger_id || '—'"></span>
             </div>
             <p class="text-[11px] text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2" x-show="withdrawalReceipt.simulated" x-cloak>
-                Sandbox / simulated payout — recorded in your ledger; confirm status in PayPal Developer Dashboard if needed.
+                Sandbox / simulated payout — recorded in your ledger; confirm status in PayPal Developer Dashboard if needed
             </p>
             <p class="text-[11px] text-slate-400" x-show="withdrawalReceipt.issued_at" x-cloak>
                 Issued <span x-text="(withdrawalReceipt.issued_at || '').replace('T',' ').slice(0,19)"></span>

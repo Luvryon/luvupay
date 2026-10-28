@@ -4,6 +4,9 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ $brand['name'] }} · {{ $project->product() ?: 'Store' }}</title>
+    @include('partials.favicon', ['faviconUrl' => $brand['logo'] ?? null])
+    <link rel="stylesheet" href="/css/ui.css">
+    <link rel="stylesheet" href="/css/loader.css">
     <link rel="stylesheet" href="/css/hosted.css?v={{ @filemtime(public_path('css/hosted.css')) }}">
 </head>
 <body class="bg-slate-50 min-h-screen font-sans text-slate-900 antialiased">
@@ -32,33 +35,20 @@
     @endif
 
     @if($resaleOn)
-    <section class="mt-10" id="resale">
-        <div class="flex items-end justify-between">
+    <section class="mt-10" id="resale" data-listings-url="{{ url('/m/'.$brand['id'].'/listings') }}">
+        <div class="flex items-end justify-between gap-3">
             <div>
                 <h2 class="text-lg font-bold">Resale marketplace</h2>
-                <p class="text-sm text-slate-500">Unused access from other subscribers, verified by LuvuPay. Pay once, start instantly.</p>
+                <p class="text-sm text-slate-500">Unused access from other subscribers, verified by LuvuPay. Pay once, start instantly</p>
             </div>
-            <span class="text-xs font-semibold text-slate-400 whitespace-nowrap flex-none pl-3">{{ count($listings) }} available</span>
+            <span id="listing-count" class="whitespace-nowrap text-xs font-semibold text-slate-400"></span>
         </div>
-
-        <div class="mt-4 grid gap-3">
-            @forelse($listings as $l)
-                <article class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 flex items-center justify-between gap-4">
-                    <div class="min-w-0">
-                        <span class="bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded-full">Verified token</span>
-                        <p class="mt-2 font-bold">{{ $l['days'] }} days of {{ $l['product'] }}</p>
-                        <p class="text-xs text-slate-500">Transferred from {{ $l['seller'] }}</p>
-                    </div>
-                    <div class="text-right flex-none">
-                        <p class="text-lg font-bold">{{ $l['price'] }}</p>
-                        <a href="{{ url('/redeem/'.$l['token']) }}" class="mt-2 inline-block bg-[#0070ba] hover:bg-[#005ea6] text-white text-sm font-semibold rounded-xl px-4 py-2 shadow-sm">Buy</a>
-                    </div>
-                </article>
-            @empty
-                <div class="bg-white rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">No resale access is listed right now. Check back soon.</div>
-            @endforelse
+        <div id="listing-list" class="mt-4 grid gap-3" aria-live="polite">
+            <div class="lp-state rounded-2xl border border-slate-200 bg-white"><span class="lp-spinner lp-spinner--lg"></span><div><strong>Loading listings</strong>Checking what is available right now</div></div>
         </div>
     </section>
+    <script src="/js/loader.js" defer></script>
+    <script src="/js/store.js" defer></script>
     @endif
 
     <p class="mt-12 text-center text-xs text-slate-400">Secure checkout powered by LuvuPay &amp; PayPal</p>

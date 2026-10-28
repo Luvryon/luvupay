@@ -1,140 +1,145 @@
 /**
- * LuvuToast — modern notification stack (Toastify-inspired, pure JS)
- * window.LuvuToast.success|error|warning|info|notify
+ * LuvuToast: light notification stack.
+ *   LuvuToast.success | error | warning | info (title, message?, extra?)
+ *   LuvuToast.notify({ type, title, message, duration, action, id })
+ * Titles and messages never end with a period.
  */
 (function (global) {
   'use strict';
 
   var ROOT_ID = 'luvu-toast-root';
-  var defaults = { duration: 5200, dismissible: true };
+  var DURATIONS = { success: 4200, info: 4200, warning: 6000, error: 7000 };
+  var EXIT_MS = 220;
+  var MAX_VISIBLE = 4;
+
+  var ICONS = {
+    success: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+    error: '<path d="M6 6l12 12M18 6L6 18"/>',
+    warning: '<path d="M12 8v5M12 16.5v.01"/><path d="M10.3 3.9L2.6 17.2A2 2 0 0 0 4.3 20h15.4a2 2 0 0 0 1.7-2.8L13.7 3.9a2 2 0 0 0-3.4 0z"/>',
+    info: '<path d="M12 11v5M12 7.5v.01"/><circle cx="12" cy="12" r="9"/>',
+  };
+
+  function clean(text) {
+    return String(text == null ? '' : text).trim().replace(/\.+$/, '');
+  }
 
   function ensureRoot() {
-    var el = document.getElementById(ROOT_ID);
-    if (el) return el;
-    el = document.createElement('div');
-    el.id = ROOT_ID;
-    el.className = 'lt-root';
-    el.setAttribute('aria-live', 'polite');
-    document.body.appendChild(el);
-    return el;
+    var root = document.getElementById(ROOT_ID);
+    if (root) return root;
+    root = document.createElement('div');
+    root.id = ROOT_ID;
+    root.className = 'lt-root';
+    root.setAttribute('aria-live', 'polite');
+    document.body.appendChild(root);
+    return root;
   }
 
-  function iconFor(type) {
-    if (type === 'success') return '✓';
-    if (type === 'error') return '!';
-    if (type === 'warning') return '⚠';
-    return 'i';
-  }
-
-  /**
-   * @param {object} opts
-   * @param {string} opts.title
-   * @param {string} [opts.message]
-   * @param {string} [opts.type] success|error|warning|info
-   * @param {number} [opts.duration]
-   * @param {{label:string,href?:string,onClick?:Function}} [opts.action]
-   * @param {string} [opts.id]  dedupe key — same id replaces previous
-   */
-  function notify(opts) {
-    opts = Object.assign({}, defaults, opts || {});
-    var type = opts.type || 'info';
-    var root = ensureRoot();
-
-    if (opts.id) {
-      var prev = root.querySelector('[data-toast-id="' + opts.id + '"]');
-      if (prev) prev.remove();
-    }
-
-    var node = document.createElement('div');
-    node.className = 'lt-toast lt-toast--' + type;
-    if (opts.id) node.setAttribute('data-toast-id', opts.id);
-    node.setAttribute('role', 'status');
-
-    var icon = document.createElement('div');
-    icon.className = 'lt-icon';
-    icon.textContent = iconFor(type);
-
-    var body = document.createElement('div');
-    body.className = 'lt-body';
-    var title = document.createElement('div');
-    title.className = 'lt-title';
-    title.textContent = opts.title || opts.message || '';
-    body.appendChild(title);
-    if (opts.message && opts.title) {
-      var msg = document.createElement('div');
-      msg.className = 'lt-msg';
-      msg.textContent = opts.message;
-      body.appendChild(msg);
-    }
-    if (opts.action && opts.action.label) {
-      var act = document.createElement(opts.action.href ? 'a' : 'button');
-      act.className = 'lt-action';
-      act.textContent = opts.action.label;
-      if (opts.action.href) {
-        act.href = opts.action.href;
-      } else {
-        act.type = 'button';
-        act.addEventListener('click', function (e) {
-          e.preventDefault();
-          if (typeof opts.action.onClick === 'function') opts.action.onClick();
-          dismiss(node);
-        });
-      }
-      body.appendChild(act);
-    }
-
-    var close = document.createElement('button');
-    close.type = 'button';
-    close.className = 'lt-close';
-    close.setAttribute('aria-label', 'Dismiss');
-    close.innerHTML = '&times;';
-    close.addEventListener('click', function () { dismiss(node); });
-
-    node.appendChild(icon);
-    node.appendChild(body);
-    if (opts.dismissible !== false) node.appendChild(close);
-    root.appendChild(node);
-
-    // enter
-    requestAnimationFrame(function () { node.classList.add('lt-in'); });
-
-    var timer = null;
-    if (opts.duration > 0) {
-      timer = setTimeout(function () { dismiss(node); }, opts.duration);
-    }
-    node.addEventListener('mouseenter', function () {
-      if (timer) { clearTimeout(timer); timer = null; }
-    });
-    node.addEventListener('mouseleave', function () {
-      if (opts.duration > 0 && !timer) {
-        timer = setTimeout(function () { dismiss(node); }, Math.max(2000, opts.duration / 2));
-      }
-    });
-
+  function el(tag, className, text) {
+    var node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text != null) node.textContent = text;
     return node;
   }
 
-  function dismiss(node) {
-    if (!node || node.classList.contains('lt-out')) return;
-    node.classList.add('lt-out');
-    setTimeout(function () { if (node.parentNode) node.parentNode.removeChild(node); }, 320);
+  function buildIcon(type) {
+    var box = el('div', 'lt-icon');
+    box.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true">' + (ICONS[type] || ICONS.info) + '</svg>';
+    return box;
   }
 
-  var api = {
-    notify: notify,
-    success: function (title, message, extra) {
-      return notify(Object.assign({ type: 'success', title: title, message: message }, extra || {}));
-    },
-    error: function (title, message, extra) {
-      return notify(Object.assign({ type: 'error', title: title, message: message, duration: 7000 }, extra || {}));
-    },
-    warning: function (title, message, extra) {
-      return notify(Object.assign({ type: 'warning', title: title, message: message, duration: 6500 }, extra || {}));
-    },
-    info: function (title, message, extra) {
-      return notify(Object.assign({ type: 'info', title: title, message: message }, extra || {}));
-    },
-  };
+  function buildAction(action, toast) {
+    var node = el(action.href ? 'a' : 'button', 'lt-action', clean(action.label));
+    if (action.href) {
+      node.href = action.href;
+    } else {
+      node.type = 'button';
+      node.addEventListener('click', function (event) {
+        event.preventDefault();
+        if (typeof action.onClick === 'function') action.onClick();
+        dismiss(toast);
+      });
+    }
+    return node;
+  }
 
-  global.LuvuToast = api;
+  function dismiss(toast) {
+    if (!toast || toast.classList.contains('lt-out')) return;
+    toast.classList.add('lt-out');
+    setTimeout(function () { toast.remove(); }, EXIT_MS);
+  }
+
+  function notify(opts) {
+    opts = opts || {};
+    var type = ICONS[opts.type] ? opts.type : 'info';
+    var duration = opts.duration != null ? opts.duration : DURATIONS[type];
+    var root = ensureRoot();
+
+    if (opts.id) {
+      var previous = root.querySelector('[data-toast-id="' + opts.id + '"]');
+      if (previous) previous.remove();
+    }
+    while (root.children.length >= MAX_VISIBLE) root.firstElementChild.remove();
+
+    var toast = el('div', 'lt-toast lt-toast--' + type);
+    toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
+    if (opts.id) toast.setAttribute('data-toast-id', opts.id);
+
+    var body = el('div', 'lt-body');
+    body.appendChild(el('div', 'lt-title', clean(opts.title || opts.message)));
+    if (opts.title && opts.message) body.appendChild(el('div', 'lt-msg', clean(opts.message)));
+    if (opts.action && opts.action.label) body.appendChild(buildAction(opts.action, toast));
+
+    toast.appendChild(buildIcon(type));
+    toast.appendChild(body);
+
+    if (opts.dismissible !== false) {
+      var close = el('button', 'lt-close', '\u00d7');
+      close.type = 'button';
+      close.setAttribute('aria-label', 'Dismiss');
+      close.addEventListener('click', function () { dismiss(toast); });
+      toast.appendChild(close);
+    }
+
+    if (duration > 0) {
+      var bar = el('div', 'lt-bar');
+      bar.style.setProperty('--lt-duration', duration + 'ms');
+      toast.appendChild(bar);
+      scheduleDismiss(toast, bar, duration);
+    }
+
+    root.appendChild(toast);
+    requestAnimationFrame(function () { toast.classList.add('lt-in'); });
+    return toast;
+  }
+
+  /** The countdown bar drives the lifetime, so hovering (which pauses the bar) also pauses dismissal. */
+  function scheduleDismiss(toast, bar, duration) {
+    var remaining = duration;
+    var startedAt = Date.now();
+    var timer = setTimeout(function () { dismiss(toast); }, remaining);
+
+    toast.addEventListener('mouseenter', function () {
+      clearTimeout(timer);
+      remaining -= Date.now() - startedAt;
+    });
+    toast.addEventListener('mouseleave', function () {
+      startedAt = Date.now();
+      timer = setTimeout(function () { dismiss(toast); }, Math.max(remaining, 1200));
+    });
+  }
+
+  function shortcut(type) {
+    return function (title, message, extra) {
+      return notify(Object.assign({ type: type, title: title, message: message }, extra || {}));
+    };
+  }
+
+  global.LuvuToast = {
+    notify: notify,
+    dismiss: dismiss,
+    success: shortcut('success'),
+    error: shortcut('error'),
+    warning: shortcut('warning'),
+    info: shortcut('info'),
+  };
 })(window);

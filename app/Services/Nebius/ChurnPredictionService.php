@@ -4,6 +4,8 @@ namespace App\Services\Nebius;
 
 use App\Contracts\NebiusAIContract;
 use App\DTOs\AI\ChurnPredictionResult;
+use Illuminate\Support\Facades\Log;
+use InvalidArgumentException;
 use Throwable;
 
 class ChurnPredictionService
@@ -40,12 +42,17 @@ PROMPT;
                 ['role' => 'system', 'content' => $system],
                 ['role' => 'user', 'content' => $user],
             ], $merchantId);
-            $data = json_decode($res['content'], true) ?: [];
+            $data = $res['data'];
+            if (! isset($data['churn_risk_score']) || ! is_numeric($data['churn_risk_score'])) {
+                throw new InvalidArgumentException('Model response is missing churn_risk_score');
+            }
             $result = ChurnPredictionResult::fromArray($data);
             $this->cache->put('churn_prediction', $hash, $result->toArray());
 
             return $result;
-        } catch (Throwable) {
+        } catch (Throwable $e) {
+            Log::warning('nebius.churn_fallback', ['error' => $e->getMessage()]);
+
             return ChurnPredictionResult::fallback();
         }
     }

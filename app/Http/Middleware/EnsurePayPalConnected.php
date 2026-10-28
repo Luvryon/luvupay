@@ -42,7 +42,7 @@ final class EnsurePayPalConnected
         if ($request->expectsJson()) {
             return response()->json([
                 'error' => 'paypal_not_connected',
-                'message' => 'Connect a PayPal Business account before using this endpoint.',
+                'message' => 'Connect a PayPal Business account before using this endpoint',
             ], 403);
         }
 

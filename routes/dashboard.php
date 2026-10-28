@@ -56,6 +56,7 @@ Route::middleware($console)->group(function () {
     // Team & roles
     Route::middleware('merchant.can:team.manage')->prefix('team')->name('team.')->group(function () {
         Route::get('/', [TeamController::class, 'index'])->name('index');
+        Route::get('/data', [TeamController::class, 'data'])->name('data');
         Route::post('/invitations', [TeamController::class, 'invite'])->middleware('throttle:20,1,dashboard57')->name('invite');
         Route::delete('/invitations/{invitation}', [TeamController::class, 'revoke'])->name('revoke');
         Route::patch('/members/{member}', [TeamController::class, 'updateRole'])->name('role');

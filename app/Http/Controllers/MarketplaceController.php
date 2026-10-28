@@ -229,7 +229,7 @@ final class MarketplaceController extends Controller
             'order_id' => $orderId,
             'approve_url' => $approveUrl,
             'expires_in_minutes' => $this->market->reservationMinutes(),
-            'message' => 'PayPal order created. Complete payment to buy this listing.',
+            'message' => 'PayPal order created. Complete payment to buy this listing',
         ]);
     }
 

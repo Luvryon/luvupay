@@ -1,9 +1,11 @@
+/** Shows the flash messages the server rendered into #toast-queue (see layouts/console.blade.php) */
 document.addEventListener('DOMContentLoaded', function () {
-  var el = document.getElementById('toast-queue');
+  var source = document.getElementById('toast-queue');
   var queue = [];
-  try { queue = JSON.parse(el ? el.textContent : '[]') || []; } catch (e) {}
+  try { queue = JSON.parse(source ? source.textContent : '[]') || []; } catch (e) { queue = []; }
   if (!window.LuvuToast || !queue.length) return;
-  queue.forEach(function (item, i) {
-    setTimeout(function () { window.LuvuToast.notify({ type: item.type, title: item.title, duration: 5200 }); }, 200 + i * 350);
+
+  queue.forEach(function (item, index) {
+    setTimeout(function () { window.LuvuToast.notify({ type: item.type, title: item.title }); }, 200 + index * 300);
   });
 });

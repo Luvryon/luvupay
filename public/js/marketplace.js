@@ -8,17 +8,17 @@
 
   var APPS = {
     StreamFlix: { emoji: '🍿', tone: 'bg-rose-500/20 text-rose-300', original: 20, key: 'streamflix',
-      title: '🍿 Marathon Sci-Fi & Horror — 15 Days StreamFlix Premium', description: 'Selling my remaining 15 days of 4K Premium access. Perfect for weekend binge-watching. Instant transfer via LuvuPay.' },
+      title: '🍿 Marathon Sci-Fi & Horror — 15 Days StreamFlix Premium', description: 'Selling my remaining 15 days of 4K Premium access. Perfect for weekend binge-watching. Instant transfer via LuvuPay' },
     MusicPro: { emoji: '🎧', tone: 'bg-violet-500/20 text-violet-300', original: 12, key: 'musicpro',
-      title: '🎧 Ad-free Hi-Fi for 22 Days — MusicPro Family Seat', description: 'Unused family seat, AI-priced to move fast. Instant entitlement handoff.' },
+      title: '🎧 Ad-free Hi-Fi for 22 Days — MusicPro Family Seat', description: 'Unused family seat, AI-priced to move fast. Instant entitlement handoff' },
     DesignAI: { emoji: '🎨', tone: 'bg-sky-500/20 text-sky-300', original: 30, key: 'designai',
-      title: '🎨 DesignAI Pro GPU Queue — 9 Days Left', description: 'Priority render seats for a focused sprint. Residual time must not waste.' },
+      title: '🎨 DesignAI Pro GPU Queue — 9 Days Left', description: 'Priority render seats for a focused sprint. Residual time must not waste' },
     FitLife: { emoji: '💪', tone: 'bg-emerald-500/20 text-emerald-300', original: 16, key: 'fitlife',
-      title: '💪 FitLife Live Classes — 18 Days Remaining', description: 'Full live + meal-plan access. Transfer remaining cycle today.' },
+      title: '💪 FitLife Live Classes — 18 Days Remaining', description: 'Full live + meal-plan access. Transfer remaining cycle today' },
     CloudDrive: { emoji: '☁️', tone: 'bg-amber-500/20 text-amber-300', original: 10, key: 'clouddrive',
-      title: '☁️ 2TB CloudDrive Vault — 27 Days Left', description: 'Encrypted storage cycle leftover via LuvuPay entitlement bridge.' },
+      title: '☁️ 2TB CloudDrive Vault — 27 Days Left', description: 'Encrypted storage cycle leftover via LuvuPay entitlement bridge' },
     NewsDaily: { emoji: '📰', tone: 'bg-slate-500/20 text-slate-300', original: 8, key: 'newsdaily',
-      title: '📰 NewsDaily Ad-Free — 12 Days of Deep Reads', description: 'AI demand is high mid-week. Instant transfer, no friction.' },
+      title: '📰 NewsDaily Ad-Free — 12 Days of Deep Reads', description: 'AI demand is high mid-week. Instant transfer, no friction' },
   };
   var EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -58,10 +58,10 @@
       init: async function () {
         await this.loadListings();
         var q = new URLSearchParams(global.location.search);
-        var msg = q.get('bought') ? 'Payment received. The listing is yours — check your email.'
-          : q.get('verified') ? 'Email confirmed. Your listing is now live.'
-          : q.get('cancelled') ? 'Checkout cancelled. The listing is available again.'
-          : q.get('failed') ? 'We could not complete that purchase. Please try again.' : '';
+        var msg = q.get('bought') ? 'Payment received. The listing is yours — check your email'
+          : q.get('verified') ? 'Email confirmed. Your listing is now live'
+          : q.get('cancelled') ? 'Checkout cancelled. The listing is available again'
+          : q.get('failed') ? 'We could not complete that purchase. Please try again' : '';
         if (msg) { this.say(msg); global.history.replaceState({}, '', global.location.pathname); }
       },
 
@@ -84,7 +84,7 @@
             return { id: i.id, app: i.app, emoji: i.emoji || (APPS[i.app] || {}).emoji || '🍿', daysLeft: i.daysLeft, original: i.original, price: i.price, redeem_url: i.redeem_url || null, description: i.description || i.title, title: i.title };
           });
         } catch (e) {
-          this.error = 'Could not load listings. Please refresh.';
+          this.error = 'Could not load listings. Please refresh';
         } finally { this.loading = false; }
       },
 
@@ -95,7 +95,7 @@
 
       startVerify: async function () {
         var email = (this.sell.email || '').trim();
-        if (!EMAIL.test(email)) { this.formError = 'Enter a valid email address — we send the confirmation link there.'; return; }
+        if (!EMAIL.test(email)) { this.formError = 'Enter a valid email address — we send the confirmation link there'; return; }
         this.formError = ''; this.sell.email = email;
         this.step = 2; this.sellBusy = true; this.verifyDone = false; this.verifyPct = 12;
         await sleep(450); this.verifyPct = 48;
@@ -125,8 +125,8 @@
           if (!res.ok) { this.formError = firstError(res, 'Publish failed (HTTP ' + res.status + ').'); return; }
           this.sellOpen = false;
           await this.loadListings();
-          this.say(res.data.needs_verification ? 'Almost there: check your email and click the link to publish your listing.' : 'Listing published to the marketplace.');
-        } catch (e) { this.formError = 'Network error. Please try again.'; }
+          this.say(res.data.needs_verification ? 'Almost there: check your email and click the link to publish your listing' : 'Listing published to the marketplace');
+        } catch (e) { this.formError = 'Network error. Please try again'; }
         finally { this.sellBusy = false; }
       },
 
@@ -139,7 +139,7 @@
       confirmBuy: async function () {
         if (this.buyBusy || !this.buyItem) return;
         var email = (this.buyEmail || '').trim();
-        if (!EMAIL.test(email)) { this.buyError = 'Enter a valid email for your receipt.'; return; }
+        if (!EMAIL.test(email)) { this.buyError = 'Enter a valid email for your receipt'; return; }
         this.buyBusy = true; this.buyError = '';
         try {
           var res = await post('/api/marketplace/listings/' + encodeURIComponent(this.buyItem.id) + '/buy', { buyer_email: email });
@@ -149,8 +149,8 @@
             this.say('Opening PayPal Sandbox checkout — the listing is held for you for ' + (res.data.expires_in_minutes || 15) + ' minutes.');
             global.open(res.data.approve_url, 'paypal_mkt', 'noopener,noreferrer,width=520,height=720');
             await this.loadListings();
-          } else { this.buyError = 'Checkout link was not valid. Please try again.'; }
-        } catch (e) { this.buyError = 'Network error. Please try again.'; }
+          } else { this.buyError = 'Checkout link was not valid. Please try again'; }
+        } catch (e) { this.buyError = 'Network error. Please try again'; }
         finally { this.buyBusy = false; }
       },
     };

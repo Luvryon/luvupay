@@ -226,7 +226,9 @@
   global.consoleApp = function () {
     return {
       // state
-      loading: false,
+      loading: true,
+      loaded: false,
+      deliveriesLoaded: false,
       tab: 'overview',
       demoEnabled: !!CFG.demoEnabled,
       selectedId: null,
@@ -239,7 +241,6 @@
       rowData: [],
       resaleRows: [],
       grids: {},
-      toasts: [],
       webhookLogs: [],
       deliveries: [],
       receipt: {},
@@ -367,13 +368,13 @@
           } catch (e) {}
 
           if (flag === 'captured') {
-            this.pushToast('Payment confirmed. Subscription is active and the funds are in your PayPal sandbox business balance.', '✅');
+            this.pushToast('Payment confirmed. Subscription is active and the funds are in your PayPal sandbox business balance', '✅');
           } else if (flag === 'processing') {
-            this.pushToast('Approved. PayPal is still confirming the payment, refresh in a moment.', '⏳');
+            this.pushToast('Approved. PayPal is still confirming the payment, refresh in a moment', '⏳');
           } else if (flag === 'capture_failed') {
             this.pushToast('PayPal payment not completed: ' + (params.get('err') || 'unknown error'), '❌');
           } else if (flag === 'cancelled') {
-            this.pushToast('PayPal checkout cancelled. No money moved.', '⚠️');
+            this.pushToast('PayPal checkout cancelled. No money moved', '⚠️');
           }
           if (typeof this.load === 'function') this.load();
 
@@ -411,7 +412,7 @@
           if (window.LuvuToast) {
             window.LuvuToast.warning(
               'Create a project first',
-              'Simulate 30 days needs an active project at the top of the page.',
+              'Simulate 30 days needs an active project at the top of the page',
               {
                 id: 'need-project-sim',
                 action: {
@@ -434,7 +435,7 @@
           if (window.LuvuToast) {
             window.LuvuToast.info(
               'Connect PayPal Sandbox',
-              'Payment driver is paypal. Link your Sandbox merchant in Settings before Simulate.',
+              'Payment driver is paypal. Link your Sandbox merchant in Settings before Simulate',
               {
                 id: 'need-paypal-sim',
                 action: { label: 'Open Settings', href: '/settings#paypal' },
@@ -479,7 +480,7 @@
           self.hasData = !!(self.rowData && self.rowData.length);
           self.pushToast(res.data.message || 'Simulated 30 days', '✅');
           if (window.LuvuToast) {
-            window.LuvuToast.info('Data synced', 'Wallet, Subscriptions, Invoices, Analytics and Events now show the same ledger.');
+            window.LuvuToast.info('Data synced', 'Wallet, Subscriptions, Invoices, Analytics and Events now show the same ledger');
           }
           try { window.localStorage.setItem('luvupay_demo_seeded', '1'); } catch (e) {}
         } catch (e) {
@@ -522,6 +523,7 @@
           this.$nextTick(function () { self.mountGrids(); });
         } finally {
           this.loading = false;
+          this.loaded = true;
         }
       },
 
@@ -577,7 +579,7 @@
           suppressCellFocus: true,
           rowHeight: 44,
           headerHeight: 42,
-          overlayNoRowsTemplate: '<span class="text-sm text-muted">No rows yet — run a Sandbox / Demo Control.</span>',
+          overlayNoRowsTemplate: '<span class="text-sm text-muted">No rows yet</span>',
           getRowClass: function (p) { return p.data && p.data._flash ? 'row-flash' : ''; },
           onSelectionChanged: function () {
             if (!selectable) return;
@@ -655,22 +657,11 @@
       },
 
       // ---- feedback
+      /** Shows a LuvuToast. The optional icon only picks the tone: failure, warning, info or success (default). */
       pushToast: function (message, icon) {
-        if (window.LuvuToast) {
-          var type = 'success';
-          if (icon === '❌' || icon === '🚫') type = 'error';
-          else if (icon === '⚠️' || icon === '!') type = 'warning';
-          else if (icon === 'ℹ️' || icon === '⏳' || icon === '🔗' || icon === '🔔') type = 'info';
-          window.LuvuToast.notify({ type: type, title: message, duration: 4500 });
-          return;
-        }
-        var id = Date.now() + Math.random();
-        var self = this;
-        this.toasts = this.toasts.concat([{ id: id, message: message, icon: icon || '✅', leaving: false }]);
-        setTimeout(function () {
-          self.toasts = self.toasts.map(function (t) { return t.id === id ? Object.assign({}, t, { leaving: true }) : t; });
-          setTimeout(function () { self.toasts = self.toasts.filter(function (t) { return t.id !== id; }); }, 350);
-        }, 3400);
+        var tones = { '\u274c': 'error', '\ud83d\udeab': 'error', '\u26a0\ufe0f': 'warning', '!': 'warning', '\u2139\ufe0f': 'info', '\u23f3': 'info', '\ud83d\udd17': 'info', '\ud83d\udd14': 'info', '\ud83d\udcb3': 'info', '\u27a1\ufe0f': 'info' };
+        if (!global.LuvuToast) return;
+        global.LuvuToast.notify({ type: tones[icon] || 'success', title: message });
       },
 
       // ---- Merchant Wallet · PayPal Payouts (real sandbox)
@@ -678,7 +669,7 @@
         if (this.walletWithdrawing || this.walletBalanceMinor <= 0) return;
         // Gate: only when the live PayPal driver is on and no PayPal merchant is linked (mock mode never needs it)
         if (!this.paypalConnected) {
-          this.pushToast('Connect PayPal in Settings before withdrawing.', '⚠️');
+          this.pushToast('Connect PayPal in Settings before withdrawing', '⚠️');
           try { window.location.href = '/settings'; } catch (e) {}
           return;
         }
@@ -723,7 +714,7 @@
           } else {
             var err = (res && res.data && (res.data.message || res.data.error)) || ('HTTP ' + (res && res.status));
             if (res && res.status === 403) {
-              this.pushToast('Connect PayPal in Settings first.', '⚠️');
+              this.pushToast('Connect PayPal in Settings first', '⚠️');
               try { window.location.href = '/settings'; } catch (e2) {}
             } else {
               this.pushToast(err || 'Withdraw failed', '❌');
@@ -938,22 +929,22 @@
           for (i = 0; i < 6; i++) {
             r = await request('GET', 'demo/checkout/' + tx + '/status');
             d = r.data || {};
-            if (!r.ok) return { state: 'failed', message: d.message || 'Could not check the payment status.' };
+            if (!r.ok) return { state: 'failed', message: d.message || 'Could not check the payment status' };
             if (d.state !== 'processing' || !d.awaiting_buyer) return d;
             await sleep(2500);
           }
           r = await request('GET', 'demo/checkout/' + tx + '/status?abandon=1');
-          return r.ok ? (r.data || { state: 'cancelled' }) : { state: 'failed', message: (r.data && r.data.message) || 'Could not cancel the checkout.' };
+          return r.ok ? (r.data || { state: 'cancelled' }) : { state: 'failed', message: (r.data && r.data.message) || 'Could not cancel the checkout' };
         }
 
         for (i = 0; i < 4; i++) {
           r = await request('GET', 'demo/checkout/' + tx + '/status');
           d = r.data || {};
-          if (!r.ok) return { state: 'failed', message: d.message || 'Could not check the payment status.' };
+          if (!r.ok) return { state: 'failed', message: d.message || 'Could not check the payment status' };
           if (d.state === 'processing' && !d.awaiting_buyer && i < 3) { await sleep(2000); continue; }
           return d;
         }
-        return { state: 'processing', message: 'PayPal is still confirming the payment.' };
+        return { state: 'processing', message: 'PayPal is still confirming the payment' };
       },
 
       _checkoutApplyResult: async function (row, res) {
@@ -967,10 +958,10 @@
           this.preview = { phase: 'checkout', name: row.name, email: row.email, product: PROJECT.product, status: 'ACTIVE', trust_score: res.row && res.row.trust_score, churn_risk: res.row && res.row.churn_risk, ai_nudge: null, spinning: false, certificate_code: null };
         } else if (res.state === 'processing') {
           row.status = 'awaiting'; row.note = 'Approved, waiting for PayPal to confirm…';
-          this.pushToast(res.message || 'PayPal is still confirming the payment.', '⏳');
+          this.pushToast(res.message || 'PayPal is still confirming the payment', '⏳');
         } else if (res.state === 'cancelled' || res.state === 'gone') {
           row.status = 'idle'; row.note = 'Cancelled on PayPal, nothing was charged';
-          this.pushToast('PayPal checkout cancelled. No money moved.', '⚠️');
+          this.pushToast('PayPal checkout cancelled. No money moved', '⚠️');
         } else {
           row.status = 'failed'; row.note = res.message || 'Payment failed';
           this.pushToast(row.note, '❌');
@@ -1014,7 +1005,7 @@
           }
         }
         if (!row) {
-          this.pushToast('No ACTIVE subscription charge yet. Run “Simulate 30 days” or create a checkout first.', '❌');
+          this.pushToast('No ACTIVE subscription charge yet. Run “Simulate 30 days” or create a checkout first', '❌');
           return;
         }
 
@@ -1068,7 +1059,7 @@
 
         var j = await this.sim('forgot', { transaction_id: row.id }, 'forgot');
         if (!j) {
-          this.logDecision('[Error] ' + (this.simMsg || 'Could not start the missed-cancellation flow.'), 'warn');
+          this.logDecision('[Error] ' + (this.simMsg || 'Could not start the missed-cancellation flow'), 'warn');
           this.decisionBusy = false;
           return;
         }
@@ -1122,7 +1113,7 @@
 
         var j = await this.sim('decision', { transaction_id: this.decisionRow.id, choice: choice }, 'decision');
         if (!j) {
-          this.logDecision('[Error] ' + (this.simMsg || 'The action failed.') + ' You can choose another option.', 'warn');
+          this.logDecision('[Error] ' + (this.simMsg || 'The action failed') + ' You can choose another option.', 'warn');
           this.selectedAction = null;
           this.decisionBusy = false;
           return;
@@ -1236,6 +1227,7 @@
       loadDeliveries: async function () {
         var res = await request('GET', 'webhook-deliveries').catch(function () { return { ok: false, data: {} }; });
         this.deliveries = (res.ok && res.data.data) ? res.data.data : [];
+        this.deliveriesLoaded = true;
       },
 
       retryDelivery: async function (id) {

@@ -6,7 +6,9 @@
   }
   window.subsPage = function () {
     return {
-      loading: false,
+      loading: true,
+      loaded: false,
+      failed: false,
       rows: [],
       filter: 'all',
       filters: [
@@ -19,6 +21,7 @@
       grid: null,
       async load() {
         this.loading = true;
+        this.failed = false;
         try {
           var res = await fetch('/api/v1/dashboard/subscriptions', {
             credentials: 'same-origin',
@@ -29,9 +32,11 @@
           this.apply();
         } catch (e) {
           this.rows = [];
+          this.failed = true;
           if (window.LuvuToast) window.LuvuToast.error('Could not load subscriptions', String(e.message || e));
         } finally {
           this.loading = false;
+          this.loaded = true;
         }
       },
       filtered() {

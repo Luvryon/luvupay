@@ -17,7 +17,7 @@
       pay: async function () {
         this.error = '';
         var em = (this.email || '').trim();
-        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)) { this.error = 'Enter a valid email for your receipt.'; return; }
+        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)) { this.error = 'Enter a valid email for your receipt'; return; }
         this.busy = true;
         try {
           var body = { email: em };
@@ -30,14 +30,14 @@
           var j = await res.json().catch(function () { return {}; });
           if (!res.ok || !j.ok) {
             var errs = j.errors ? Object.keys(j.errors).map(function (k) { return j.errors[k].join(' '); }).join(' ') : '';
-            this.error = errs || j.message || 'Payment could not be started. Please try again.';
+            this.error = errs || j.message || 'Payment could not be started. Please try again';
             return;
           }
           if (j.approve_url) { window.location.href = j.approve_url; return; }
           this.invoiceUrl = j.invoice_url || '#';
           this.done = true;
         } catch (e) {
-          this.error = 'Network error. Please try again.';
+          this.error = 'Network error. Please try again';
         } finally {
           this.busy = false;
         }

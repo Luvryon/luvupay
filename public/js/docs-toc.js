@@ -31,6 +31,12 @@
     }
     window.addEventListener('scroll', onScroll, { passive: true });
     onScroll();
+
+    var back = document.getElementById('docs-back-top');
+    if (back) {
+      back.addEventListener('click', function () { window.scrollTo({ top: 0, behavior: 'smooth' }); });
+      window.addEventListener('scroll', function () { back.hidden = window.scrollY < 600; }, { passive: true });
+    }
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();

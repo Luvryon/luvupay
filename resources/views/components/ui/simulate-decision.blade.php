@@ -46,7 +46,7 @@
     {{-- Header --}}
     <header class="border-b border-edge px-5 py-4">
         <h2 class="text-base font-bold text-slate-100">Simulate User Decision</h2>
-        <p class="mt-1 text-xs text-slate-400">Replay the end-user choice after a missed cancellation.</p>
+        <p class="mt-1 text-xs text-slate-400">Replay the end-user choice after a missed cancellation</p>
     </header>
 
     <div class="flex-1 space-y-5 overflow-y-auto px-5 py-5">
@@ -145,7 +145,7 @@
                     <p class="whitespace-pre-wrap break-words" x-text="currentLog"></p>
                 </template>
                 <template x-if="!loading && !currentLog">
-                    <p class="text-slate-600">Idle — pick a simulation above.</p>
+                    <p class="text-slate-600">Idle — pick a simulation above</p>
                 </template>
             </div>
         </div>

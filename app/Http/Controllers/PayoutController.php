@@ -229,7 +229,7 @@ final class PayoutController extends Controller
             return response()->json([
                 'ok' => false,
                 'error' => 'PayPal Payouts failed: '.$this->explainPayPalError($e->getMessage()),
-                'hint' => 'Check PAYPAL_CLIENT_ID/SECRET, that Payouts is enabled on the PayPal app, that the sender sandbox account has funds, and set PAYPAL_MODE=sandbox.',
+                'hint' => 'Check PAYPAL_CLIENT_ID/SECRET, that Payouts is enabled on the PayPal app, that the sender sandbox account has funds, and set PAYPAL_MODE=sandbox',
             ], 502);
         }
     }

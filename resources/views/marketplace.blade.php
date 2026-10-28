@@ -1,6 +1,6 @@
 @extends('layouts.site')
 @section('title', 'Marketplace · LuvuPay Resale')
-@section('meta_description', 'Buy and sell unused subscription time. AI-priced listings. Instant transfer via LuvuPay.')
+@section('meta_description', 'Buy and sell unused subscription time. AI-priced listings. Instant transfer via LuvuPay')
 
 @push('head')
     <script src="/js/marketplace.js?v={{ @filemtime(public_path('js/marketplace.js')) }}"></script>
@@ -12,10 +12,10 @@
     <section class="mb-12 flex flex-wrap items-end justify-between gap-6">
         <div class="max-w-2xl">
             <p class="text-[11px] font-bold uppercase tracking-[0.16em] text-emerald-600">B2C resale · powered by Nebius AI</p>
-            <h1 class="mt-2 text-4xl font-semibold tracking-tight text-ink sm:text-5xl">Unused days shouldn’t die.</h1>
+            <h1 class="mt-2 text-4xl font-semibold tracking-tight text-ink sm:text-5xl">Unused days shouldn’t die</h1>
             <p class="mt-4 text-base leading-relaxed text-muted">
                 Buy leftover subscription time at a fair price — or list yours and let AI write the listing in seconds.
-                Transfers settle through LuvuPay · PayPal Sandbox.
+                Transfers settle through LuvuPay · PayPal Sandbox
             </p>
             <div class="mt-5 flex flex-wrap gap-2 text-xs font-medium">
                 <span class="rounded-full border border-line bg-wash px-3 py-1 text-muted">Instant entitlement transfer</span>
@@ -35,6 +35,8 @@
     </div>
 
     <div x-show="error" x-cloak class="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" x-text="error"></div>
+
+    <x-ui.loading show="loading && !listings.length" title="Loading listings" hint="Finding the best unused access for you" />
 
     <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" x-show="!loading || listings.length" x-cloak>
         <template x-for="item in listings" x-bind:key="item.id">
@@ -60,7 +62,7 @@
 
     <div x-show="!loading && !listings.length && !error" x-cloak class="rounded-2xl border border-dashed border-line bg-wash px-6 py-16 text-center">
         <p class="font-semibold text-ink">No active listings yet</p>
-        <p class="mt-1 text-sm text-muted">Be the first — connect an app and list your remaining days.</p>
+        <p class="mt-1 text-sm text-muted">Be the first — connect an app and list your remaining days</p>
     </div>
 
     <p class="mt-10 text-center text-xs text-muted">
@@ -103,7 +105,7 @@
                         <input type="email" maxlength="190" autocomplete="email" placeholder="you@email.com"
                                class="w-full rounded-xl border border-line bg-white px-3 py-2.5 text-sm"
                                x-model="sell.email" />
-                        <p class="mt-1 text-[11px] text-muted">We email a confirmation link here. LuvuPay never asks for your app password.</p>
+                        <p class="mt-1 text-[11px] text-muted">We email a confirmation link here. LuvuPay never asks for your app password</p>
                     </div>
                     <p class="text-xs text-red-600" x-show="formError" x-text="formError" role="alert"></p>
                     <button type="button" class="lp-btn lp-btn-primary w-full" x-on:click="startVerify()">Continue</button>
@@ -124,7 +126,7 @@
                     <div x-show="!aiReady" class="flex flex-col items-center gap-3 py-8 text-center">
                         <p class="text-2xl">✨</p>
                         <p class="font-semibold text-ink">Nebius AI is analyzing your usage…</p>
-                        <p class="max-w-xs text-xs text-muted">Generating the listing title, description and an optimized resale price.</p>
+                        <p class="max-w-xs text-xs text-muted">Generating the listing title, description and an optimized resale price</p>
                         <div class="mt-1 h-1.5 w-56 overflow-hidden rounded-full bg-wash">
                             <div class="h-full bg-brand-600 transition-all duration-500" x-bind:style="'width:' + aiPct + '%'"></div>
                         </div>
@@ -184,7 +186,7 @@
                 <button type="submit" class="lp-btn lp-btn-primary w-full" x-bind:disabled="buyBusy">
                     <span x-text="buyBusy ? 'Reserving…' : 'Continue to PayPal'"></span>
                 </button>
-                <p class="text-center text-[11px] text-muted">The listing is held for you while you pay.</p>
+                <p class="text-center text-[11px] text-muted">The listing is held for you while you pay</p>
             </form>
         </div>
     </div>

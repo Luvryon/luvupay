@@ -1,6 +1,6 @@
 @extends('layouts.docs')
 @section('title', 'API reference · LuvuPay')
-@section('meta_description', 'Complete LuvuPay REST API reference: authentication, scopes, subscriptions, Second Chance, resale listings, export, AI endpoints, errors, and rate limits.')
+@section('meta_description', 'Complete LuvuPay REST API reference: authentication, scopes, subscriptions, Second Chance, resale listings, export, AI endpoints, errors, and rate limits')
 @section('guides')
 {{-- sidebar from layout --}}
 @endsection
@@ -68,7 +68,7 @@
 
     <article class="min-w-0 w-full max-w-3xl mx-auto">
       <h1>API reference</h1>
-      <p class="lead text-muted">Everything a merchant server can call. Use a secret API key, send an <code>Idempotency-Key</code> on every request that moves money, and quote the <code>X-Request-Id</code> from any response when you contact support.</p>
+      <p class="lead text-muted">Everything a merchant server can call. Use a secret API key, send an <code>Idempotency-Key</code> on every request that moves money, and quote the <code>X-Request-Id</code> from any response when you contact support</p>
 
       <dl class="facts not-prose mt-6">
         <div><dt>Version</dt><dd>v1</dd></div>
@@ -83,13 +83,13 @@
       {{-- AUTH --}}
       <section id="auth">
         <h2>Authentication</h2>
-        <p>Send your <strong>secret</strong> key as a Bearer token. Publishable keys are only for the browser badge and snippet. Never put a secret key in a frontend bundle.</p>
+        <p>Send your <strong>secret</strong> key as a Bearer token. Publishable keys are only for the browser badge and snippet. Never put a secret key in a frontend bundle</p>
 <pre><code><span class="dim">Authorization:</span>  Bearer lp_live_xxxxxxxxxxxxxxxx
 <span class="dim">Idempotency-Key:</span> 550e8400-e29b-41d4-a716-446655440000
 <span class="dim">Content-Type:</span>    application/json
 <span class="dim">Accept:</span>          application/json</code></pre>
         <h3>Idempotency</h3>
-        <p>Required on every POST and DELETE that moves money. Keys are 8 to 255 characters.</p>
+        <p>Required on every POST and DELETE that moves money. Keys are 8 to 255 characters</p>
         <div class="scroll-x not-prose">
           <table class="tbl">
             <thead><tr><th>You send</th><th>You get</th></tr></thead>
@@ -100,7 +100,7 @@
             </tbody>
           </table>
         </div>
-        <p>Rotate keys in Console, under Settings. Old keys stop working once rotation completes.</p>
+        <p>Rotate keys in Console, under Settings. Old keys stop working once rotation completes</p>
       </section>
 
       {{-- SCOPES --}}
@@ -126,18 +126,18 @@
       {{-- ENVIRONMENTS --}}
       <section id="environments">
         <h2>Environments</h2>
-        <p>Build in this order. Each step uses the same API shape.</p>
+        <p>Build in this order. Each step uses the same API shape</p>
         <div class="lanes not-prose">
-          <div><strong>Mock</strong><p class="text-sm text-muted">No external PayPal calls. Good for UI and webhook shape work.</p><code>LUVUPAY_PAYMENT_DRIVER=mock</code></div>
+          <div><strong>Mock</strong><p class="text-sm text-muted">No external PayPal calls. Good for UI and webhook shape work</p><code>LUVUPAY_PAYMENT_DRIVER=mock</code></div>
           <div><strong>Sandbox</strong><p class="text-sm text-muted">PayPal sandbox credentials. Real API shape, test money. See <a href="/docs/sandbox">Sandbox</a>.</p></div>
-          <div><strong>Live</strong><p class="text-sm text-muted">Production PayPal, after sandbox sign-off.</p></div>
+          <div><strong>Live</strong><p class="text-sm text-muted">Production PayPal, after sandbox sign-off</p></div>
         </div>
       </section>
 
       {{-- RATE LIMITS --}}
       <section id="rate-limits">
         <h2>Rate limits</h2>
-        <p>The per-merchant limit is set with <code>LUVUPAY_API_RATE_LIMIT</code> and defaults to 300 requests per minute. AI endpoints have a tighter limit of 100 per minute. Going over returns <code>429</code> with standard rate-limit headers.</p>
+        <p>The per-merchant limit is set with <code>LUVUPAY_API_RATE_LIMIT</code> and defaults to 300 requests per minute. AI endpoints have a tighter limit of 100 per minute. Going over returns <code>429</code> with standard rate-limit headers</p>
       </section>
 
       {{-- SUBSCRIPTIONS --}}
@@ -160,7 +160,7 @@
   "return_url": "https://app.example.com/billing/ok",
   "cancel_url": "https://app.example.com/billing/cancel"
 }</code></pre>
-            <p><strong>201</strong> returns the subscription object with provider references and status. Keep the returned IDs for Second Chance and resale.</p>
+            <p><strong>201</strong> returns the subscription object with provider references and status. Keep the returned IDs for Second Chance and resale</p>
           </div>
         </div>
       </section>
@@ -174,8 +174,8 @@
             <span class="ep-spacer"><span class="chip">second-chance:write</span><span class="chip idem">Idempotency-Key</span></span>
           </div>
           <div class="ep-body">
-            <p>Starts the fair-split flow between user, charity and merchant, inside the configured window (48 hours by default). Returns <code>409</code> when the transaction is not eligible or the window has closed.</p>
-            <p>The merchant's original capture is partially clawed back under the platform split rules. See the product docs for the details.</p>
+            <p>Starts the fair-split flow between user, charity and merchant, inside the configured window (48 hours by default). Returns <code>409</code> when the transaction is not eligible or the window has closed</p>
+            <p>The merchant's original capture is partially clawed back under the platform split rules. See the product docs for the details</p>
           </div>
         </div>
       </section>
@@ -190,7 +190,7 @@
             <span class="method m-get">GET</span><span class="ep-path">/api/v1/resale-listings</span>
             <span class="ep-spacer"><span class="chip">resale:read</span><span class="chip">resale:write</span></span>
           </div>
-          <div class="ep-body"><h3>List listings</h3><p>Either scope works.</p></div>
+          <div class="ep-body"><h3>List listings</h3><p>Either scope works</p></div>
         </div>
 
         <div class="ep not-prose">
@@ -227,7 +227,7 @@
   "buyer_merchant_user_id": "user_456",
   "buyer_email": "buyer@example.com"
 }</code></pre>
-            <p>Reserves the listing and creates a PayPal order for the buyer.</p>
+            <p>Reserves the listing and creates a PayPal order for the buyer</p>
           </div>
         </div>
 
@@ -251,7 +251,7 @@
             <span class="method m-get">GET</span><span class="ep-path">/api/v1/export</span>
             <span class="ep-spacer"><span class="chip">export:read</span></span>
           </div>
-          <div class="ep-body"><p>Returns your merchant-scoped operational data, suited to offboarding or compliance exports.</p></div>
+          <div class="ep-body"><p>Returns your merchant-scoped operational data, suited to offboarding or compliance exports</p></div>
         </div>
       </section>
 
@@ -280,7 +280,7 @@
             <span class="method m-post">POST</span><span class="ep-path">/api/v1/webhooks/paypal</span>
             <span class="ep-spacer"><span class="chip">no API key</span></span>
           </div>
-          <div class="ep-body"><p>A public, signature-verified endpoint that you configure in the PayPal dashboard. Events are stored and processed asynchronously. It does not use merchant API keys.</p></div>
+          <div class="ep-body"><p>A public, signature-verified endpoint that you configure in the PayPal dashboard. Events are stored and processed asynchronously. It does not use merchant API keys</p></div>
         </div>
       </section>
 
@@ -292,7 +292,7 @@
             <span class="method m-get">GET</span><span class="ep-path">/api/v1/badge.js</span>
             <span class="ep-spacer"><span class="chip">publishable key</span></span>
           </div>
-          <div class="ep-body"><p>A publishable snippet for the ethical directory and badge embeds. No secret key needed.</p></div>
+          <div class="ep-body"><p>A publishable snippet for the ethical directory and badge embeds. No secret key needed</p></div>
         </div>
       </section>
 
@@ -318,7 +318,7 @@
       {{-- VERSIONING --}}
       <section id="versioning">
         <h2>Versioning</h2>
-        <p>The current surface is <code>/api/v1</code>. Breaking changes ship under a new prefix, and each one is announced in these docs and in the release notes.</p>
+        <p>The current surface is <code>/api/v1</code>. Breaking changes ship under a new prefix, and each one is announced in these docs and in the release notes</p>
         <p class="not-prose flex flex-wrap gap-x-6 gap-y-2 text-sm mt-6">
           <a href="/docs/webhooks" class="text-brand-600 font-medium">Webhooks</a>
           <a href="/docs/sandbox" class="text-brand-600 font-medium">Sandbox</a>

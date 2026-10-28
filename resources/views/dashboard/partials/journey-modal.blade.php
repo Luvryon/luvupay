@@ -124,7 +124,7 @@
                                     </div>
                                     <div class="bg-slate-100 rounded-lg p-2 text-xs text-slate-700 max-w-[85%] border border-indigo-100">
                                         <span class="text-[10px] font-semibold text-indigo-600 uppercase tracking-wide">AI offer</span>
-                                        <p class="mt-1">Micro-payment keeps access active. Safe refund caps at amount − PayPal fee so your sandbox balance never goes negative.</p>
+                                        <p class="mt-1">Micro-payment keeps access active. Safe refund caps at amount − PayPal fee so your sandbox balance never goes negative</p>
                                     </div>
                                 </div>
                                 <div class="pt-2 border-t border-slate-100 mt-auto">
@@ -156,8 +156,8 @@
         {{-- bottom actions --}}
         <div x-show="journeyStep === 'ready'" x-cloak>
             <div class="flex flex-wrap items-center justify-between gap-3 pt-1">
-                <p class="text-xs text-slate-500" x-show="phoneView === 'options'">Pick what the user chose — from the phone or from here. Both views stay in sync.</p>
-                <p class="text-xs font-semibold text-emerald-600" x-show="phoneView === 'done'" x-cloak>✓ Completed — ledger, KPIs and wallet are updated.</p>
+                <p class="text-xs text-slate-500" x-show="phoneView === 'options'">Pick what the user chose — from the phone or from here. Both views stay in sync</p>
+                <p class="text-xs font-semibold text-emerald-600" x-show="phoneView === 'done'" x-cloak>✓ Completed — ledger, KPIs and wallet are updated</p>
             </div>
             <div class="flex flex-wrap gap-2 mt-2">
                 <button type="button" x-on:click="choose('renew')" x-bind:disabled="!decisionReady || decisionBusy || phoneView === 'done'" class="rounded-lg bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed">Retry payment</button>

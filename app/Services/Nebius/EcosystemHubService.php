@@ -5,6 +5,8 @@ namespace App\Services\Nebius;
 use App\Contracts\NebiusAIContract;
 use App\DTOs\AI\SubscriptionHealthReport;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use InvalidArgumentException;
 use Throwable;
 
 class EcosystemHubService
@@ -21,7 +23,7 @@ class EcosystemHubService
      */
     public function generateHealthReport(string $email, ?array $subscriptions = null, ?string $merchantId = null): SubscriptionHealthReport
     {
-        $subs = $subscriptions ?? $this->aggregateByEmail($email);
+        $subs = $subscriptions ?? $this->aggregateByEmail($email, $merchantId);
         $payload = ['email_hash' => hash('sha256', strtolower($email)), 'subscriptions' => $subs];
         $hash = AiResponseCache::hash(['f' => 'hub', 'd' => $payload]);
         if ($hit = $this->cache->get('ecosystem_hub', $hash)) {
@@ -50,7 +52,10 @@ PROMPT;
                 ['role' => 'system', 'content' => $system],
                 ['role' => 'user', 'content' => $user],
             ], $merchantId);
-            $data = json_decode($res['content'], true) ?: [];
+            $data = $res['data'];
+            if (trim((string) ($data['natural_language_report'] ?? '')) === '') {
+                throw new InvalidArgumentException('Model response is missing natural_language_report');
+            }
             if (! isset($data['total_monthly_spend'])) {
                 $data['total_monthly_spend'] = $spend;
             }
@@ -58,18 +63,21 @@ PROMPT;
             $this->cache->put('ecosystem_hub', $hash, $result->toArray());
 
             return $result;
-        } catch (Throwable) {
+        } catch (Throwable $e) {
+            Log::warning('nebius.hub_fallback', ['error' => $e->getMessage()]);
+
             return SubscriptionHealthReport::fallback($spend);
         }
     }
 
     /** @return list<array<string,mixed>> */
-    public function aggregateByEmail(string $email): array
+    public function aggregateByEmail(string $email, ?string $merchantId = null): array
     {
         $email = strtolower($email);
         $rows = DB::table('subscriptions as s')
             ->join('merchants as m', 'm.id', '=', 's.merchant_id')
             ->whereRaw('LOWER(s.email) = ?', [$email])
+            ->when($merchantId, fn ($q) => $q->where('s.merchant_id', $merchantId)) // an API key only sees its own merchant
             ->whereIn('s.status', ['active', 'paused_by_nudge', 'pending_approval'])
             ->get([
                 'm.name as merchant_name',

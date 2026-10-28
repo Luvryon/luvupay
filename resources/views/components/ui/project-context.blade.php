@@ -26,7 +26,7 @@
                 x-text="hasProject ? 'New project' : 'Create your first project'"></button>
     </section>
 
-    <div x-show="toast" x-cloak style="display:none" class="toast-pop" role="status">Project created. API keys are ready in Settings.</div>
+    <div x-show="toast" x-cloak style="display:none" class="toast-pop" role="status">Project created. API keys are ready in Settings</div>
 
     <div x-show="openModal" x-cloak class="modal" style="display:none" role="dialog" aria-modal="true">
         <div class="modal-scrim" x-on:click="close()"></div>
@@ -108,15 +108,15 @@
                     <p class="label" style="margin:0">Retention settings <span style="font-weight:400;color:var(--muted)">(also editable in Settings)</span></p>
                     <label style="display:flex;gap:10px;align-items:flex-start;cursor:pointer">
                         <input type="checkbox" x-model="form.grace_period" style="margin-top:3px;accent-color:var(--brand)" />
-                        <span><strong style="font-size:.9rem">Grace Period</strong><span style="display:block;font-size:.8rem;color:var(--muted)">Hold a missed-cancellation charge and let the user choose before it settles.</span></span>
+                        <span><strong style="font-size:.9rem">Grace Period</strong><span style="display:block;font-size:.8rem;color:var(--muted)">Hold a missed-cancellation charge and let the user choose before it settles</span></span>
                     </label>
                     <label style="display:flex;gap:10px;align-items:flex-start;cursor:pointer">
                         <input type="checkbox" x-model="form.marketplace_resale" style="margin-top:3px;accent-color:var(--brand)" />
-                        <span><strong style="font-size:.9rem">Marketplace Resale</strong><span style="display:block;font-size:.8rem;color:var(--muted)">Let users sell remaining days after grace.</span></span>
+                        <span><strong style="font-size:.9rem">Marketplace Resale</strong><span style="display:block;font-size:.8rem;color:var(--muted)">Let users sell remaining days after grace</span></span>
                     </label>
                     <label style="display:flex;gap:10px;align-items:flex-start;cursor:pointer">
                         <input type="checkbox" x-model="form.charity_split" style="margin-top:3px;accent-color:var(--brand)" />
-                        <span><strong style="font-size:.9rem">Charity Split</strong><span style="display:block;font-size:.8rem;color:var(--muted)">Let users donate residual value to charity.</span></span>
+                        <span><strong style="font-size:.9rem">Charity Split</strong><span style="display:block;font-size:.8rem;color:var(--muted)">Let users donate residual value to charity</span></span>
                     </label>
                     <div>
                         <label class="label" for="np-refund">Partial refund offer (%)</label>

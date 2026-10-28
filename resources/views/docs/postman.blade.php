@@ -1,6 +1,6 @@
 @extends('layouts.docs')
 @section('title', 'Postman · LuvuPay Docs')
-@section('meta_description', 'Import the official LuvuPay Postman collection for Sandbox and local API testing.')
+@section('meta_description', 'Import the official LuvuPay Postman collection for Sandbox and local API testing')
 
 @section('toc')
     <a href="#download" data-toc-id="download">Download</a>
@@ -12,7 +12,7 @@
 @section('content')
 <article class="apiref">
     <h1>Postman collection</h1>
-    <p class="lead" style="color:var(--docs-muted)">Import the official collection and call LuvuPay like Stripe: health → auth → resources → webhooks.</p>
+    <p class="lead" style="color:var(--docs-muted)">Import the official collection and call LuvuPay like Stripe: health → auth → resources → webhooks</p>
 
     <section id="download">
         <h2>Download</h2>
@@ -29,9 +29,9 @@
     <section id="setup">
         <h2>Setup</h2>
         <ol>
-            <li>Open Postman → <strong>Import</strong> → select the JSON file.</li>
-            <li>Set collection variables: <code>base_url</code> (e.g. <code>http://localhost:8000</code>), <code>api_key</code> (from Settings → API credentials).</li>
-            <li>Dashboard session routes need a browser cookie (log in to the console first) or use API-key routes.</li>
+            <li>Open Postman → <strong>Import</strong> → select the JSON file</li>
+            <li>Set collection variables: <code>base_url</code> (e.g. <code>http://localhost:8000</code>), <code>api_key</code> (from Settings → API credentials)</li>
+            <li>Dashboard session routes need a browser cookie (log in to the console first) or use API-key routes</li>
         </ol>
     </section>
 

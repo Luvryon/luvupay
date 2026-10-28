@@ -6,6 +6,7 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="robots" content="noindex, nofollow">
     <title>{{ $mode === 'redeem' ? 'Redeem access' : 'Checkout' }} · {{ $productName }}</title>
+    @include('partials.favicon', ['faviconUrl' => $brand['logo'] ?? null])
     <link rel="stylesheet" href="/css/hosted.css?v={{ @filemtime(public_path('css/hosted.css')) }}">
     <style>[x-cloak]{display:none!important}</style>
 </head>
@@ -27,7 +28,7 @@
     <section x-show="mode === 'unavailable'" class="px-6 pb-8 pt-4">
         <div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-4 text-sm">
             <p class="font-semibold">This token is no longer available</p>
-            <p class="mt-1">It was already redeemed or the access window has ended.</p>
+            <p class="mt-1">It was already redeemed or the access window has ended</p>
         </div>
         <a href="{{ $cfg['storeUrl'] }}" class="mt-5 block text-center text-sm font-semibold text-indigo-600 hover:text-indigo-700">Browse other available access →</a>
     </section>

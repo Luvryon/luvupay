@@ -1,6 +1,6 @@
 @extends('layouts.site')
 @section('title', 'LuvuPay System Status')
-@section('meta_description', 'Public liveness and high-level component status for LuvuPay.')
+@section('meta_description', 'Public liveness and high-level component status for LuvuPay')
 @push('scripts')
     <script src="/js/alpine.min.js" defer></script>
     <script src="/js/status.js?v={{ @filemtime(public_path('js/status.js')) ?: time() }}" defer></script>
@@ -12,8 +12,9 @@
     <div class="flex items-start gap-4">
         <span class="grid size-14 shrink-0 place-items-center rounded-2xl"
               x-bind:class="overall === 'operational' ? 'bg-emerald-50 text-emerald-600' : (overall === 'checking' ? 'bg-wash text-muted' : 'bg-red-50 text-red-600')">
+            <span x-show="overall === 'checking'" class="lp-spinner lp-spinner--lg"></span>
             <svg x-show="overall === 'operational'" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg>
-            <svg x-show="overall !== 'operational'" x-cloak width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 8v5M12 17h.01"/></svg>
+            <svg x-show="overall !== 'operational' && overall !== 'checking'" x-cloak width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 8v5M12 17h.01"/></svg>
         </span>
         <div>
             <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-600">System status</p>
@@ -23,7 +24,8 @@
     </div>
 
     <div class="mt-10 overflow-hidden rounded-2xl border border-line bg-white shadow-sm">
-        <ul class="divide-y divide-line" aria-live="polite">
+        <x-ui.loading show="overall === 'checking'" title="Checking systems" hint="Pinging the liveness probe" />
+        <ul class="divide-y divide-line" aria-live="polite" x-show="overall !== 'checking'">
             <template x-for="s in services" x-bind:key="s.name">
                 <li class="flex items-center justify-between gap-4 px-5 py-4">
                     <div>

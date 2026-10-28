@@ -33,7 +33,7 @@ final class EnterpriseConsoleController
 
         return response()->json([
             'ok' => true,
-            'message' => "API usage maxed out at {$used}. Next authenticated API call will return 429.",
+            'message' => "API usage maxed out at {$used}. Next authenticated API call will return 429",
             'usage' => $this->meter->snapshot($merchantId),
         ]);
     }
@@ -46,7 +46,7 @@ final class EnterpriseConsoleController
 
         return response()->json([
             'ok' => true,
-            'message' => 'API usage counter reset for this period.',
+            'message' => 'API usage counter reset for this period',
             'usage' => $this->meter->snapshot($merchantId),
         ]);
     }

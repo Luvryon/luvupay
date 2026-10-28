@@ -7,17 +7,17 @@
     <h1>Terms of Service</h1>
     <p style="color:#94a3b8;font-size:.875rem;margin-top:-0.25rem">Last updated October 2026</p>
     
-<p class="lead">By using LuvuPay you agree to these terms.</p>
+<p class="lead">By using LuvuPay you agree to these terms</p>
 <h2>Service</h2>
-<p>LuvuPay provides subscription retention, marketplace resale tooling, and payout orchestration. Sandbox features are for testing only.</p>
+<p>LuvuPay provides subscription retention, marketplace resale tooling, and payout orchestration. Sandbox features are for testing only</p>
 <h2>Merchants</h2>
-<p>You are responsible for your products, pricing, customer communications, and compliance with PayPal and applicable law.</p>
+<p>You are responsible for your products, pricing, customer communications, and compliance with PayPal and applicable law</p>
 <h2>Acceptable use</h2>
-<p>No illegal activity, abuse of the API, or circumvention of security or rate limits.</p>
+<p>No illegal activity, abuse of the API, or circumvention of security or rate limits</p>
 <h2>Liability</h2>
-<p>The service is provided as available. We are not liable for indirect losses or third-party network failures.</p>
+<p>The service is provided as available. We are not liable for indirect losses or third-party network failures</p>
 <h2>Changes</h2>
-<p>We may update these terms; continued use after notice means acceptance.</p>
+<p>We may update these terms; continued use after notice means acceptance</p>
 
   </article>
 </div>

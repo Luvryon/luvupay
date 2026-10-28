@@ -3,7 +3,7 @@
 @section('auth')
 <div class="lp-card p-7 sm:p-8 shadow-[0_8px_30px_-12px_rgb(20_21_26/0.18)]">
     <h1 class="text-xl font-semibold tracking-tight">Sign in to LuvuPay</h1>
-    <p class="mt-1.5 text-sm text-muted">Welcome back. Use your verified work email.</p>
+    <p class="mt-1.5 text-sm text-muted">Welcome back. Use your verified work email</p>
 
     @if($errors->any())<div class="mt-5 lp-alert lp-alert-error" role="alert">{{ $errors->first() }}</div>@endif
     @if(session('status'))<div class="mt-5 lp-alert lp-alert-ok">{{ session('status') }}</div>@endif

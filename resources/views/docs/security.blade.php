@@ -1,6 +1,6 @@
 @extends('layouts.docs')
 @section('title', 'Security · LuvuPay')
-@section('meta_description', 'LuvuPay security model: payout allow-lists, webhook URL locking, least-privilege API scopes, MFA, audit chains, and defense in depth for merchant accounts.')
+@section('meta_description', 'LuvuPay security model: payout allow-lists, webhook URL locking, least-privilege API scopes, MFA, audit chains, and defense in depth for merchant accounts')
 @section('guides')
 {{-- sidebar from layout --}}
 @endsection
@@ -12,11 +12,11 @@
     <div class="grid items-center gap-10 p-8 sm:p-12 lg:grid-cols-2 lg:p-16">
       <div>
         <h1 class="text-4xl font-extrabold leading-[1.05] tracking-tight sm:text-6xl">
-          Five layers between an attacker and your money.
+          Five layers between an attacker and your money
         </h1>
         <p class="mt-6 max-w-md text-lg leading-relaxed text-white/70">
           Even with a stolen login or API key, the damage is capped. New payout emails wait 24 hours, keys only
-          do what they were scoped to, and every action is written to a log that can’t be quietly edited.
+          do what they were scoped to, and every action is written to a log that can’t be quietly edited
         </p>
         <div class="mt-8 flex flex-wrap gap-3">
           <a href="#scenarios" class="rounded-lg bg-white px-5 py-3 text-sm font-semibold text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-ink">See how each attack is stopped</a>
@@ -53,7 +53,7 @@
         <div class="bg-wash p-7 sm:p-9 lg:col-span-2">
           <p class="text-sm font-semibold text-red-600">The attacker</p>
           <h3 class="mt-2 text-2xl font-bold leading-snug text-ink">Adds their own email as a payout destination</h3>
-          <p class="mt-4 text-sm leading-relaxed text-muted">They’re already inside your console, so they can add the address. They just can’t use it yet.</p>
+          <p class="mt-4 text-sm leading-relaxed text-muted">They’re already inside your console, so they can add the address. They just can’t use it yet</p>
         </div>
         <div class="p-7 sm:p-9 lg:col-span-3">
           <p class="text-sm font-semibold text-brand-600">LuvuPay</p>
@@ -66,7 +66,7 @@
             <li class="relative">
               <span class="absolute -left-[31px] top-1.5 h-3 w-3 rounded-full bg-brand-600"></span>
               <p class="font-semibold text-ink">24 hours to notice</p>
-              <p class="text-sm text-muted">Revoke the email and rotate keys any time in this window. Nothing has moved.</p>
+              <p class="text-sm text-muted">Revoke the email and rotate keys any time in this window. Nothing has moved</p>
             </li>
             <li class="relative">
               <span class="absolute -left-[31px] top-1.5 h-3 w-3 rounded-full border-2 border-line bg-white"></span>
@@ -83,22 +83,22 @@
       $scenarios = [
         [
           'attack' => 'Points your webhook at their own server',
-          'defense' => 'A new entitlement URL needs email confirmation and a cooling-off period before it goes live. After a suspected compromise, a lock window blocks rapid repeat changes.',
+          'defense' => 'A new entitlement URL needs email confirmation and a cooling-off period before it goes live. After a suspected compromise, a lock window blocks rapid repeat changes',
           'tags' => ['pending_url', 'pending_url_activates_at', 'url_locked_until'],
         ],
         [
           'attack' => 'Steals an API key',
-          'defense' => 'The key can only do what its scopes allow, and anything else returns 403. Rotate it in Console → Settings and the old key stops working at once. PayPal platform tokens can never make unrestricted withdrawals.',
+          'defense' => 'The key can only do what its scopes allow, and anything else returns 403. Rotate it in Console → Settings and the old key stops working at once. PayPal platform tokens can never make unrestricted withdrawals',
           'tags' => ['subscriptions:write', 'resale:write', 'export:read', '403 insufficient_scope'],
         ],
         [
           'attack' => 'Signs in to the console as your staff',
-          'defense' => 'Argon2id password hashing, an emailed verification code, and optional TOTP MFA you can require for everyone. Roles (owner, admin, finance, developer, viewer) limit who can touch settings, exports, and team.',
+          'defense' => 'Argon2id password hashing, an emailed verification code, and optional TOTP MFA you can require for everyone. Roles (owner, admin, finance, developer, viewer) limit who can touch settings, exports, and team',
           'tags' => ['LUVUPAY_REQUIRE_MFA', 'merchant_web'],
         ],
         [
           'attack' => 'Replays a payment request',
-          'defense' => 'Every write that moves money must carry an Idempotency-Key, so a retry or replay can’t capture or pay out twice.',
+          'defense' => 'Every write that moves money must carry an Idempotency-Key, so a retry or replay can’t capture or pay out twice',
           'tags' => ['Idempotency-Key'],
         ],
       ];
@@ -133,28 +133,28 @@
         </div>
         <div class="p-6 md:col-span-3">
           <p class="text-sm font-semibold text-brand-600">LuvuPay</p>
-          <p class="mt-2 text-sm leading-relaxed text-muted">Audit logs are hash-chained, so each entry depends on the one before it. Editing or deleting one breaks the chain and shows. Exports and deactivation flows let you offboard cleanly, and data is kept only for the policy retention window.</p>
+          <p class="mt-2 text-sm leading-relaxed text-muted">Audit logs are hash-chained, so each entry depends on the one before it. Editing or deleting one breaks the chain and shows. Exports and deactivation flows let you offboard cleanly, and data is kept only for the policy retention window</p>
         </div>
       </div>
     </article>
 
     <p class="mt-6 text-sm text-muted max-w-3xl">
       Always on: security headers, a request ID on every response, trusted-proxy support behind load balancers, HTTPS-only webhook targets in production.
-      Health and Prometheus metrics are token-gated and not public.
+      Health and Prometheus metrics are token-gated and not public
     </p>
   </section>
 
   {{-- INCIDENT RESPONSE --}}
   <section id="incident" class="mt-20 scroll-mt-24 rounded-3xl bg-wash p-8 sm:p-12" aria-labelledby="inc-title">
     <h2 id="inc-title" class="text-3xl font-extrabold tracking-tight text-ink sm:text-4xl">If you think you’ve been compromised</h2>
-    <p class="mt-3 max-w-xl text-muted">Do these in order. The first two cut off the most damage.</p>
+    <p class="mt-3 max-w-xl text-muted">Do these in order. The first two cut off the most damage</p>
 
     @php
       $steps = [
-        ['Rotate your API keys', 'Console → Settings. Old keys stop working immediately.'],
-        ['Revoke unknown payout emails', 'Check both pending and active recipients.'],
-        ['Confirm your webhook URL', 'Lock it if you’re unsure.'],
-        ['Re-verify MFA for all users', 'Turn it on for anyone who hasn’t.'],
+        ['Rotate your API keys', 'Console → Settings. Old keys stop working immediately'],
+        ['Revoke unknown payout emails', 'Check both pending and active recipients'],
+        ['Confirm your webhook URL', 'Lock it if you’re unsure'],
+        ['Re-verify MFA for all users', 'Turn it on for anyone who hasn’t'],
         ['Contact support', 'Include your merchant ID, rough timestamps, and request IDs from the <code class="font-mono text-xs">X-Request-Id</code> header.'],
       ];
     @endphp

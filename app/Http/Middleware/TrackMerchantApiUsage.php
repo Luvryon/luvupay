@@ -32,7 +32,7 @@ final class TrackMerchantApiUsage
             $retryAfter = now()->endOfMonth()->diffInSeconds(now());
 
             return response()->json([
-                'message' => 'API rate limit exceeded for this billing period.',
+                'message' => 'API rate limit exceeded for this billing period',
                 'code' => 'rate_limit_exceeded',
                 'usage' => $this->meter->snapshot($merchantId),
             ], 429, [

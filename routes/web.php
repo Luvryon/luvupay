@@ -13,6 +13,7 @@ Route::get('/brand/logo/{id}', [\App\Http\Controllers\BrandController::class, 'l
 
 // Public storefront + hosted checkout + smart-token redemption
 Route::get('/m/{merchant}', [\App\Http\Controllers\HostedController::class, 'storefront'])->middleware('throttle:120,1,web15')->name('store');
+Route::get('/m/{merchant}/listings', [\App\Http\Controllers\HostedController::class, 'listings'])->middleware('throttle:120,1,web15b')->name('store.listings');
 Route::get('/checkout/{merchant}', [\App\Http\Controllers\HostedController::class, 'checkout'])->middleware('throttle:120,1,web16')->name('hosted.checkout');
 Route::post('/checkout/{merchant}/pay', [\App\Http\Controllers\HostedController::class, 'payCheckout'])->middleware('throttle:10,1,web17')->name('hosted.checkout.pay');
 Route::get('/redeem/{token}', [\App\Http\Controllers\HostedController::class, 'redeem'])->middleware('throttle:120,1,web18')->name('hosted.redeem');

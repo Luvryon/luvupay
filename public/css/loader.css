@@ -1,0 +1,47 @@
+/* Shared loading states: spinner, skeleton rows and the table overlay */
+@keyframes lp-spin { to { transform: rotate(360deg); } }
+@keyframes lp-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+
+.lp-spinner {
+  display: inline-block; width: 18px; height: 18px; flex: none; border-radius: 50%;
+  border: 2px solid #d9dbe6; border-top-color: var(--brand, #5b3df5); animation: lp-spin .7s linear infinite;
+}
+.lp-spinner--lg { width: 28px; height: 28px; border-width: 3px; }
+.lp-spinner--sm { width: 13px; height: 13px; }
+.lp-spinner--light { border-color: rgba(255, 255, 255, .35); border-top-color: #fff; }
+
+.lp-state {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+  min-height: 160px; padding: 32px 24px; text-align: center; font-size: .88rem; color: var(--muted, #5d6272);
+}
+.lp-state strong { display: block; margin-bottom: 2px; font-size: .95rem; font-weight: 600; color: var(--ink, #16171d); }
+.lp-state[hidden] { display: none; }
+
+.lp-skeleton {
+  display: block; height: 14px; border-radius: 7px;
+  background: linear-gradient(90deg, #eceef4 25%, #f6f7fb 37%, #eceef4 63%); background-size: 400% 100%;
+  animation: lp-shimmer 1.4s ease infinite;
+}
+.lp-skeleton--block { height: 88px; border-radius: 12px; }
+.lp-skeleton--chart { height: 220px; border-radius: 12px; }
+.lp-skeleton--value { width: 64%; height: 26px; margin: 8px 0 6px; }
+
+/* Wrapper that dims its content and shows a spinner while a request is in flight */
+.lp-loading { position: relative; min-height: 120px; }
+.lp-loading::after {
+  content: ""; position: absolute; top: min(50%, 140px); left: 50%; width: 26px; height: 26px; margin: -13px 0 0 -13px;
+  border-radius: 50%; border: 3px solid #d9dbe6; border-top-color: var(--brand, #5b3df5); animation: lp-spin .7s linear infinite; z-index: 3;
+}
+.lp-loading::before { content: ""; position: absolute; inset: 0; background: rgba(255, 255, 255, .72); z-index: 2; border-radius: inherit; }
+
+/* Busy button */
+.is-busy { position: relative; pointer-events: none; opacity: .75; }
+.is-busy::after {
+  content: ""; display: inline-block; width: 12px; height: 12px; margin-left: 8px; vertical-align: -1px; border-radius: 50%;
+  border: 2px solid currentColor; border-right-color: transparent; animation: lp-spin .7s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) { .lp-spinner, .lp-skeleton, .lp-loading::after, .is-busy::after { animation-duration: 1.6s; } }
+
+.lp-retry { padding: 7px 14px; border: 1px solid #d3d6e0; border-radius: 10px; background: #fff; font: 600 .82rem/1 inherit; color: #16171d; cursor: pointer; }
+.lp-retry:hover { background: #f7f7fb; }

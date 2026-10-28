@@ -23,7 +23,7 @@
             <p class="lp-hint mt-1.5" x-show="pw.length > 0" x-cloak
                x-bind:style="pw.length > 20 ? 'color:#067647' : (pw.length > 10 ? 'color:#b54708' : 'color:#d92d20')"
                x-text="pw.length > 20 ? 'Strong password' : (pw.length > 10 ? 'Decent — add more characters' : 'Too short — need at least 10 characters')"></p>
-            <p class="lp-hint" x-show="pw.length === 0">Min. 10 characters, upper & lower case and a number.</p>
+            <p class="lp-hint" x-show="pw.length === 0">Min. 10 characters, upper & lower case and a number</p>
         </div>
         <div>
             <label for="pc" class="lp-label">Confirm password</label>

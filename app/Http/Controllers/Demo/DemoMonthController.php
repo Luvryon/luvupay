@@ -25,7 +25,7 @@ final class DemoMonthController
 
         $project = MerchantProject::current();
         if (! $project->isSet()) {
-            return response()->json(['ok' => false, 'message' => 'Create a project first.'], 422);
+            return response()->json(['ok' => false, 'message' => 'Create a project first'], 422);
         }
 
         $result = $sim->run($merchantId, $data['rows'] ?? []);

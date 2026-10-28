@@ -11,7 +11,7 @@
             ],
             sending: false,
             sent: false,
-            subject: 'Kami rindu Anda, Mario! Jangan sampai akses StreamNetFly putus.',
+            subject: 'We miss you, Mario! Do not lose your StreamNetFly access',
             previewName: 'Mario',
             brand: 'StreamNetFly',
             async approveAndSend() {
@@ -30,7 +30,7 @@
 
         <p class="text-sm text-slate-500">
             Hyper-personalized win-back email driven by Nebius LTV signals.
-            <span class="text-slate-400">Demo studio — no live send until Approve &amp; Send.</span>
+            <span class="text-slate-400">Demo studio — no live send until Approve &amp; Send</span>
         </p>
 
         <div class="grid grid-cols-2 gap-6 max-md:grid-cols-1">
@@ -46,7 +46,7 @@
                         <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1">Subject</p>
                         <div class="flex flex-wrap items-start gap-2">
                             <p class="text-sm font-bold text-slate-900 mb-0 flex-1 min-w-0" x-text="subject">
-                                Kami rindu Anda, Mario! Jangan sampai akses StreamNetFly putus.
+                                We miss you, Mario! Do not lose your StreamNetFly access
                             </p>
                             <span class="bg-amber-100 text-amber-700 text-[10px] px-1.5 py-0.5 rounded font-medium shrink-0">
                                 Optimized for Mario (Open Rate +40%)
@@ -60,21 +60,21 @@
                             <span class="text-4xl" x-text="images[selectedImage].emoji"></span>
                         </div>
                         <p class="text-sm text-slate-700 leading-relaxed">
-                            Hai <strong x-text="previewName">Mario</strong>,
+                            Hi <strong x-text="previewName">Mario</strong>,
                         </p>
                         <p class="text-sm text-slate-600 leading-relaxed mt-2">
-                            Kami melihat kamu sudah lama bersama <strong x-text="brand">StreamNetFly</strong>.
-                            Pembayaran terakhir gagal, tapi aksesmu masih bisa diselamatkan.
-                            Sebagai pelanggan loyal, kamu mendapat diskon
+                            You have been with <strong x-text="brand">StreamNetFly</strong>
+                            for a long time. Your last payment failed, but your access can still be saved.
+                            As a loyal customer you get a
                             <strong class="text-indigo-600" x-text="discount + '%'">20%</strong>
-                            jika perpanjang sekarang.
+                            discount if you renew now
                         </p>
                         <div class="mt-4">
                             <span class="inline-block rounded-lg bg-indigo-600 text-white text-xs font-semibold px-4 py-2.5">
-                                Perpanjang dengan diskon <span x-text="discount + '%'"></span>
+                                Renew with <span x-text="discount + '%'"></span> off
                             </span>
                         </div>
-                        <p class="mt-4 text-[11px] text-slate-400">— Tim <span x-text="brand"></span> · powered by LuvuPay AI</p>
+                        <p class="mt-4 text-[11px] text-slate-400">— The <span x-text="brand"></span> · powered by LuvuPay AI</p>
                     </div>
                 </div>
             </section>
@@ -90,7 +90,7 @@
                         Tone: Empathetic (Loyal User)
                     </span>
                     <p class="mt-2 text-xs text-slate-600 leading-relaxed">
-                        AI detected high LTV. Adjusted language to be supportive rather than transactional.
+                        AI detected high LTV. Adjusted language to be supportive rather than transactional
                     </p>
                 </div>
 
@@ -143,10 +143,10 @@
                         <span x-show="sent && !sending" x-cloak>✓ Queued for delivery</span>
                     </button>
                     <p class="mt-2 text-[11px] text-slate-400 text-center" x-show="!sent">
-                        Reviews subject, tone, and offer before enqueueing the retention email.
+                        Reviews subject, tone, and offer before enqueueing the retention email
                     </p>
                     <p class="mt-2 text-[11px] text-emerald-600 text-center font-medium" x-show="sent" x-cloak>
-                        Campaign approved — Nebius will personalize delivery windows.
+                        Campaign approved — Nebius will personalize delivery windows
                     </p>
                 </div>
             </section>

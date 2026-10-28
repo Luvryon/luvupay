@@ -11,11 +11,11 @@
 <div class="stack">
     <div>
         <h1 class="page-title">Settings</h1>
-        <p class="page-sub">API credentials, webhooks, branding, and payout recipients.</p>
+        <p class="page-sub">API credentials, webhooks, branding, and payout recipients</p>
     </div>
 
     @if(!$merchant)
-        <div class="c-alert">No merchant is linked to this account.</div>
+        <div class="c-alert">No merchant is linked to this account</div>
     @else
     <div class="settings">
         <nav class="snav" aria-label="Settings sections">
@@ -35,7 +35,7 @@
                 <div class="c-head">
                     <div>
                         <h2 class="c-title">PayPal connection</h2>
-                        <p class="c-sub">Link Sandbox with a Merchant ID — no password on this screen.</p>
+                        <p class="c-sub">Link Sandbox with a Merchant ID — no password on this screen</p>
                     </div>
                 </div>
                 <div class="c-pad stack-sm">
@@ -46,7 +46,7 @@
                             @if($ppAt)<span class="dim"> · {{ \Illuminate\Support\Carbon::parse($ppAt)->toDayDateTimeString() }}</span>@endif
                         </p>
                     @else
-                        <p class="dim" style="margin:0">Not connected. Paste your PayPal Sandbox Merchant ID from developer.paypal.com.</p>
+                        <p class="dim" style="margin:0">Not connected. Paste your PayPal Sandbox Merchant ID from developer.paypal.com</p>
                     @endif
                     <form method="post" action="{{ url('/oauth/paypal/sandbox-connect') }}" class="stack-sm" style="margin-top:12px">
                         @csrf
@@ -64,7 +64,7 @@
             </section>
 
             <section class="c-card" id="branding">
-                <div class="c-head"><div><h2 class="c-title">Company logo</h2><p class="c-sub">Shown on invoices and emails.</p></div></div>
+                <div class="c-head"><div><h2 class="c-title">Company logo</h2><p class="c-sub">Shown on invoices and emails</p></div></div>
                 <div class="c-pad">
                     <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">
                         <div data-logo-box style="width:72px;height:72px;border-radius:12px;border:1px solid var(--line);background:#f8fafc;display:grid;place-items:center;overflow:hidden">
@@ -93,14 +93,14 @@
             </section>
 
             <section class="c-card" id="api">
-                <div class="c-head"><div><h2 class="c-title">API credentials</h2><p class="c-sub">Secret key stays on your server only.</p></div></div>
+                <div class="c-head"><div><h2 class="c-title">API credentials</h2><p class="c-sub">Secret key stays on your server only</p></div></div>
                 <div class="c-pad stack-sm">
                     <dl class="kv kv-2" style="margin:0">
                         <div><dt>Merchant ID</dt><dd style="word-break:break-all">{{ $merchant->id }}</dd></div>
                         <div><dt>Secret key prefix</dt><dd>{{ $merchant->api_key_prefix ?? '—' }}…</dd></div>
                         <div class="span"><dt>Publishable key</dt><dd style="word-break:break-all">{{ $merchant->publishable_key ?? '—' }}</dd></div>
                     </dl>
-                    <form method="post" action="{{ route('settings.rotate') }}" data-confirm="Rotate the secret key? The old key stops working immediately.">
+                    <form method="post" action="{{ route('settings.rotate') }}" data-confirm="Rotate the secret key? The old key stops working immediately">
                         @csrf
                         <button type="submit" class="c-btn">Rotate secret key</button>
                     </form>
@@ -108,7 +108,7 @@
             </section>
 
             <section class="c-card" id="payouts">
-                <div class="c-head"><div><h2 class="c-title">Payouts</h2><p class="c-sub">Where withdrawals are sent. Your wallet is debited; PayPal's fee is paid from your wallet, never from the platform balance.</p></div></div>
+                <div class="c-head"><div><h2 class="c-title">Payouts</h2><p class="c-sub">Where withdrawals are sent. Your wallet is debited; PayPal's fee is paid from your wallet, never from the platform balance</p></div></div>
                 @php $fee = \App\Support\PayoutFee::config(); @endphp
                 <form method="post" action="{{ route('settings.payout.email') }}" class="c-pad stack-sm">
                     @csrf
@@ -124,7 +124,7 @@
             </section>
 
             <section class="c-card" id="invoice-details">
-                <div class="c-head"><div><h2 class="c-title">Invoice details</h2><p class="c-sub">Printed on every invoice, invoice PDF and receipt email, next to your logo.</p></div></div>
+                <div class="c-head"><div><h2 class="c-title">Invoice details</h2><p class="c-sub">Printed on every invoice, invoice PDF and receipt email, next to your logo</p></div></div>
                 <form method="post" action="{{ route('settings.invoice') }}" class="c-pad stack-sm">
                     @csrf
                     <div class="field" style="margin:0"><label class="label" for="inv-name">Business name</label><input id="inv-name" name="name" class="input" type="text" maxlength="120" required value="{{ old('name', $merchant->name ?? '') }}"></div>
@@ -151,11 +151,11 @@
                 <div class="c-head">
                     <div>
                         <h2 class="c-title">Project</h2>
-                        <p class="c-sub">One source of truth: the simulator, Wallet, Analytics and checkout all follow these settings.</p>
+                        <p class="c-sub">One source of truth: the simulator, Wallet, Analytics and checkout all follow these settings</p>
                     </div>
                 </div>
                 <div class="c-pad stack-sm">
-                    <p x-show="!isSet" x-cloak class="dim" style="margin:0;font-size:.88rem">No project yet. Name it below and save to create one.</p>
+                    <p x-show="!isSet" x-cloak class="dim" style="margin:0;font-size:.88rem">No project yet. Name it below and save to create one</p>
                     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px">
                         <div class="field" style="margin:0"><label class="label" for="pf-name">Project name</label><input id="pf-name" class="input" type="text" maxlength="80" x-model="name"></div>
                         <div class="field" style="margin:0"><label class="label" for="pf-plan">Plan</label><input id="pf-plan" class="input" type="text" maxlength="40" x-model="plan"></div>
@@ -169,15 +169,15 @@
 
                     <label style="display:flex;gap:12px;align-items:flex-start;padding:14px;border:1px solid var(--line);border-radius:12px;cursor:pointer">
                         <input type="checkbox" x-model="gracePeriod" style="margin-top:3px;accent-color:var(--brand)">
-                        <span><strong style="font-size:.9rem">Grace Period</strong><span class="dim" style="display:block;font-size:.82rem;margin-top:2px">Hold a missed-cancellation charge for 48 hours and offer the retention paths below. Off = charges settle immediately.</span></span>
+                        <span><strong style="font-size:.9rem">Grace Period</strong><span class="dim" style="display:block;font-size:.82rem;margin-top:2px">Hold a missed-cancellation charge for 48 hours and offer the retention paths below. Off = charges settle immediately</span></span>
                     </label>
                     <label style="display:flex;gap:12px;align-items:flex-start;padding:14px;border:1px solid var(--line);border-radius:12px;cursor:pointer">
                         <input type="checkbox" x-model="marketplaceResale" style="margin-top:3px;accent-color:var(--brand)">
-                        <span><strong style="font-size:.9rem">Marketplace Resale</strong><span class="dim" style="display:block;font-size:.82rem;margin-top:2px">Users can sell remaining days after grace. You keep the platform fee.</span></span>
+                        <span><strong style="font-size:.9rem">Marketplace Resale</strong><span class="dim" style="display:block;font-size:.82rem;margin-top:2px">Users can sell remaining days after grace. You keep the platform fee</span></span>
                     </label>
                     <label style="display:flex;gap:12px;align-items:flex-start;padding:14px;border:1px solid var(--line);border-radius:12px;cursor:pointer">
                         <input type="checkbox" x-model="charitySplit" style="margin-top:3px;accent-color:var(--brand)">
-                        <span><strong style="font-size:.9rem">Charity Split</strong><span class="dim" style="display:block;font-size:.82rem;margin-top:2px">Users can donate residual subscription value.</span></span>
+                        <span><strong style="font-size:.9rem">Charity Split</strong><span class="dim" style="display:block;font-size:.82rem;margin-top:2px">Users can donate residual subscription value</span></span>
                     </label>
                     <div class="field">
                         <label class="label" for="refund-pct">Partial refund offer (%)</label>
@@ -187,14 +187,14 @@
                         <button type="button" class="c-btn c-btn-brand" x-on:click="save()" x-bind:disabled="saving || !name.trim()">
                             <span x-text="saving ? 'Saving…' : (isSet ? 'Save project' : 'Create project')"></span>
                         </button>
-                        <span x-show="saved" x-cloak class="dim" style="color:#0f8f5f">Saved. Overview and Analytics now use these settings.</span>
+                        <span x-show="saved" x-cloak class="dim" style="color:#0f8f5f">Saved. Overview and Analytics now use these settings</span>
                         <span x-show="error" x-cloak style="color:#b4232f;font-size:.85rem" x-text="error"></span>
                     </div>
                 </div>
             </section>
 
             <section class="c-card" id="webhooks">
-                <div class="c-head"><div><h2 class="c-title">Webhooks</h2><p class="c-sub">HTTPS endpoints for event delivery.</p></div></div>
+                <div class="c-head"><div><h2 class="c-title">Webhooks</h2><p class="c-sub">HTTPS endpoints for event delivery</p></div></div>
                 <div class="c-pad stack-sm">
                     @if($endpoints->isNotEmpty())
                         <ul style="margin:0;padding:0;list-style:none">
@@ -206,7 +206,7 @@
                             @endforeach
                         </ul>
                     @else
-                        <p class="dim" style="margin:0">No webhook endpoints yet.</p>
+                        <p class="dim" style="margin:0">No webhook endpoints yet</p>
                     @endif
                     <form method="post" action="{{ route('settings.webhook') }}" class="form-row fr-2">
                         @csrf
@@ -217,7 +217,7 @@
             </section>
 
             <section class="c-card" id="payouts">
-                <div class="c-head"><div><h2 class="c-title">Payout allow-list</h2><p class="c-sub">PayPal emails that may receive withdrawals.</p></div></div>
+                <div class="c-head"><div><h2 class="c-title">Payout allow-list</h2><p class="c-sub">PayPal emails that may receive withdrawals</p></div></div>
                 <form method="post" action="{{ route('settings.payout.recipients') }}" class="c-pad form-row fr-3" style="border-bottom:1px solid var(--line)">
                     @csrf
                     <div class="field"><label class="label" for="po-email">PayPal email</label><input id="po-email" class="input" type="email" name="email" required placeholder="paypal@recipient.com"></div>
@@ -233,7 +233,7 @@
                 </form>
                 <div class="c-pad">
                     @if($recipients->isEmpty())
-                        <p class="dim" style="margin:0">No recipients yet.</p>
+                        <p class="dim" style="margin:0">No recipients yet</p>
                     @else
                         <ul style="margin:0;padding:0;list-style:none">
                             @foreach($recipients as $r)
@@ -247,9 +247,9 @@
             </section>
 
             <section class="c-card" id="danger">
-                <div class="c-head"><div><h2 class="c-title">Deactivate</h2><p class="c-sub">Stops API access for this merchant.</p></div></div>
+                <div class="c-head"><div><h2 class="c-title">Deactivate</h2><p class="c-sub">Stops API access for this merchant</p></div></div>
                 <div class="c-pad">
-                    <form method="post" action="{{ route('settings.deactivate') }}" data-confirm="Deactivate this merchant? This cannot be undone from the console.">
+                    <form method="post" action="{{ route('settings.deactivate') }}" data-confirm="Deactivate this merchant? This cannot be undone from the console">
                         @csrf
                         <button type="submit" class="c-btn c-btn-bad">Deactivate merchant</button>
                     </form>

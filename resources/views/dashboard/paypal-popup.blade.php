@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex">
+    @include('partials.favicon')
     <title>LuvuPay · PayPal checkout</title>
     <style>
         :root { color-scheme: light; }
@@ -34,12 +35,12 @@
 @endphp
 <main class="card" id="lp-popup-result"
       data-state="{{ $state }}" data-tx="{{ $tx }}" data-message="{{ $message }}" data-error="{{ $error }}">
-    <img class="logo" src="/images/logo-luvupay.png" alt="LuvuPay">
+    <img class="logo" src="/images/logo-mark.png" alt="LuvuPay" width="28" height="28">
     <div class="icon {{ $cls }}" aria-hidden="true">{{ $glyph }}</div>
     <h1>{{ $title }}</h1>
     <p>{{ $message }}</p>
     @if($error)<p class="hint">{{ $error }}</p>@endif
-    <p class="hint" id="lp-popup-hint">This window closes automatically.</p>
+    <p class="hint" id="lp-popup-hint">This window closes automatically</p>
     <button type="button" id="lp-popup-close" hidden>Close window</button>
 </main>
 <script src="/js/paypal-popup-return.js?v={{ @filemtime(public_path('js/paypal-popup-return.js')) }}"></script>

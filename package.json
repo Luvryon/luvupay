@@ -10,13 +10,13 @@
         "watch:ui": "tailwindcss -i resources/css/ui.css -o public/css/ui.css --watch"
     },
     "devDependencies": {
-        "@tailwindcss/cli": "^4.0.0",
+        "@tailwindcss/cli": "^4.3.3",
         "@tailwindcss/vite": "^4.0.0",
         "alpinejs": "^3.14.1",
         "axios": "^1.8.2",
         "concurrently": "^9.0.1",
         "laravel-vite-plugin": "^1.2.0",
-        "tailwindcss": "^4.0.0",
+        "tailwindcss": "^4.3.3",
         "vite": "^6.2.4"
     }
 }

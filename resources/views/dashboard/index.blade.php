@@ -17,7 +17,7 @@
 
     @if(! $paypalConnected)
         <div class="c-alert">
-            <p><span class="font-semibold">PayPal not connected.</span> Connect sandbox credentials to run real payouts and checkout simulations.</p>
+            <p><span class="font-semibold">PayPal not connected</span> Connect sandbox credentials to run real payouts and checkout simulations</p>
             <a href="{{ route('settings') }}" class="shrink-0 text-sm font-semibold text-stone-900 underline underline-offset-2">Open settings</a>
         </div>
     @endif
@@ -29,7 +29,7 @@
         <div><h1 class="page-title">Overview</h1><p class="page-sub">Ledger and money movement for {{ $project->name ?? 'your project' }}</p></div>
         <div style="display:flex;align-items:center;gap:24px">
             <div class="usage" title="Monthly API quota"><div class="t"><span>API usage</span><span x-text="(usage.used || 0) + ' / ' + (usage.limit || 1000)"></span></div><div class="bar"><i x-bind:style="'width:' + usagePct + '%'"></i></div></div>
-            <button type="button" class="c-btn" x-on:click="load()"><span x-text="loading ? 'Refreshing…' : 'Refresh'"></span></button>
+            <button type="button" class="c-btn" x-bind:class="loading ? 'is-busy' : ''" x-on:click="load()">Refresh</button>
         </div>
     </div>
 
@@ -43,20 +43,20 @@
                 <div>
                     <p class="dim">Merchant wallet</p>
                     <p class="amt" x-text="walletBalance">$0.00</p>
-                    <p class="dim" style="max-width:460px">Funded by resale fees and retention splits. Withdrawals go out as PayPal Payouts to recipients on your allow-list (Settings).</p>
+                    <p class="dim" style="max-width:460px">Funded by resale fees and retention splits. Withdrawals go out as PayPal Payouts to recipients on your allow-list (Settings)</p>
                 </div>
                 <div class="act">
                     <button type="button" class="c-btn c-btn-light" x-show="paypalConnected" x-on:click="withdrawToPayPal()" x-bind:disabled="walletWithdrawing || walletBalanceMinor <= 0"><span x-text="walletWithdrawing ? 'Sending…' : 'Withdraw to PayPal'"></span></button>
                     <p class="dim" x-show="walletBalanceMinor > 0" x-cloak style="margin:8px 0 0;font-size:.8rem">PayPal fee <strong x-text="'−' + money(walletQuote.fee, walletCurrency)"></strong> from your wallet · you receive <strong x-text="money(walletQuote.net, walletCurrency)"></strong></p>
                     <a href="{{ route('settings') }}" class="c-btn c-btn-light" x-show="!paypalConnected" x-cloak>Connect PayPal to withdraw</a>
-                    <span class="dim" style="color:#7ee2b8" x-show="walletBalanceMinor <= 0 && paypalConnected" x-cloak>Balance is clear. It refills on the next charge, resale, or retention.</span>
-                    <span class="dim" x-show="!paypalConnected" x-cloak>Link PayPal in Settings to enable withdrawals.</span>
+                    <span class="dim" style="color:#7ee2b8" x-show="walletBalanceMinor <= 0 && paypalConnected" x-cloak>Balance is clear. It refills on the next charge, resale, or retention</span>
+                    <span class="dim" x-show="!paypalConnected" x-cloak>Link PayPal in Settings to enable withdrawals</span>
                 </div>
             </div>
             <div class="c-card" aria-label="Insights">
                 <div class="c-head"><div><h2 class="c-title">Insights</h2><p class="c-sub">From your ledger rows</p></div></div>
                 <template x-for="(insight, idx) in aiInsights" :key="idx"><div class="c-item"><span x-text="insight.icon"></span><p style="margin:0" x-text="insight.text"></p></div></template>
-                <p x-show="!aiInsights.length" class="c-empty">No insights yet. They appear once traffic comes in.</p>
+                <p x-show="!aiInsights.length" class="c-empty">No insights yet. They appear once traffic comes in</p>
             </div>
         </section>
 
@@ -96,7 +96,7 @@
                     <div class="row" style="margin-bottom:12px"><div><h2 class="c-title">Event log</h2><p class="c-sub">Webhook and platform events</p></div><button type="button" class="c-btn c-btn-sm" x-on:click="openWebhookLogs()">Open debugger</button></div>
                     <div style="max-height:200px;overflow:auto">
                         <template x-for="w in webhookLogs" :key="w.id"><div class="c-log"><span style="color:var(--faint)" x-text="(w.timestamp || '').replace('T', ' ').slice(11, 19)"></span><span style="color:var(--brand)" x-text="w.provider"></span><span x-text="w.event_type"></span><span style="margin-left:auto;color:var(--faint)" x-text="w.http_hint"></span></div></template>
-                        <p x-show="!webhookLogs.length" class="c-empty" style="padding:28px 0">No events yet. Run a sandbox simulation.</p>
+                        <p x-show="!webhookLogs.length" class="c-empty" style="padding:28px 0">No events yet. Run a sandbox simulation</p>
                     </div>
                 </div>
             </div>
@@ -117,7 +117,8 @@
                     <td x-text="d.event_type || d.event"></td><td class="mono" x-text="d.response_code || '—'"></td><td x-text="d.attempts ?? '—'"></td><td x-text="d.status"></td>
                     <td style="text-align:right"><button type="button" class="c-btn c-btn-sm" x-show="d.status === 'failed'" x-on:click="retryDelivery(d.id)">Retry</button></td>
                 </tr></template>
-                <tr x-show="!deliveries.length"><td colspan="6" class="c-empty">No deliveries yet</td></tr>
+                <tr x-show="!deliveriesLoaded"><td colspan="6" style="padding:0"><x-ui.loading show="true" title="Loading deliveries" compact /></td></tr>
+                <tr x-show="deliveriesLoaded && !deliveries.length"><td colspan="6" class="c-empty">No deliveries yet</td></tr>
                 </tbody>
             </table></div>
         </div>
@@ -126,7 +127,7 @@
     {{-- Sandbox Controls — professional SaaS workflow triggers --}}
     <section class="bg-amber-50 border border-amber-200 rounded-xl p-6" x-show="demoEnabled" x-cloak>
         <p class="text-amber-800 text-sm font-medium mb-4">
-            ⚠️ Sandbox controls. These run real backend logic against PayPal Sandbox and are disabled in production.
+            ⚠️ Sandbox controls. These run real backend logic against PayPal Sandbox and are disabled in production
         </p>
 
         <div class="mb-4">
@@ -134,7 +135,7 @@
                 {{ $project->product() }} · {{ $project->price() }}/{{ $project->interval === 'month' ? 'mo' : $project->interval }}
             </h2>
             <p class="text-sm text-slate-600 max-w-xl">
-                Each action writes real database rows, revenue split math, an AI retention nudge, webhook events, and charity receipts.
+                Each action writes real database rows, revenue split math, an AI retention nudge, webhook events, and charity receipts
             </p>
             <p class="mt-1 text-xs font-mono text-slate-500" x-show="selectedId" x-cloak>
                 Selected <span class="font-semibold" x-text="String(selectedId).slice(0, 8) + '…'"></span>
@@ -218,7 +219,7 @@
     {{-- Webhook debugger --}}
     <x-ui.modal show="webhookOpen" title="Webhook debugger" size="xl">
         <div class="p-5">
-            <p class="mb-3 text-xs text-muted">Last provider and platform events · proves the durable inbox and processing state.</p>
+            <p class="mb-3 text-xs text-muted">Last provider and platform events · proves the durable inbox and processing state</p>
             <x-ui.table>
                 <x-slot:head><tr><th class="px-4 py-3">Time</th><th class="px-4 py-3">Event</th><th class="px-4 py-3">Status</th><th class="px-4 py-3">Payload</th></tr></x-slot:head>
                 <template x-for="w in webhookLogs" x-bind:key="w.id">
@@ -229,7 +230,7 @@
                         <td class="max-w-xs truncate px-4 py-2.5 font-mono text-xs text-muted" x-text="w.payload_preview"></td>
                     </tr>
                 </template>
-                <tr x-show="!webhookLogs.length"><td colspan="4" class="px-4 py-10 text-center text-muted">No events yet — run a sandbox test.</td></tr>
+                <tr x-show="!webhookLogs.length"><td colspan="4" class="px-4 py-10 text-center text-muted">No events yet — run a sandbox test</td></tr>
             </x-ui.table>
         </div>
     </x-ui.modal>
@@ -237,7 +238,6 @@
     @endif {{-- demo_simulator --}}
 
     
-    <x-ui.toasts />
 
 
 </div>

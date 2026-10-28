@@ -11,6 +11,7 @@ final class SubscriptionHealthReport
         public readonly array $insights,
         public readonly string $naturalLanguageReport,
         public readonly bool $fromCache = false,
+        public readonly string $source = 'nebius',
     ) {}
 
     public static function fromArray(array $data, bool $fromCache = false): self
@@ -37,6 +38,7 @@ final class SubscriptionHealthReport
             $normalized,
             (string) ($data['natural_language_report'] ?? ''),
             $fromCache,
+            $fromCache ? 'cache' : 'nebius',
         );
     }
 
@@ -48,6 +50,7 @@ final class SubscriptionHealthReport
             'insights' => $this->insights,
             'natural_language_report' => $this->naturalLanguageReport,
             'from_cache' => $this->fromCache,
+            'source' => $this->source,
         ];
     }
 
@@ -56,8 +59,10 @@ final class SubscriptionHealthReport
         return new self(
             $spend,
             55,
-            [['type' => 'suggestion', 'message' => 'Review unused subscriptions for resale.', 'action_url' => '/docs/resale-money']],
+            [['type' => 'suggestion', 'message' => 'Review unused subscriptions for resale', 'action_url' => '/docs/resale-money']],
             'We could not reach the AI coach right now. As a baseline, review plans you have not used in 14+ days and consider listing remaining days on the LuvuPay resale marketplace.',
+            false,
+            'fallback',
         );
     }
 }

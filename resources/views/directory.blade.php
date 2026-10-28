@@ -5,7 +5,7 @@
     <p class="text-sm font-semibold uppercase tracking-wide text-brand-600">Directory</p>
     <h1 class="mt-2 text-3xl font-semibold tracking-tight text-ink">Ethical Merchant Directory</h1>
     <p class="mt-3 max-w-2xl text-muted leading-relaxed">
-        Merchants who ship with LuvuPay can opt into a public trust badge — a signal that Second Chance and fair resale practices are on.
+        Merchants who ship with LuvuPay can opt into a public trust badge — a signal that Second Chance and fair resale practices are on
     </p>
 
     <div class="mt-10 grid gap-4 sm:grid-cols-2">
@@ -27,7 +27,7 @@
         @empty
             <div class="col-span-full rounded-2xl border border-dashed border-line bg-wash px-6 py-16 text-center">
                 <p class="font-semibold text-ink">No directory members yet</p>
-                <p class="mt-1 text-sm text-muted">Merchants opt in from Settings (<code class="text-xs">show_in_ethical_directory</code>).</p>
+                <p class="mt-1 text-sm text-muted">Merchants opt in from Settings (<code class="text-xs">show_in_ethical_directory</code>)</p>
             </div>
         @endforelse
     </div>

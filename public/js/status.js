@@ -3,7 +3,7 @@
   'use strict';
   global.statusPage = function statusPage() {
     return {
-      overall: 'checking', title: 'Checking systems…', subtitle: 'Loading…', services: [], timer: null,
+      overall: 'checking', title: 'Checking systems', subtitle: 'Please wait a moment', services: [], timer: null,
       init: function () { this.load(); },
       load: async function () {
         var ok = false, code = 0, error = null;

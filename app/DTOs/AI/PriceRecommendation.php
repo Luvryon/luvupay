@@ -12,6 +12,7 @@ final class PriceRecommendation
         public readonly float $confidence,
         public readonly string $reasoning,
         public readonly bool $fromCache = false,
+        public readonly string $source = 'nebius',
     ) {}
 
     public static function fromArray(array $data, bool $fromCache = false): self
@@ -24,6 +25,7 @@ final class PriceRecommendation
             max(0.0, min(1.0, (float) ($data['confidence'] ?? 0.5))),
             (string) ($data['reasoning'] ?? ''),
             $fromCache,
+            $fromCache ? 'cache' : 'nebius',
         );
     }
 
@@ -37,6 +39,7 @@ final class PriceRecommendation
             'confidence' => $this->confidence,
             'reasoning' => $this->reasoning,
             'from_cache' => $this->fromCache,
+            'source' => $this->source,
         ];
     }
 
@@ -45,6 +48,6 @@ final class PriceRecommendation
         $ratio = max(0.15, min(0.85, $daysRemaining / 30));
         $mid = round($original * $ratio, 2);
 
-        return new self($mid, round($mid * 0.85, 2), round($mid * 1.1, 2), 48, 0.4, 'Heuristic: pro-rate remaining days; AI unavailable.');
+        return new self($mid, round($mid * 0.85, 2), round($mid * 1.1, 2), 48, 0.4, 'Heuristic: pro-rate remaining days; AI unavailable', false, 'fallback');
     }
 }

@@ -119,3 +119,40 @@
     }
     .prose-site .not-prose p + p { margin-top: 0.75rem; }
 }
+
+/* ------------------------------------------------------------------ landing page */
+@layer components {
+    .lp-hero { position: relative; overflow: hidden; background: radial-gradient(900px 480px at 85% 0%, rgb(116 86 250 / .14), transparent 70%), #fff; }
+    .lp-pill { display: inline-flex; align-items: center; gap: .5rem; border: 1px solid var(--color-brand-100); background: var(--color-brand-50); color: var(--color-brand-700); border-radius: 9999px; padding: .3rem .8rem; font-size: .78rem; font-weight: 600; }
+    .lp-eyebrow { margin-bottom: .75rem; font-size: .72rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--color-brand-600); }
+    .lp-h2 { font-size: clamp(1.7rem, 3.2vw, 2.4rem); font-weight: 700; letter-spacing: -.03em; line-height: 1.12; color: var(--color-ink); }
+    .lp-icon { display: grid; place-items: center; width: 2.75rem; height: 2.75rem; border-radius: .8rem; background: var(--color-brand-50); color: var(--color-brand-600); }
+    .lp-icon svg { width: 1.3rem; height: 1.3rem; }
+
+    /* tilted dashboard preview */
+    .lp-stage { perspective: 1600px; }
+    .lp-window { display: grid; grid-template-columns: 138px minmax(0, 1fr); overflow: hidden; border: 1px solid var(--color-line); border-radius: 1.1rem; background: #fff;
+        box-shadow: 0 50px 90px -40px rgb(46 26 140 / .45), 0 0 0 1px rgb(255 255 255 / .6) inset; transform: rotateY(-9deg) rotateX(4deg); transform-origin: right center; }
+    .lp-window-side { padding: 1rem .8rem; border-right: 1px solid var(--color-line); background: var(--color-wash); font-size: .72rem; }
+    .lp-window-side ul { margin-top: 1.1rem; display: grid; gap: .15rem; }
+    .lp-window-side li { padding: .4rem .55rem; border-radius: .5rem; color: var(--color-muted); }
+    .lp-window-side li.is-active { background: var(--color-brand-50); color: var(--color-brand-700); font-weight: 600; }
+    .lp-window-main { padding: 1rem 1.1rem 1.2rem; }
+    .lp-tabs { display: inline-flex; gap: 2px; border: 1px solid var(--color-line); border-radius: .5rem; padding: 2px; font-size: .62rem; font-style: normal; }
+    .lp-tabs i { padding: .15rem .45rem; border-radius: .35rem; font-style: normal; color: var(--color-muted); }
+    .lp-tabs i.is-on { background: var(--color-brand-50); color: var(--color-brand-700); font-weight: 600; }
+    @media (max-width: 1023px) { .lp-window { transform: none; } }
+    @media (max-width: 560px) { .lp-window { grid-template-columns: minmax(0, 1fr); } .lp-window-side { display: none; } }
+
+    .lp-terminal { overflow: hidden; border-radius: 1.1rem; background: #121320; color: #e6e7f2; box-shadow: 0 30px 70px -40px rgb(20 21 40 / .7); }
+    .lp-terminal-bar { display: flex; align-items: center; justify-content: space-between; padding: .8rem 1.1rem; border-bottom: 1px solid rgb(255 255 255 / .08); font-size: .78rem; color: #aeb1c8; }
+    .lp-terminal-bar button { border: 1px solid rgb(255 255 255 / .14); border-radius: .5rem; background: rgb(255 255 255 / .05); padding: .2rem .7rem; font-size: .72rem; color: #e6e7f2; cursor: pointer; }
+    .lp-terminal-bar button:hover { background: rgb(255 255 255 / .1); }
+    .lp-terminal pre { margin: 0; padding: 1.2rem 1.3rem; overflow-x: auto; font-family: var(--font-mono); font-size: .78rem; line-height: 1.75; }
+    .lp-terminal .c { color: #7d8099; } .lp-terminal .k { color: #b7a6ff; } .lp-terminal .s { color: #8be9b0; } .lp-terminal .n { color: #ffd479; }
+    .lp-terminal-foot { display: flex; align-items: center; gap: .55rem; margin: 0 1.1rem 1.1rem; padding: .7rem .9rem; border-radius: .7rem; background: rgb(255 255 255 / .05); font-size: .75rem; color: #c9cbe0; }
+
+    .lp-dark { background: #11121d; }
+    .lp-cta-panel { display: grid; place-items: center; min-height: 280px; border-radius: 1.5rem; text-align: center; padding: 2rem;
+        background: radial-gradient(420px 220px at 70% 0%, rgb(116 86 250 / .6), transparent 70%), linear-gradient(160deg, #1a1b2b, #0d0e17); }
+}

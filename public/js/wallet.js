@@ -9,7 +9,9 @@
   }
   window.walletPage = function () {
     return {
-      loading: false,
+      loading: true,
+      loaded: false,
+      failed: false,
       withdrawing: false,
       balanceMinor: 0,
       payoutFee: { bps: 200, fixed_minor: 0, cap_minor: 0 },
@@ -40,6 +42,10 @@
         fee = Math.max(0, Math.min(fee, g));
         return { fee: fee, net: g - fee };
       },
+      get countLabel() {
+        var n = this.filteredRows.length;
+        return n === 0 ? 'No transactions' : n + (n === 1 ? ' transaction' : ' transactions');
+      },
       get balanceLabel() { return money(this.balanceMinor, this.currency); },
       get filteredRows() {
         var q = (this.q || '').toLowerCase().trim();
@@ -61,6 +67,7 @@
       },
       async load() {
         this.loading = true;
+        this.failed = false;
         try {
           var [sumRes, txRes] = await Promise.all([
             fetch('/api/v1/dashboard/summary', { credentials: 'same-origin', headers: { Accept: 'application/json' } }),
@@ -91,9 +98,11 @@
           this.page = 1;
         } catch (e) {
           this.rows = [];
+          this.failed = true;
           if (window.LuvuToast) window.LuvuToast.error('Wallet load failed', String(e.message || e));
         } finally {
           this.loading = false;
+          this.loaded = true;
         }
       },
       exportCsv() {
@@ -115,7 +124,7 @@
         var ob = document.getElementById('luvu-onboarding');
         if (ob && ob.getAttribute('data-payment-driver') === 'paypal' && ob.getAttribute('data-has-paypal') !== '1') {
           if (window.LuvuToast) {
-            window.LuvuToast.info('Connect PayPal first', 'Link Sandbox merchant in Settings before withdrawing.', {
+            window.LuvuToast.info('Connect PayPal first', 'Link Sandbox merchant in Settings before withdrawing', {
               action: { label: 'Open Settings', href: '/settings#paypal' },
             });
           }

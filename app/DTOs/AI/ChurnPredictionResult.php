@@ -12,6 +12,7 @@ final class ChurnPredictionResult
         public readonly array $recommendedActions,
         public readonly float $confidence,
         public readonly bool $fromCache = false,
+        public readonly string $source = 'nebius',
     ) {}
 
     public static function fromArray(array $data, bool $fromCache = false): self
@@ -34,6 +35,7 @@ final class ChurnPredictionResult
             array_values(array_map('strval', $actions)),
             max(0.0, min(1.0, (float) ($data['confidence'] ?? 0.5))),
             $fromCache,
+            $fromCache ? 'cache' : 'nebius',
         );
     }
 
@@ -46,11 +48,12 @@ final class ChurnPredictionResult
             'recommended_actions' => $this->recommendedActions,
             'confidence' => $this->confidence,
             'from_cache' => $this->fromCache,
+            'source' => $this->source,
         ];
     }
 
     public static function fallback(string $reason = 'AI unavailable; heuristic fallback'): self
     {
-        return new self(50, 'medium', $reason, ['Send 72h Adaptive Nudge', 'Offer resale of remaining days'], 0.35);
+        return new self(50, 'medium', $reason, ['Send 72h Adaptive Nudge', 'Offer resale of remaining days'], 0.35, false, 'fallback');
     }
 }

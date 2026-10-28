@@ -31,8 +31,8 @@
 <ul class="mt-3 text-sm space-y-2 list-disc pl-5 text-ink/80">
 <li>Required on financial <code>POST/PUT/PATCH/DELETE</code> with middleware <code>idempotent</code>.</li>
 <li>Replay same key + same body → cached response + header <code>Idempotent-Replayed: true</code>.</li>
-<li>Same key + different body → 422.</li>
-<li>Generate keys with UUID v4 per logical operation (not per HTTP retry only).</li>
+<li>Same key + different body → 422</li>
+<li>Generate keys with UUID v4 per logical operation (not per HTTP retry only)</li>
 </ul>
 </section>
 @endsection

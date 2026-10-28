@@ -3,7 +3,7 @@
     <div class="flex flex-wrap items-start justify-between gap-3">
         <div>
             <h2 class="text-sm font-semibold text-white">Charity Integration Workflow (Demo)</h2>
-            <p class="mt-1 text-xs text-slate-400">Proposed technical path for future MoU-backed disbursements via PayPal Payouts.</p>
+            <p class="mt-1 text-xs text-slate-400">Proposed technical path for future MoU-backed disbursements via PayPal Payouts</p>
         </div>
         <span class="rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-300">Prototype</span>
     </div>
@@ -31,7 +31,7 @@
         <h3 class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Proof of Execution</h3>
         <p class="mt-2 text-sm leading-relaxed text-slate-300">
             Simulated Transaction: <span class="font-mono text-emerald-300">$10.00</span> routed to
-            <span class="font-medium text-white">Red Cross</span> via PayPal Payouts API.
+            <span class="font-medium text-white">Red Cross</span> via PayPal Payouts API
         </p>
         <div class="mt-4 flex flex-wrap gap-2">
             <button type="button"
@@ -50,6 +50,6 @@
     <p class="mt-5 border-t border-slate-800 pt-4 text-[11px] leading-relaxed text-slate-500">
         <strong class="font-semibold text-slate-400">Disclaimer:</strong>
         This dashboard demonstrates the proposed technical workflow. LuvuPay will only disburse funds to charities
-        upon signing a formal MoU and verifying their official PayPal business accounts.
+        upon signing a formal MoU and verifying their official PayPal business accounts
     </p>
 </section>

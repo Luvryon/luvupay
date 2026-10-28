@@ -63,19 +63,19 @@
       if (!emailEl || !emailHint) return true;
       var v = (emailEl.value || '').trim().toLowerCase();
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) {
-        emailHint.textContent = 'Enter a valid email address.';
+        emailHint.textContent = 'Enter a valid email address';
         emailHint.className = 'pw-hint is-red';
         emailEl.setAttribute('aria-invalid', 'true');
         return false;
       }
       var domain = v.split('@')[1] || '';
       if (free.indexOf(domain) !== -1) {
-        emailHint.textContent = 'Work email required — free providers are not allowed.';
+        emailHint.textContent = 'Work email required — free providers are not allowed';
         emailHint.className = 'pw-hint is-red';
         emailEl.setAttribute('aria-invalid', 'true');
         return false;
       }
-      emailHint.textContent = 'Looks like a valid work email.';
+      emailHint.textContent = 'Looks like a valid work email';
       emailHint.className = 'pw-hint is-green';
       emailEl.removeAttribute('aria-invalid');
       return true;
@@ -116,7 +116,7 @@
 
       if (!strengthHint) { updateMatch(); updateSubmit(); return; }
       if (pw.length === 0) {
-        strengthHint.textContent = 'Use upper & lower case, a number, and a symbol (min 10 chars).';
+        strengthHint.textContent = 'Use upper & lower case, a number, and a symbol (min 10 chars)';
         strengthHint.className = 'pw-hint is-muted';
       } else if (s < 4 || pw.length < 10) {
         var missing = [];

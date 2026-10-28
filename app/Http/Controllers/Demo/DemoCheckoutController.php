@@ -15,6 +15,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
 /**
  * Developer Sandbox: "New subscription checkout".
@@ -38,8 +40,30 @@ final class DemoCheckoutController
 
     // ------------------------------------------------------------------ start
 
-    /** POST /api/v1/dashboard/demo/checkout */
+    /**
+     * POST /api/v1/dashboard/demo/checkout
+     *
+     * Any unexpected failure becomes a readable JSON error instead of a bare HTTP 500,
+     * so the checkout modal can tell the user what went wrong.
+     */
     public function simulateCheckout(Request $request): JsonResponse
+    {
+        try {
+            return $this->startCheckout($request);
+        } catch (ValidationException|HttpExceptionInterface $e) {
+            throw $e;
+        } catch (\Throwable $e) {
+            Log::error('demo.checkout.failed', ['err' => $e->getMessage(), 'at' => $e->getFile().':'.$e->getLine()]);
+
+            return response()->json([
+                'ok' => false,
+                'error' => 'checkout_failed',
+                'message' => 'Checkout could not be started: '.Str::limit($e->getMessage(), 160),
+            ], 500);
+        }
+    }
+
+    private function startCheckout(Request $request): JsonResponse
     {
         $merchantId = $this->merchantId($request);
 
@@ -66,7 +90,7 @@ final class DemoCheckoutController
             return response()->json([
                 'ok' => false,
                 'error' => 'paypal_not_configured',
-                'message' => 'LUVUPAY_PAYMENT_DRIVER=paypal but PAYPAL_CLIENT_ID / PAYPAL_SECRET are empty. Fill them from developer.paypal.com (Sandbox app) or set LUVUPAY_PAYMENT_DRIVER=mock.',
+                'message' => 'LUVUPAY_PAYMENT_DRIVER=paypal but PAYPAL_CLIENT_ID / PAYPAL_SECRET are empty. Fill them from developer.paypal.com (Sandbox app) or set LUVUPAY_PAYMENT_DRIVER=mock',
             ], 422);
         }
 
@@ -174,7 +198,7 @@ final class DemoCheckoutController
 
         return response()->json([
             'ok' => true,
-            'message' => 'Waiting for the buyer to approve the payment on PayPal.',
+            'message' => 'Waiting for the buyer to approve the payment on PayPal',
             'mode' => 'paypal',
             'requires_approval' => true,
             'transaction_id' => $txId,
@@ -213,7 +237,7 @@ final class DemoCheckoutController
         $this->logWebhookEvent('paypal', 'CHECKOUT.ORDER.CANCELLED', ['transaction_id' => $txId], 'failed');
         $discarded = $this->discard($merchantId, $txId);
 
-        return $this->finish($request, ['state' => 'cancelled', 'message' => 'Checkout cancelled, no money moved.', 'discarded' => $discarded], $txId, 'cancel');
+        return $this->finish($request, ['state' => 'cancelled', 'message' => 'Checkout cancelled, no money moved', 'discarded' => $discarded], $txId, 'cancel');
     }
 
     /** GET /api/v1/dashboard/demo/checkout/{tx}/status: used by the popup watcher; re-checks PayPal while still pending. */
@@ -222,10 +246,10 @@ final class DemoCheckoutController
         $merchantId = $this->merchantId($request);
         $row = $this->ownedTx($merchantId, $tx);
         if (! $row) {
-            return response()->json(['ok' => true, 'state' => 'gone', 'message' => 'Checkout was cancelled or expired.']);
+            return response()->json(['ok' => true, 'state' => 'gone', 'message' => 'Checkout was cancelled or expired']);
         }
         $result = $row->status === 'completed'
-            ? ['state' => 'captured', 'message' => 'Payment confirmed.']
+            ? ['state' => 'captured', 'message' => 'Payment confirmed']
             : $this->settle($merchantId, $tx, null, null);
 
         // The popup was closed and the buyer never approved: nothing was paid, drop the pending rows.
@@ -233,7 +257,7 @@ final class DemoCheckoutController
             $this->logWebhookEvent('paypal', 'CHECKOUT.ORDER.CANCELLED', ['transaction_id' => $tx, 'reason' => 'popup_closed'], 'failed');
             $this->discard($merchantId, $tx);
 
-            return response()->json(['ok' => true, 'state' => 'cancelled', 'message' => 'Checkout cancelled, no money moved.', 'row' => null]);
+            return response()->json(['ok' => true, 'state' => 'cancelled', 'message' => 'Checkout cancelled, no money moved', 'row' => null]);
         }
 
         return response()->json(['ok' => true] + $result + ['row' => $this->ownedTx($merchantId, $tx) ? $this->formatRow($tx) : null]);
@@ -250,10 +274,10 @@ final class DemoCheckoutController
     {
         $row = $this->ownedTx($merchantId, $txId);
         if (! $row) {
-            return ['state' => 'not_found', 'message' => 'Checkout not found for this merchant.'];
+            return ['state' => 'not_found', 'message' => 'Checkout not found for this merchant'];
         }
         if ($row->status === 'completed') {
-            return ['state' => 'captured', 'message' => 'Payment already confirmed.'];
+            return ['state' => 'captured', 'message' => 'Payment already confirmed'];
         }
         if ($row->status !== 'pending') {
             return ['state' => 'failed', 'message' => 'Checkout is '.$row->status.'.'];
@@ -283,11 +307,11 @@ final class DemoCheckoutController
                 }
                 if ($status !== 'ACTIVE') {
                     if ($status === 'APPROVAL_PENDING') {
-                        return ['state' => 'processing', 'awaiting_buyer' => true, 'message' => 'The buyer has not approved the payment on PayPal yet.'];
+                        return ['state' => 'processing', 'awaiting_buyer' => true, 'message' => 'The buyer has not approved the payment on PayPal yet'];
                     }
                     $this->logWebhookEvent('paypal', 'BILLING.SUBSCRIPTION.APPROVED', ['transaction_id' => $txId, 'status' => $status ?: 'UNKNOWN']);
 
-                    return ['state' => 'processing', 'message' => 'Approved. Waiting for PayPal to confirm the first payment.'];
+                    return ['state' => 'processing', 'message' => 'Approved. Waiting for PayPal to confirm the first payment'];
                 }
                 $capture = $sub['billing_info']['last_payment'] ?? [];
                 $this->activate($merchantId, $row, $meta, [
@@ -297,7 +321,7 @@ final class DemoCheckoutController
                     'paid_amount' => $capture['amount']['value'] ?? null,
                 ]);
 
-                return ['state' => 'captured', 'message' => 'Subscription active. Funds are in your PayPal sandbox business balance.'];
+                return ['state' => 'captured', 'message' => 'Subscription active. Funds are in your PayPal sandbox business balance'];
             }
 
             // ---- one-off order
@@ -316,7 +340,7 @@ final class DemoCheckoutController
                 return $this->fail($merchantId, $txId, 'Paid amount does not match the checkout.');
             }
             if ($orderStatus === 'CREATED' || $orderStatus === 'PAYER_ACTION_REQUIRED') {
-                return ['state' => 'processing', 'awaiting_buyer' => true, 'message' => 'The buyer has not approved the payment on PayPal yet.'];
+                return ['state' => 'processing', 'awaiting_buyer' => true, 'message' => 'The buyer has not approved the payment on PayPal yet'];
             }
 
             $captureId = $unit['payments']['captures'][0]['id'] ?? null;
@@ -330,19 +354,19 @@ final class DemoCheckoutController
                 ]);
             }
             if ($capStatus === 'PENDING') {
-                return ['state' => 'processing', 'message' => 'Payment is pending at PayPal.'];
+                return ['state' => 'processing', 'message' => 'Payment is pending at PayPal'];
             }
             if ($capStatus !== 'COMPLETED' && $orderStatus !== 'COMPLETED') {
                 return $this->fail($merchantId, $txId, 'PayPal did not complete the payment ('.($capStatus ?: $orderStatus).').');
             }
             $this->activate($merchantId, $row, $meta, ['reference' => $captureId ?: $orderId]);
 
-            return ['state' => 'captured', 'message' => 'Payment captured. Funds are in your PayPal sandbox business balance.'];
+            return ['state' => 'captured', 'message' => 'Payment captured. Funds are in your PayPal sandbox business balance'];
         } catch (\Throwable $e) {
             $this->logWebhookEvent('paypal', 'PAYMENT.CAPTURE.FAILED', ['transaction_id' => $txId, 'error' => $e->getMessage()], 'failed');
             Log::warning('demo.checkout.settle_failed', ['tx' => $txId, 'err' => $e->getMessage()]);
 
-            return ['state' => 'failed', 'message' => 'Could not confirm the payment with PayPal.', 'error' => Str::limit($e->getMessage(), 160)];
+            return ['state' => 'failed', 'message' => 'Could not confirm the payment with PayPal', 'error' => Str::limit($e->getMessage(), 160)];
         }
     }
 

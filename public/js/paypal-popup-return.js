@@ -30,7 +30,7 @@
     // Still here: the browser refused to close it (opened without a script). Let the person do it.
     setTimeout(function () {
       if (btn) btn.hidden = false;
-      if (hint) hint.textContent = 'You can close this window and return to the dashboard.';
+      if (hint) hint.textContent = 'You can close this window and return to the dashboard';
     }, 400);
   }, payload.state === 'captured' ? 1200 : 2200);
 })();

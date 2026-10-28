@@ -13,7 +13,7 @@
   form.addEventListener('submit', function (e) {
     var fileInput = document.getElementById('logo-file');
     var btn = document.getElementById('logo-upload-btn');
-    if (!fileInput.files || !fileInput.files[0]) { e.preventDefault(); toast('warning', 'Choose a file', 'Select a PNG, JPEG, or WebP logo first.'); return; }
+    if (!fileInput.files || !fileInput.files[0]) { e.preventDefault(); toast('warning', 'Choose a file', 'Select a PNG, JPEG, or WebP logo first'); return; }
     if (fileInput.files[0].size > 2 * 1024 * 1024) { e.preventDefault(); toast('error', 'File too large', 'Max 2 MB.'); return; }
     e.preventDefault();
     if (btn) { btn.disabled = true; btn.textContent = 'Uploading…'; }

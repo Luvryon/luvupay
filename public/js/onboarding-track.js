@@ -28,7 +28,7 @@
       mark('luvu_toast_need_project');
       window.LuvuToast.warning(
         'Create a project first',
-        'Simulate 30 days and the ledger need an active project.',
+        'Simulate 30 days and the ledger need an active project',
         {
           id: 'need-project',
           duration: 9000,
@@ -51,7 +51,7 @@
       mark('luvu_toast_need_paypal');
       window.LuvuToast.info(
         'Connect PayPal Sandbox',
-        'Withdrawals and live Simulate need a linked Sandbox merchant.',
+        'Withdrawals and live Simulate need a linked Sandbox merchant',
         {
           id: 'need-paypal',
           duration: 9000,
@@ -68,7 +68,7 @@
       mark('luvu_toast_ready');
       window.LuvuToast.success(
         'You\'re set up',
-        needsPaypal ? 'Project + PayPal connected. Simulate 30 days is ready.' : 'Project ready. Simulate 30 days is available.',
+        needsPaypal ? 'Project + PayPal connected. Simulate 30 days is ready' : 'Project ready. Simulate 30 days is available',
         { id: 'ready', duration: 4500 }
       );
     }

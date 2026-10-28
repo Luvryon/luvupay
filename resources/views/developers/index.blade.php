@@ -12,11 +12,11 @@
 <div class="stack" x-data="{ reveal: false }">
     <div>
         <h1 class="page-title">Developers</h1>
-        <p class="page-sub">API keys and webhook endpoints for integrating LuvuPay into your product.</p>
+        <p class="page-sub">API keys and webhook endpoints for integrating LuvuPay into your product</p>
     </div>
 
     <section class="c-card">
-        <div class="c-head"><div><h2 class="c-title">API keys</h2><p class="c-sub">Publishable key is safe in the browser. Secret key stays on your server.</p></div></div>
+        <div class="c-head"><div><h2 class="c-title">API keys</h2><p class="c-sub">Publishable key is safe in the browser. Secret key stays on your server</p></div></div>
         <div class="c-pad stack-sm">
             <div class="field">
                 <label class="label">Publishable key</label>
@@ -30,9 +30,9 @@
                 <div style="display:flex;gap:8px">
                     <input class="input" readonly :type="reveal ? 'text' : 'password'" value="{{ $prefix }}_••••••••••••••••" id="dev-sec">
                     <button type="button" class="c-btn" x-on:click="reveal = !reveal" x-text="reveal ? 'Hide' : 'Reveal'"></button>
-                    <button type="button" class="c-btn" x-on:click="window.LuvuToast && LuvuToast.info('Secret key', 'Rotate from Settings to get a new full secret. Prefix only is shown here.')">Copy</button>
+                    <button type="button" class="c-btn" x-on:click="window.LuvuToast && LuvuToast.info('Secret key', 'Rotate from Settings to get a new full secret. Prefix only is shown here')">Copy</button>
                 </div>
-                <p class="help">Full secret is only shown once at issue / rotate time.</p>
+                <p class="help">Full secret is only shown once at issue / rotate time</p>
             </div>
             <div class="field">
                 <label class="label">Merchant ID</label>
@@ -42,7 +42,7 @@
     </section>
 
     <section class="c-card">
-        <div class="c-head"><div><h2 class="c-title">Webhooks</h2><p class="c-sub">PayPal and LuvuPay platform events.</p></div></div>
+        <div class="c-head"><div><h2 class="c-title">Webhooks</h2><p class="c-sub">PayPal and LuvuPay platform events</p></div></div>
         <div class="c-pad stack-sm">
             <div class="field">
                 <label class="label">Webhook endpoint URL</label>
@@ -58,7 +58,7 @@
                     <button type="button" class="c-btn" x-on:click="navigator.clipboard.writeText(document.getElementById('dev-whsec').value); window.LuvuToast && LuvuToast.success('Copied', 'Webhook secret')">Copy</button>
                 </div>
             </div>
-            <p class="dim" style="margin:0;font-size:.85rem">Verify signatures with the webhook secret. Events appear in the dashboard Event log after Simulate / live traffic.</p>
+            <p class="dim" style="margin:0;font-size:.85rem">Verify signatures with the webhook secret. Events appear in the dashboard Event log after Simulate / live traffic</p>
         </div>
     </section>
 

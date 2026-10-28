@@ -63,7 +63,7 @@ final class SmartConvertEngine
     /** @return array{split:array,narrative:string,risk_score:int,meta:array} */
     private function runNebius(string $merchantId, int $days, int $valueMinor, string $email, array $ctx): array
     {
-        $model = (string) config('nebius.model', 'meta-llama/Llama-3.1-70b-instruct');
+        $model = (string) config('nebius.model', 'nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B');
         $fallback = [
             'split' => [
                 'store_credit_minor' => 1500,
@@ -77,13 +77,13 @@ final class SmartConvertEngine
                 'model' => $model,
                 'tokens' => null,
                 'latency_ms' => null,
-                'provider' => 'Nebius Token Factory · NVIDIA Nemotron (offline fallback)',
+                'provider' => 'Deterministic fallback (no AI call was made)',
                 'error' => null,
             ],
         ];
 
         if (! config('nebius.enabled') || ! config('nebius.api_key')) {
-            $fallback['meta']['error'] = 'NEBIUS_ENABLED/API_KEY missing — using deterministic negotiation';
+            $fallback['meta']['error'] = 'NEBIUS_ENABLED or NEBIUS_API_KEY missing, using the deterministic split';
 
             return $fallback;
         }
@@ -114,23 +114,26 @@ final class SmartConvertEngine
                 ],
             ], $merchantId);
 
-            $latency = (int) round((microtime(true) - $started) * 1000);
-            $raw = is_string($res['content'] ?? null) ? json_decode($res['content'], true) : [];
-            if (! is_array($raw)) {
-                $raw = [];
+            $latency = $res['latency_ms'] ?? (int) round((microtime(true) - $started) * 1000);
+            $raw = $res['data'];
+
+            foreach (['store_credit_minor', 'charity_minor', 'fee_minor'] as $key) {
+                if (! isset($raw[$key]) || ! is_numeric($raw[$key]) || (int) $raw[$key] < 0) {
+                    throw new \UnexpectedValueException("Model response is missing a valid {$key}");
+                }
             }
 
             return [
                 'split' => [
-                    'store_credit_minor' => (int) ($raw['store_credit_minor'] ?? 1500),
-                    'charity_minor' => (int) ($raw['charity_minor'] ?? 1000),
-                    'fee_minor' => (int) ($raw['fee_minor'] ?? 500),
+                    'store_credit_minor' => (int) $raw['store_credit_minor'],
+                    'charity_minor' => (int) $raw['charity_minor'],
+                    'fee_minor' => (int) $raw['fee_minor'],
                 ],
                 'narrative' => (string) ($raw['narrative'] ?? $fallback['narrative']),
                 'risk_score' => (int) ($raw['risk_score'] ?? 85),
                 'meta' => [
                     'live' => true,
-                    'model' => $model,
+                    'model' => $res['model'] ?? $model,
                     'tokens' => $res['tokens_used'] ?? null,
                     'latency_ms' => $latency,
                     'provider' => 'Nebius Token Factory · NVIDIA Nemotron',

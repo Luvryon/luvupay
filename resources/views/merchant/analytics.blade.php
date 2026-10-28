@@ -12,7 +12,7 @@
             <p class="mt-1 text-sm text-slate-500 max-w-xl">
                 Live metrics from your ledger for
                 <strong class="text-slate-700" x-text="d.project && d.project.name ? d.project.name : 'your project'"></strong>.
-                Same source of truth as Overview and Wallet.
+                Same source of truth as Overview and Wallet
             </p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
@@ -41,16 +41,40 @@
     {{-- Error --}}
     <div x-show="error" x-cloak class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700" x-text="error"></div>
 
+    {{-- Loading (first request) --}}
+    <div x-show="!loaded" class="space-y-6" aria-busy="true">
+        <div class="rounded-2xl border border-edge bg-white shadow-sm">
+            <div class="lp-state">
+                <span class="lp-spinner lp-spinner--lg"></span>
+                <div><strong>Loading analytics</strong>Fetching live metrics from your ledger</div>
+            </div>
+        </div>
+        <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <template x-for="n in 8" :key="n">
+                <div class="rounded-2xl border border-edge bg-white p-5 shadow-sm">
+                    <span class="lp-skeleton" style="width:46%"></span>
+                    <span class="lp-skeleton lp-skeleton--value"></span>
+                    <span class="lp-skeleton" style="width:72%;height:10px"></span>
+                </div>
+            </template>
+        </div>
+        <div class="grid gap-4 lg:grid-cols-2">
+            <div class="rounded-2xl border border-edge bg-white p-5 shadow-sm"><span class="lp-skeleton lp-skeleton--chart"></span></div>
+            <div class="rounded-2xl border border-edge bg-white p-5 shadow-sm"><span class="lp-skeleton lp-skeleton--chart"></span></div>
+        </div>
+    </div>
+
     {{-- Empty --}}
     <div x-show="loaded && !hasData" x-cloak class="rounded-2xl border border-slate-200 bg-white p-10 text-center shadow-sm">
-        <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-50 text-2xl">📊</div>
+        <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></div>
         <p class="text-lg font-bold text-slate-900">No activity in the last <span x-text="days"></span> days</p>
         <p class="mt-2 text-sm text-slate-500 max-w-md mx-auto">
-            Run a subscription checkout from Overview to populate revenue, retention, and charity charts.
+            Run a subscription checkout from Overview to populate revenue, retention, and charity charts
         </p>
         <a href="{{ route('dashboard') }}" class="mt-5 inline-flex rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Go to Overview</a>
     </div>
 
+    <div class="space-y-6" x-bind:class="loading && loaded ? 'lp-loading' : ''">
     {{-- KPI grid --}}
     <section x-show="hasData" x-cloak class="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <template x-for="k in kpis" :key="k.label">
@@ -103,12 +127,12 @@
             <ul class="space-y-2">
                 <template x-for="(ins, i) in (d.insights || [])" :key="i">
                     <li class="flex gap-3 rounded-xl bg-slate-50 border border-slate-100 px-3 py-2.5">
-                        <span class="text-base shrink-0" x-text="ins.icon || '💡'"></span>
+                        <span class="mt-1.5 size-1.5 shrink-0 rounded-full bg-indigo-500"></span>
                         <p class="text-sm text-slate-700 leading-relaxed" x-text="ins.text || ins"></p>
                     </li>
                 </template>
                 <li x-show="!(d.insights && d.insights.length)" class="text-sm text-slate-400 py-4 text-center">
-                    Insights appear once there is enough ledger activity.
+                    Insights appear once there is enough ledger activity
                 </li>
             </ul>
         </div>
@@ -125,7 +149,7 @@
                     </div>
                 </div>
             </template>
-            <p x-show="!outcomes.length" class="text-xs text-slate-400">No outcome mix yet.</p>
+            <p x-show="!outcomes.length" class="text-xs text-slate-400">No outcome mix yet</p>
         </div>
     </section>
 
@@ -163,12 +187,13 @@
                         </tr>
                     </template>
                     <tr x-show="!(d.recent && d.recent.length)">
-                        <td colspan="5" class="px-5 py-10 text-center text-sm text-slate-400">No recent rows in this range.</td>
+                        <td colspan="5" class="px-5 py-10 text-center text-sm text-slate-400">No recent rows in this range</td>
                     </tr>
                 </tbody>
             </table>
         </div>
     </section>
+    </div>
 </div>
 @endsection
 

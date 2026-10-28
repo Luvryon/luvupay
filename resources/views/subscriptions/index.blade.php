@@ -6,7 +6,7 @@
     <div class="flex flex-wrap items-end justify-between gap-3">
         <div>
             <h1 class="page-title">Subscriptions</h1>
-            <p class="page-sub">Customers on your plans — active, at risk, retained by AI, or churned.</p>
+            <p class="page-sub">Customers on your plans — active, at risk, retained by AI, or churned</p>
         </div>
         <div class="flex flex-wrap gap-2">
             <template x-for="f in filters" :key="f.id">
@@ -15,17 +15,15 @@
                         x-on:click="filter = f.id; apply()"
                         x-text="f.label"></button>
             </template>
-            <button type="button" class="c-btn c-btn-sm" x-on:click="load()" x-text="loading ? 'Loading…' : 'Refresh'"></button>
+            <button type="button" class="c-btn c-btn-sm" x-bind:class="loading ? 'is-busy' : ''" x-on:click="load()">Refresh</button>
         </div>
     </div>
 
-    <div class="c-card" style="padding:0;overflow:hidden">
-        <div x-show="loading && !rows.length" class="c-pad" style="text-align:center;padding:48px">
-            <p class="dim">Loading subscribers…</p>
-        </div>
-        <div x-show="!loading && !rows.length" x-cloak class="c-pad" style="text-align:center;padding:48px">
-            <p style="font-weight:600;margin:0">No subscribers yet</p>
-            <p class="dim" style="margin:8px 0 0">Run Simulate 30 days on the dashboard or wait for live checkouts.</p>
+    <div class="c-card" style="padding:0;overflow:hidden" x-bind:class="loading && loaded ? 'lp-loading' : ''">
+        <x-ui.loading show="!loaded" title="Loading subscribers" hint="Fetching customers from your ledger" />
+        <x-ui.load-error show="loaded && failed" title="Could not load subscribers" />
+        <div x-show="loaded && !failed && !rows.length" x-cloak class="lp-state">
+            <div><strong>No subscribers yet</strong>Create a new subscription from Overview or wait for live checkouts</div>
         </div>
         <div id="grid-subs" class="ag-theme-quartz" style="width:100%;height:520px" x-show="rows.length" x-cloak></div>
     </div>

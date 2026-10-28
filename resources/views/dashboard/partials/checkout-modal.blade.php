@@ -14,8 +14,8 @@
             <div class="cm-title">
                 <h2 id="cm-title">New subscription checkout</h2>
                 <p>
-                    <template x-if="checkoutMode === 'paypal'"><span>Each subscriber approves the payment once on PayPal. After PayPal confirms, the subscription turns active and the invoice is emailed.</span></template>
-                    <template x-if="checkoutMode !== 'paypal'"><span>Simulated checkout: subscribers are charged instantly, with no call to PayPal.</span></template>
+                    <template x-if="checkoutMode === 'paypal'"><span>Each subscriber approves the payment once on PayPal. After PayPal confirms, the subscription turns active and the invoice is emailed</span></template>
+                    <template x-if="checkoutMode !== 'paypal'"><span>Simulated checkout: subscribers are charged instantly, with no call to PayPal</span></template>
                 </p>
             </div>
             <button type="button" class="cm-x" x-on:click="closeCheckout()" x-bind:disabled="checkoutPaying" aria-label="Close">&times;</button>
@@ -76,9 +76,9 @@
             <button type="button" class="cm-add" x-on:click="addCheckoutRow()" x-bind:disabled="checkoutPaying">+ Add another subscriber</button>
 
             <p class="cm-hint cm-hint--warn" x-show="checkoutMode === 'paypal'" x-cloak>
-                <b>One approval per subscriber.</b> PayPal never moves money without the buyer's consent, even in the sandbox. Log in with a
+                <b>One approval per subscriber</b> PayPal never moves money without the buyer's consent, even in the sandbox. Log in with a
                 <b>sandbox personal (buyer)</b> account in the popup; the funds land in your sandbox <b>business</b> balance.
-                Allow popups for this site, or you will be redirected to PayPal instead.
+                Allow popups for this site, or you will be redirected to PayPal instead
             </p>
         </div>
 

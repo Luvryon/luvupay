@@ -66,7 +66,7 @@ final class OnboardingApiController
 
         $last = (int) $request->session()->get('onboarding_keys_issued_at', 0);
         if ($last && (time() - $last) < 60) {
-            return response()->json(['error' => 'rate_limited', 'message' => 'Wait before re-issuing keys.'], 429);
+            return response()->json(['error' => 'rate_limited', 'message' => 'Wait before re-issuing keys'], 429);
         }
 
         $merchantId = $user->merchant_id ?? null;

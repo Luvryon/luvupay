@@ -6,6 +6,7 @@
     <meta name="robots" content="noindex">
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'self'">
     <title>@yield('code') · LuvuPay</title>
+    @include('partials.favicon')
     <link rel="stylesheet" href="/css/ui.css">
 </head>
 <body class="grid min-h-full place-items-center px-5">

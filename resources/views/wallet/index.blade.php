@@ -6,11 +6,11 @@
     <div class="flex flex-wrap items-end justify-between gap-3">
         <div>
             <h1 class="page-title">Wallet &amp; Transactions</h1>
-            <p class="page-sub">Available balance and full ledger for this merchant.</p>
+            <p class="page-sub">Available balance and full ledger for this merchant</p>
         </div>
         <div class="flex flex-wrap gap-2">
             <button type="button" class="c-btn c-btn-sm" x-on:click="exportCsv()" x-bind:disabled="!filteredRows.length">Export CSV</button>
-            <button type="button" class="c-btn c-btn-sm" x-on:click="load()" x-text="loading ? 'Refreshing…' : 'Refresh'"></button>
+            <button type="button" class="c-btn c-btn-sm" x-bind:class="loading ? 'is-busy' : ''" x-on:click="load()">Refresh</button>
         </div>
     </div>
 
@@ -18,8 +18,9 @@
         <div class="c-pad" style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px">
             <div>
                 <p class="dim" style="margin:0;font-size:.75rem;text-transform:uppercase;letter-spacing:.06em;font-weight:600">Available balance</p>
-                <p style="margin:6px 0 0;font-size:2rem;font-weight:700;letter-spacing:-0.03em;color:#0f172a" x-text="balanceLabel">$0.00</p>
-                <p class="dim" style="margin:6px 0 0;font-size:.8rem">Your earnings: completed charges − partial refunds − charity − withdrawals + your resale fees. Held by LuvuPay as merchant of record until you withdraw.</p>
+                <p style="margin:6px 0 0;font-size:2rem;font-weight:700;letter-spacing:-0.03em;color:#0f172a" x-show="loaded" x-text="balanceLabel"></p>
+                <span class="lp-skeleton" x-show="!loaded" style="width:170px;height:34px;margin-top:8px"></span>
+                <p class="dim" style="margin:6px 0 0;font-size:.8rem">Your earnings: completed charges − partial refunds − charity − withdrawals + your resale fees. Held by LuvuPay as merchant of record until you withdraw</p>
             </div>
             <button type="button" class="c-btn c-btn-brand" x-on:click="withdraw()" x-bind:disabled="withdrawing || balanceMinor <= 0">
                 <span x-text="withdrawing ? 'Sending…' : 'Withdraw to PayPal'"></span>
@@ -56,7 +57,7 @@
                 <input id="w-q" type="search" class="input" placeholder="ID, email, reference…" x-model="q" x-on:input.debounce.200ms="page = 1">
             </div>
         </div>
-        <div class="c-pad" style="padding-top:0;overflow-x:auto">
+        <div class="c-pad" style="padding-top:0;overflow-x:auto" x-bind:class="loading && loaded ? 'lp-loading' : ''">
             <table class="w-full border-collapse text-left text-sm">
                 <thead>
                     <tr class="bg-slate-50 text-xs font-semibold uppercase tracking-wider text-slate-500">
@@ -68,9 +69,9 @@
                     </tr>
                 </thead>
                 <tbody>
-                    <template x-if="!loading && !pageRows.length">
-                        <tr><td colspan="5" class="px-3 py-10 text-center text-slate-500">No transactions in this range.</td></tr>
-                    </template>
+                    <tr x-show="!loaded"><td colspan="5" style="padding:0"><x-ui.loading show="true" title="Loading transactions" hint="Reading your ledger" /></td></tr>
+                    <tr x-show="loaded && failed"><td colspan="5" style="padding:0"><x-ui.load-error show="true" title="Could not load transactions" /></td></tr>
+                    <tr x-show="loaded && !failed && !pageRows.length"><td colspan="5" style="padding:0"><div class="lp-state"><div><strong>No transactions found</strong>Try a different date range or search term</div></div></td></tr>
                     <template x-for="row in pageRows" :key="row.id">
                         <tr class="border-b border-slate-100">
                             <td class="px-3 py-2 text-slate-600 whitespace-nowrap" x-text="row.when"></td>
@@ -83,7 +84,7 @@
                 </tbody>
             </table>
             <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:16px;flex-wrap:wrap">
-                <p class="dim" style="margin:0;font-size:.8rem" x-text="filteredRows.length + ' transaction(s)'"></p>
+                <p class="dim" style="margin:0;font-size:.8rem" x-show="loaded" x-text="countLabel"></p>
                 <div style="display:flex;gap:6px;align-items:center">
                     <button type="button" class="c-btn c-btn-sm" x-on:click="page = Math.max(1, page - 1)" x-bind:disabled="page <= 1">Prev</button>
                     <span class="dim" style="font-size:.8rem" x-text="'Page ' + page + ' / ' + totalPages"></span>
