@@ -69,7 +69,7 @@ Route::middleware($console)->group(function () {
         Route::get('project', [DashboardApiController::class, 'project'])->name('project');
         Route::get('transactions', [DashboardApiController::class, 'transactions'])->name('transactions');
         Route::get('subscriptions', [DashboardApiController::class, 'subscriptions'])->name('subscriptions');
-        Route::get('resale-listings', [DashboardApiController::class, 'resaleListings'])->name('resale');
+        Route::get('resale-listings', [DashboardApiController::class, 'resaleListings'])->name('resale.listings');
         Route::get('audit-logs', [DashboardApiController::class, 'auditLogs'])->middleware('merchant.can:exports.read')->name('audit');
         Route::post('wallet/withdraw', [\App\Http\Controllers\PayoutController::class, 'executePayout'])->middleware('throttle:10,1,dashboard72')->name('wallet.withdraw');
     });
