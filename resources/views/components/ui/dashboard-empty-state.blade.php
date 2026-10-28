@@ -16,11 +16,11 @@
     </p>
     <div class="mt-6 flex flex-wrap items-center justify-center gap-3">
         <button type="button"
-                class="bg-indigo-600 text-white px-5 py-2.5 rounded-lg hover:bg-indigo-700 font-medium shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                class="inline-flex items-center justify-center px-5 py-2.5 rounded-lg font-semibold shadow-sm disabled:opacity-50 disabled:cursor-not-allowed border border-indigo-700"
+                style="background-color:#4f46e5;color:#fff"
                 x-on:click.prevent="openCheckout()"
                 x-bind:disabled="simBusy || checkoutPaying">
             New subscription checkout
         </button>
     </div>
-    <p class="mt-3 text-xs text-slate-400" x-show="!PROJECT_IS_SET && false"></p>
 </div>

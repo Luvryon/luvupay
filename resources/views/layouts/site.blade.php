@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="en" class="h-full scroll-smooth">
 <head>
-    <link rel="icon" type="image/png" href="{{ asset('images/logo-luvupay-v2.png') }}">
-    <link rel="apple-touch-icon" href="{{ asset('images/logo-luvupay-v2.png') }}">
+    <link rel="icon" type="image/png" href="{{ asset('images/logo-luvupay.png') }}">
+    <link rel="apple-touch-icon" href="{{ asset('images/logo-luvupay.png') }}">
 
     <meta charset="utf-8">
     <meta name="csrf-token" content="{{ csrf_token() }}">

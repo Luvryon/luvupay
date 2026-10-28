@@ -198,6 +198,7 @@
       showCheckoutModal: false,
       checkoutPaying: false,
       checkoutForm: { name: 'John Doe', email: 'john@example.com' },
+      checkoutRows: [],
       decisionOpen: false,
       campaignStudioOpen: false,
       evidenceOpen: false,
@@ -245,6 +246,10 @@
       walletCurrency: 'USD',
       money: function (m, c) { return money(m, c); },
       payoutFee: { bps: 200, fixed_minor: 0, cap_minor: 0 },
+      get checkoutSelectedCount() {
+        return (this.checkoutRows || []).filter(function (r) { return r.selected; }).length;
+      },
+
       get walletQuote() {
         var f = this.payoutFee || {}; var g = Number(this.walletBalanceMinor) || 0;
         var fee = Math.round(g * (Number(f.bps) || 0) / 10000) + (Number(f.fixed_minor) || 0);
@@ -682,12 +687,78 @@
       // ---- 1. New Subscription Checkout
       openCheckout: function () {
         if (this.simBusy || this.checkoutPaying) return;
-        // Project is optional for demo charge, but surface a clear status
-        this.checkoutForm = { name: 'John Doe', email: 'john@example.com' };
+        var product = (PROJECT && PROJECT.product) || 'Premium';
+        var amount = (PROJECT && PROJECT.price) || '$20.00';
+        this.checkoutRows = [
+          { name: 'Sarah Johnson', email: 'sarah@streamnet.com', product: product, amount: amount, selected: true },
+          { name: 'Mario Chen', email: 'mario@gmail.com', product: product, amount: amount, selected: true },
+          { name: 'Emma Wilson', email: 'emma.w@outlook.com', product: product, amount: amount, selected: true },
+          { name: 'David Kim', email: 'david.kim@yahoo.com', product: product, amount: amount, selected: true },
+          { name: 'Lisa Anderson', email: 'lisa.a@proton.me', product: product, amount: amount, selected: true },
+        ];
+        this.checkoutForm = { name: this.checkoutRows[0].name, email: this.checkoutRows[0].email };
         this.showCheckoutModal = true;
-        this.$nextTick(function () {
-          // ensure modal is not trapped under display:none parent
+      },
+
+      addCheckoutRow: function () {
+        var product = (PROJECT && PROJECT.product) || 'Premium';
+        var amount = (PROJECT && PROJECT.price) || '$20.00';
+        var n = (this.checkoutRows || []).length + 1;
+        this.checkoutRows.push({
+          name: 'Subscriber ' + n,
+          email: 'user' + n + '@example.com',
+          product: product,
+          amount: amount,
+          selected: true,
         });
+      },
+
+      confirmCheckoutBatch: async function () {
+        if (this.checkoutPaying) return;
+        var rows = (this.checkoutRows || []).filter(function (r) { return r.selected; });
+        if (!rows.length) {
+          this.pushToast('Select at least one subscriber', '⚠️');
+          return;
+        }
+        this.checkoutPaying = true;
+        var ok = 0, fail = 0, lastApprove = null;
+        try {
+          for (var i = 0; i < rows.length; i++) {
+            var name = (rows[i].name || '').trim() || ('Subscriber ' + (i + 1));
+            var email = (rows[i].email || '').trim() || ('user' + (i + 1) + '@example.com');
+            this.checkoutForm = { name: name, email: email };
+            this.preview = { phase: 'checkout', name: name, email: email, product: PROJECT.product, status: 'PENDING', trust_score: null, churn_risk: null, ai_nudge: null, spinning: true, certificate_code: null };
+            var j = await this.sim('checkout', { display_name: name, email: email }, 'checkout');
+            if (!j) { fail++; continue; }
+            var pp = j.paypal_sandbox || {};
+            var needsApproval = !!(j.requires_approval) || !!(pp.live && pp.approve_url);
+            if (needsApproval && pp.approve_url) {
+              lastApprove = pp.approve_url;
+              // For batch: only redirect on the last PayPal approval needed; record others as pending
+              ok++;
+              if (i === rows.length - 1) {
+                try { sessionStorage.setItem('lp_pending_checkout', JSON.stringify({ name: name, email: email, batch: true })); } catch (e) {}
+                this.showCheckoutModal = false;
+                this.checkoutPaying = false;
+                this.pushToast('Redirecting to PayPal for the last subscriber…', '💳');
+                global.location.href = pp.approve_url;
+                return;
+              }
+              continue;
+            }
+            ok++;
+            var invoice = (j.invoice && j.invoice.invoice_number) || (j.row && j.row.invoice_number) || '';
+            if (j.row) this.applyRow(j.row, true);
+            else if (j.id) this.applyRow(Object.assign({ display_name: name, email: email }, j), true);
+          }
+          this.showCheckoutModal = false;
+          await this.load();
+          this.pushToast('Checkout done: ' + ok + ' ok' + (fail ? (', ' + fail + ' failed') : ''), ok ? '✅' : '❌');
+        } catch (e) {
+          this.pushToast('Checkout batch error', '❌');
+        } finally {
+          this.checkoutPaying = false;
+        }
       },
 
       confirmCheckout: async function () {

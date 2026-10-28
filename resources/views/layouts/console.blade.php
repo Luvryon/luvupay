@@ -41,8 +41,8 @@
 <!DOCTYPE html>
 <html lang="en" class="h-full">
 <head>
-    <link rel="icon" type="image/png" href="{{ asset('images/logo-luvupay-v2.png') }}">
-    <link rel="apple-touch-icon" href="{{ asset('images/logo-luvupay-v2.png') }}">
+    <link rel="icon" type="image/png" href="{{ asset('images/logo-luvupay.png') }}">
+    <link rel="apple-touch-icon" href="{{ asset('images/logo-luvupay.png') }}">
 
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">

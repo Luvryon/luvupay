@@ -146,7 +146,8 @@
             {{-- Primary: start of lifecycle --}}
             <button
                 type="button"
-                class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 font-medium shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                class="inline-flex items-center justify-center bg-indigo-600 text-white px-4 py-2.5 rounded-lg hover:bg-indigo-700 font-semibold shadow-sm disabled:opacity-50 disabled:cursor-not-allowed border border-indigo-700"
+                style="background-color:#4f46e5;color:#fff"
                 x-on:click="openCheckout()"
                 x-bind:disabled="simBusy || checkoutPaying"
             >
@@ -193,28 +194,84 @@
 
         </div>{{-- hasData --}}
 
-    {{-- Checkout modal --}}
-    <x-ui.modal show="showCheckoutModal" title="New Subscription Checkout" size="md">
-        <div class="space-y-4 p-5">
-            <p class="text-sm text-muted">Simulates a subscriber completing checkout for <strong class="text-white">{{ $project->product() }}</strong>.</p>
-            <div>
-                <label class="mb-1 block text-xs font-medium text-muted">Display name</label>
-                <input type="text" x-model="checkoutForm.name" placeholder="John Doe"
-                       class="block w-full rounded-xl border border-edge bg-black/30 px-3.5 py-2.5 text-sm text-ink placeholder:text-faint focus:border-brand focus:ring-2 focus:ring-brand/30 focus:outline-none" />
+    {{-- Checkout modal — multi-subscriber (same UX as previous seed flow) --}}
+    <div x-show="showCheckoutModal" x-cloak
+         class="fixed inset-0 z-[80] flex items-center justify-center p-4"
+         role="dialog" aria-modal="true" style="display:none">
+        <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px]" x-on:click="!checkoutPaying && (showCheckoutModal = false)"></div>
+        <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl text-slate-900 overflow-hidden"
+             x-on:click.stop>
+            <div class="px-6 pt-5 pb-3 border-b border-slate-100 flex items-start justify-between gap-3">
+                <div>
+                    <h2 class="text-lg font-bold text-slate-900">New Subscription Checkout</h2>
+                    <p class="text-sm text-slate-500 mt-1">
+                        Add one or more subscribers for <strong class="text-slate-800">{{ $project->product() ?: 'your plan' }}</strong>
+                        ({{ $project->price() }}/{{ $project->interval === 'month' ? 'mo' : ($project->interval ?? 'mo') }}).
+                        Each selected row runs a real checkout against the configured payment driver.
+                    </p>
+                </div>
+                <button type="button" class="text-slate-400 hover:text-slate-600 text-xl leading-none" x-on:click="showCheckoutModal = false" x-bind:disabled="checkoutPaying" aria-label="Close">&times;</button>
             </div>
-            <div>
-                <label class="mb-1 block text-xs font-medium text-muted">Email</label>
-                <input type="email" x-model="checkoutForm.email" placeholder="john@example.com"
-                       class="block w-full rounded-xl border border-edge bg-black/30 px-3.5 py-2.5 text-sm text-ink placeholder:text-faint focus:border-brand focus:ring-2 focus:ring-brand/30 focus:outline-none" />
+
+            <div class="px-6 py-4 max-h-[50vh] overflow-y-auto">
+                <table class="w-full text-sm text-left">
+                    <thead>
+                        <tr class="text-[11px] uppercase tracking-wider text-slate-400 border-b border-slate-100">
+                            <th class="py-2 pr-2 w-10"></th>
+                            <th class="py-2 pr-2">Name</th>
+                            <th class="py-2 pr-2">Email</th>
+                            <th class="py-2 pr-2 hidden sm:table-cell">Plan</th>
+                            <th class="py-2 text-right">Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <template x-for="(row, idx) in checkoutRows" :key="idx">
+                            <tr class="border-b border-slate-50">
+                                <td class="py-2.5 pr-2">
+                                    <input type="checkbox" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                           x-model="row.selected" x-bind:disabled="checkoutPaying" />
+                                </td>
+                                <td class="py-2.5 pr-2">
+                                    <input type="text" class="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
+                                           x-model="row.name" x-bind:disabled="checkoutPaying" />
+                                </td>
+                                <td class="py-2.5 pr-2">
+                                    <input type="email" class="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
+                                           x-model="row.email" x-bind:disabled="checkoutPaying" />
+                                </td>
+                                <td class="py-2.5 pr-2 hidden sm:table-cell text-slate-600" x-text="row.product"></td>
+                                <td class="py-2.5 text-right font-semibold text-slate-900 whitespace-nowrap" x-text="row.amount"></td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+                <button type="button"
+                        class="mt-3 text-sm font-semibold text-indigo-600 hover:text-indigo-800"
+                        x-on:click="addCheckoutRow()"
+                        x-bind:disabled="checkoutPaying">
+                    + Add another subscriber
+                </button>
             </div>
-            <div class="flex justify-end gap-2 pt-2">
-                <x-ui.button variant="ghost" x-on:click="showCheckoutModal = false" x-bind:disabled="checkoutPaying">Cancel</x-ui.button>
-                <x-ui.button icon="bolt" x-on:click="confirmCheckout()" x-bind:disabled="checkoutPaying">
-                    <span x-text="checkoutPaying ? 'Processing…' : 'Confirm & charge'"></span>
-                </x-ui.button>
+
+            <div class="px-6 py-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 bg-slate-50">
+                <p class="text-xs text-slate-500">
+                    <span x-text="checkoutSelectedCount"></span> selected
+                </p>
+                <div class="flex gap-2">
+                    <button type="button"
+                            class="px-4 py-2 rounded-lg border border-slate-200 bg-white text-slate-700 text-sm font-semibold hover:bg-slate-50"
+                            x-on:click="showCheckoutModal = false"
+                            x-bind:disabled="checkoutPaying">Cancel</button>
+                    <button type="button"
+                            class="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 shadow-sm disabled:opacity-50"
+                            x-on:click="confirmCheckoutBatch()"
+                            x-bind:disabled="checkoutPaying || checkoutSelectedCount === 0">
+                        <span x-text="checkoutPaying ? 'Processing…' : ('Confirm & charge (' + checkoutSelectedCount + ')')"></span>
+                    </button>
+                </div>
             </div>
         </div>
-    </x-ui.modal>
+    </div>
 
     @include('dashboard.partials.journey-modal')
 
