@@ -38,12 +38,17 @@
     } catch (e) { return false; }
   }
 
-  /** Tiny safe DOM builder for AG Grid cell renderers. */
+  /** Tiny safe DOM builder for AG Grid cell renderers (hard security). */
   function h(tag, className, text, attrs) {
     var node = document.createElement(tag);
     if (className) node.className = className;
     if (text != null) node.textContent = String(text);
-    Object.keys(attrs || {}).forEach(function (k) { node.setAttribute(k, attrs[k]); });
+    Object.keys(attrs || {}).forEach(function (k) {
+      if (/^on/i.test(k)) return; // never set inline handlers
+      var v = attrs[k];
+      if ((k === 'href' || k === 'src') && /^\s*javascript:/i.test(String(v))) return;
+      node.setAttribute(k, v);
+    });
     return node;
   }
 
@@ -105,11 +110,17 @@
         init.body = JSON.stringify(body);
       }
     }
+    // Soft background progress — never blocks the UI
+    if (global.LuvuLoader && global.LuvuLoader.begin) global.LuvuLoader.begin();
+    var done = function () {
+      if (global.LuvuLoader && global.LuvuLoader.end) global.LuvuLoader.end();
+    };
     return fetch(API + '/' + path, init).then(function (res) {
       return res.json().catch(function () { return {}; }).then(function (data) {
+        done();
         return { ok: res.ok, status: res.status, data: data || {} };
-      });
-    });
+      }, function (err) { done(); throw err; });
+    }, function (err) { done(); throw err; });
   }
 
   /**
@@ -250,6 +261,7 @@
     return {
       // state
       loading: true,
+      bgLoading: false,
       loaded: false,
       deliveriesLoaded: false,
       tab: 'overview',
@@ -525,8 +537,12 @@
           else if (j && Array.isArray(j.events)) this.webhookLogs = j.events;
         } catch (e) {}
       },
-      load: async function () {
+      load: async function (opts) {
+        opts = opts || {};
+        // First paint: soft loading flag for skeletons. Refresh: keep data visible (stale-while-revalidate).
+        var first = !this.loaded;
         this.loading = true;
+        this.bgLoading = !first;
         try {
           var r = await Promise.all([
             request('GET', 'summary'),
@@ -535,21 +551,24 @@
             request('GET', 'usage'),
           ]);
           var summary = r[0].ok ? (r[0].data || {}) : {};
-          var rows = r[1].data.data || [];
+          var rows = (r[1].data && r[1].data.data) || r[1].data || [];
           this.rowData = Array.isArray(rows) ? rows.map(function (row) {
             return Object.assign({}, row, { lifecycle: normalizeLifecycle(row.lifecycle) });
           }) : [];
-          this.resaleRows = r[2].data.data || [];
-          this.hasData = (this.rowData && this.rowData.length > 0);
+          this.resaleRows = (r[2].data && r[2].data.data) || r[2].data || [];
           // Never auto-inject fake rows - only real API data
           this.hasData = !!(this.rowData && this.rowData.length);
-          if (r[3].ok && r[3].data.limit != null) this.usage = r[3].data;
+          if (r[3].ok && r[3].data && r[3].data.limit != null) this.usage = r[3].data;
 
           this.applySummary(summary);
           var self = this;
           this.$nextTick(function () { self.mountGrids(); });
+        } catch (e) {
+          if (window.console) console.error('dashboard load failed', e);
+          if (!this.loaded) this.pushToast('Could not load dashboard data', 'err');
         } finally {
           this.loading = false;
+          this.bgLoading = false;
           this.loaded = true;
         }
       },
@@ -974,10 +993,15 @@ pushToast: function (message, icon) {
 
         pop.location.href = pp.approve_url;
         var txId = j.transaction_id;
+        row.txId = txId;
         var msg = await waitForPopup(pop, txId, function () {
           return request('GET', 'demo/checkout/' + txId + '/status').then(function (r) {
             var d = r.data || {};
-            return (r.ok && (d.state === 'captured' || d.state === 'failed' || d.state === 'gone')) ? d : null;
+            // Do not stop early on transient "failed" confirm errors — keep polling until settle.
+            if (!r.ok) return null;
+            if (d.state === 'captured' || d.state === 'gone' || d.state === 'cancelled') return d;
+            if (d.state === 'failed' && !/could not confirm|still confirming/i.test(String(d.message || ''))) return d;
+            return null;
           });
         });
         var res = await this._checkoutResolve(msg, j.transaction_id);
@@ -1014,11 +1038,26 @@ pushToast: function (message, icon) {
           return r.ok ? (r.data || { state: 'cancelled' }) : { state: 'failed', message: (r.data && r.data.message) || 'Could not cancel the checkout' };
         }
 
-        for (i = 0; i < 4; i++) {
+        // Poll longer: PayPal often activates a second after the popup closes.
+        // Never treat a one-off "Could not confirm" as final while status may still flip to captured.
+        for (i = 0; i < 10; i++) {
           r = await request('GET', 'demo/checkout/' + tx + '/status');
           d = r.data || {};
-          if (!r.ok) return { state: 'failed', message: d.message || 'Could not check the payment status' };
-          if (d.state === 'processing' && !d.awaiting_buyer && i < 3) { await sleep(2000); continue; }
+          if (!r.ok) {
+            if (i < 9) { await sleep(2000); continue; }
+            return { state: 'failed', message: d.message || 'Could not check the payment status' };
+          }
+          if (d.state === 'captured' || d.state === 'cancelled' || d.state === 'gone') return d;
+          if (d.state === 'failed') {
+            var msg = String(d.message || '');
+            if (/could not confirm|still confirming|pending/i.test(msg) && i < 9) {
+              await sleep(2000);
+              continue;
+            }
+            return d;
+          }
+          // processing (with or without awaiting_buyer)
+          if (i < 9) { await sleep(2000); continue; }
           return d;
         }
         return { state: 'processing', message: 'PayPal is still confirming the payment' };
@@ -1036,6 +1075,16 @@ pushToast: function (message, icon) {
         } else if (res.state === 'processing') {
           row.status = 'awaiting'; row.note = 'Approved, waiting for PayPal to confirm…';
           this.pushToast(res.message || 'PayPal is still confirming the payment', '⏳');
+          // Quiet background recheck — avoids false "failed" while PayPal settles
+          var self = this;
+          setTimeout(function () {
+            request('GET', 'demo/checkout/' + encodeURIComponent(row.txId || row.id || '') + '/status').then(function (r) {
+              var d = (r && r.data) || {};
+              if (d.state === 'captured') {
+                self._checkoutApplyResult(row, d);
+              }
+            }).catch(function () {});
+          }, 4000);
         } else if (res.state === 'cancelled' || res.state === 'gone') {
           row.status = 'idle'; row.note = 'Cancelled on PayPal, nothing was charged';
           this.pushToast('PayPal checkout cancelled. No money moved', '⚠️');
@@ -1223,18 +1272,24 @@ pushToast: function (message, icon) {
 
       downloadWithdrawalReceipt: function () {
         var r = this.withdrawalReceipt || {};
+        var esc = (global.DomSafe && global.DomSafe.esc) || function (s) {
+          return String(s == null ? '' : s)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        };
         var html = r.html;
         if (!html) {
+          // Fallback built only with escaped values — never raw concatenation of untrusted data
           html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Withdrawal receipt</title></head><body style="font-family:system-ui,sans-serif;padding:32px;color:#0f172a">'
             + '<h1>Withdrawal receipt</h1>'
-            + '<p><b>Merchant:</b> ' + (r.merchant_name || '') + '</p>'
-            + '<p><b>Gross:</b> ' + (r.gross || '') + '</p>'
-            + '<p><b>PayPal fee:</b> ' + (r.fee || '') + '</p>'
-            + '<p><b>Net received:</b> ' + (r.net || '') + '</p>'
-            + '<p><b>Status:</b> ' + (r.status || '') + '</p>'
-            + '<p><b>PayPal batch:</b> ' + (r.batch_id || '') + '</p>'
-            + '<p><b>To:</b> ' + (r.receiver || '') + '</p>'
-            + '<p><b>Ledger:</b> ' + (r.ledger_id || '') + '</p>'
+            + '<p><b>Merchant:</b> ' + esc(r.merchant_name) + '</p>'
+            + '<p><b>Gross:</b> ' + esc(r.gross) + '</p>'
+            + '<p><b>PayPal fee:</b> ' + esc(r.fee) + '</p>'
+            + '<p><b>Net received:</b> ' + esc(r.net) + '</p>'
+            + '<p><b>Status:</b> ' + esc(r.status) + '</p>'
+            + '<p><b>PayPal batch:</b> ' + esc(r.batch_id) + '</p>'
+            + '<p><b>To:</b> ' + esc(r.receiver) + '</p>'
+            + '<p><b>Ledger:</b> ' + esc(r.ledger_id) + '</p>'
             + '<p style="color:#64748b;font-size:12px">Generated by LuvuPay · PayPal holds the official payout record.</p>'
             + '</body></html>';
         }
@@ -1250,12 +1305,34 @@ pushToast: function (message, icon) {
 
       printWithdrawalReceipt: function () {
         var r = this.withdrawalReceipt || {};
+        var esc = (global.DomSafe && global.DomSafe.esc) || function (s) {
+          return String(s == null ? '' : s)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        };
+        // Prefer server-escaped HTML; otherwise build a minimal escaped fallback
+        var html = r.html;
+        if (!html) {
+          html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Withdrawal receipt</title></head><body style="font-family:system-ui,sans-serif;padding:24px">'
+            + '<pre style="white-space:pre-wrap;word-break:break-word">' + esc(JSON.stringify(r, null, 2)) + '</pre>'
+            + '</body></html>';
+        }
+        // Hard security: never document.write — use Blob URL via DomSafe helper
+        if (global.DomSafe && global.DomSafe.openPrintableHtml) {
+          var w = global.DomSafe.openPrintableHtml(html, { autoPrint: true, printDelay: 400 });
+          if (!w) this.pushToast('Popup blocked - use Download instead', '⚠️');
+          return;
+        }
+        // Fallback without DomSafe still avoids document.write
         var w = global.open('', '_blank', 'noopener,noreferrer,width=640,height=800');
         if (!w) { this.pushToast('Popup blocked - use Download instead', '⚠️'); return; }
-        var html = r.html || ('<pre>' + JSON.stringify(r, null, 2) + '</pre>');
-        w.document.write(html);
-        w.document.close();
-        setTimeout(function () { try { w.focus(); w.print(); } catch (e) {} }, 300);
+        var blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+        var url = URL.createObjectURL(blob);
+        try { w.location.href = url; } catch (e) { try { w.close(); } catch (e2) {} URL.revokeObjectURL(url); return; }
+        setTimeout(function () {
+          try { w.focus(); w.print(); } catch (e) {}
+          setTimeout(function () { URL.revokeObjectURL(url); }, 120000);
+        }, 400);
       },
 
       openEvidenceBuilder: function (row) {
@@ -1269,11 +1346,13 @@ pushToast: function (message, icon) {
         var self = this;
         var id = row && row.id;
         if (!id) { this.evidenceLoading = false; this.evidenceError = 'No transaction selected'; return; }
+        if (global.LuvuLoader && global.LuvuLoader.begin) global.LuvuLoader.begin();
         fetch('/api/v1/dashboard/demo/dispute-evidence/' + encodeURIComponent(id), {
           credentials: 'same-origin',
-          headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') || {}).content || '' }
+          headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') || {}).content || '' }
         }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
           .then(function (res) {
+            if (global.LuvuLoader && global.LuvuLoader.end) global.LuvuLoader.end();
             self.evidenceLoading = false;
             if (!res.ok || !res.d.ok) {
               self.evidenceError = (res.d && res.d.summary) || 'Could not build evidence';
@@ -1281,6 +1360,7 @@ pushToast: function (message, icon) {
             }
             self.evidencePack = res.d;
           }).catch(function (e) {
+            if (global.LuvuLoader && global.LuvuLoader.end) global.LuvuLoader.end();
             self.evidenceLoading = false;
             self.evidenceError = String(e.message || e);
           });
@@ -1393,7 +1473,7 @@ pushToast: function (message, icon) {
         this.messages.push({ role: 'user', content: text });
         this.input = '';
         this.thinking = true;
-        var delay = 1800;
+        if (window.LuvuLoader && window.LuvuLoader.begin) window.LuvuLoader.begin();
         try {
           var res = await fetch('/api/v1/dashboard/demo/negotiator', {
             method: 'POST',
@@ -1401,6 +1481,7 @@ pushToast: function (message, icon) {
             headers: {
               'Content-Type': 'application/json',
               'Accept': 'application/json',
+              'X-Requested-With': 'XMLHttpRequest',
               'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') || {}).content || ''
             },
             body: JSON.stringify({
@@ -1410,16 +1491,15 @@ pushToast: function (message, icon) {
             })
           });
           var data = await res.json().catch(function () { return {}; });
-          delay = Math.min(3000, Math.max(1200, Number(data.thinking_ms) || 1800));
-          await new Promise(function (r) { setTimeout(r, delay); });
-          this.thinking = false;
+          // No artificial delay — reply as soon as the API responds
           if (data.reply) this.messages.push({ role: 'assistant', content: data.reply });
           else this.messages.push({ role: 'assistant', content: 'I could not reach the AI service. Try again, or use an option button.' });
           if (Array.isArray(data.options) && data.options.length) this.options = data.options;
         } catch (e) {
-          await new Promise(function (r) { setTimeout(r, delay); });
-          this.thinking = false;
           this.messages.push({ role: 'assistant', content: 'Network error. Please try again.' });
+        } finally {
+          this.thinking = false;
+          if (window.LuvuLoader && window.LuvuLoader.end) window.LuvuLoader.end();
         }
         this.$nextTick(function () {
           var el = document.getElementById('negotiator-scroll');

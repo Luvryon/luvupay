@@ -1,6 +1,6 @@
 /**
- * AI Retention Campaign Studio — Alpine factory (no inline x-data JS).
- * Images compressed client-side; backend embeds them as CID in the email.
+ * AI Retention Campaign Studio — Alpine factory.
+ * Brand color picker + compressed image + CID-ready payload.
  */
 (function (global) {
   'use strict';
@@ -8,9 +8,47 @@
   var MAX_DATA_URL = 280000;
   var MAX_EDGE = 1200;
 
+  var PRESETS = [
+    { id: 'indigo', label: 'Indigo', value: '#4f46e5' },
+    { id: 'violet', label: 'Violet', value: '#7c3aed' },
+    { id: 'blue', label: 'Blue', value: '#2563eb' },
+    { id: 'teal', label: 'Teal', value: '#0d9488' },
+    { id: 'green', label: 'Green', value: '#059669' },
+    { id: 'amber', label: 'Amber', value: '#d97706' },
+    { id: 'rose', label: 'Rose', value: '#e11d48' },
+    { id: 'slate', label: 'Slate', value: '#334155' },
+  ];
+
   function csrf() {
     var m = document.querySelector('meta[name=csrf-token]');
     return m ? m.getAttribute('content') : '';
+  }
+
+  function normalizeHex(v) {
+    var s = String(v || '').trim();
+    if (/^#[0-9a-fA-F]{6}$/.test(s)) return s.toLowerCase();
+    if (/^#[0-9a-fA-F]{3}$/.test(s)) {
+      return ('#' + s[1] + s[1] + s[2] + s[2] + s[3] + s[3]).toLowerCase();
+    }
+    if (/^[0-9a-fA-F]{6}$/.test(s)) return ('#' + s).toLowerCase();
+    return '#4f46e5';
+  }
+
+  /** Soft pastel panel behind the offer box, derived from brand hex. */
+  function softFrom(hex) {
+    hex = normalizeHex(hex).slice(1);
+    var r = parseInt(hex.slice(0, 2), 16);
+    var g = parseInt(hex.slice(2, 4), 16);
+    var b = parseInt(hex.slice(4, 6), 16);
+    return 'rgba(' + r + ',' + g + ',' + b + ',0.12)';
+  }
+
+  function borderFrom(hex) {
+    hex = normalizeHex(hex).slice(1);
+    var r = parseInt(hex.slice(0, 2), 16);
+    var g = parseInt(hex.slice(2, 4), 16);
+    var b = parseInt(hex.slice(4, 6), 16);
+    return 'rgba(' + r + ',' + g + ',' + b + ',0.35)';
   }
 
   function compressDataUrl(dataUrl) {
@@ -63,6 +101,8 @@
         { id: 1, label: 'Product lifestyle', color: '#e0e7ff' },
         { id: 2, label: 'Loyalty badge', color: '#ede9fe' },
       ],
+      colorPresets: PRESETS,
+      brandColor: '#4f46e5',
       sending: false,
       sent: false,
       generating: false,
@@ -71,6 +111,16 @@
       previewName: 'Mario Chen',
       brand: 'your plan',
       tone: 'Empathetic (loyal user)',
+
+      get brandSoft() { return softFrom(this.brandColor); },
+      get brandBorder() { return borderFrom(this.brandColor); },
+
+      setPreset: function (hex) {
+        this.brandColor = normalizeHex(hex);
+      },
+      onColorInput: function (e) {
+        this.brandColor = normalizeHex(e.target.value);
+      },
 
       onFile: async function (e) {
         var f = e.target.files && e.target.files[0];
@@ -141,6 +191,7 @@
               body: this.bodyLead || '',
               discount: this.discount,
               tone: this.tone || 'empathetic',
+              brand_color: normalizeHex(this.brandColor),
               image_data_url: this.customImage || null,
               cohort: 'failed_and_refund',
             }),
@@ -156,7 +207,7 @@
             return;
           }
           this.sent = true;
-          var extra = data.has_image ? ' Image embedded.' : ' (no image attached)';
+          var extra = data.has_image ? ' Image embedded.' : '';
           if (global.LuvuToast) {
             global.LuvuToast.success('Campaign sent', (data.message || ('Sent to ' + (data.sent || 0) + ' users')) + extra);
           }

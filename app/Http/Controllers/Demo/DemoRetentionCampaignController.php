@@ -25,6 +25,7 @@ final class DemoRetentionCampaignController
             'body' => ['required', 'string', 'max:5000'],
             'discount' => ['required', 'integer', 'min:0', 'max:50'],
             'tone' => ['nullable', 'string', 'max:40'],
+            'brand_color' => ['nullable', 'string', 'max:7', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'image_data_url' => ['nullable', 'string', 'max:300000'],
             'cohort' => ['nullable', 'in:failed_and_refund,selected'],
             'transaction_ids' => ['nullable', 'array', 'max:100'],
@@ -33,6 +34,7 @@ final class DemoRetentionCampaignController
 
         $merchantId = $this->merchantId($request);
         $cohort = $data['cohort'] ?? 'failed_and_refund';
+        $brandColor = $this->safeHex($data['brand_color'] ?? '#4f46e5');
 
         $q = DB::table('transactions')->where('merchant_id', $merchantId)->where('type', 'charge');
         if ($cohort === 'selected' && ! empty($data['transaction_ids'])) {
@@ -54,7 +56,6 @@ final class DemoRetentionCampaignController
         $ctaUrl = rtrim((string) config('app.url'), '/').'/m/'.$merchantId;
 
         $decoded = $this->decodeImage($data['image_data_url'] ?? null);
-        // Also store on public disk for preview/debug; email uses CID embed (works offline / localhost APP_URL)
         $publicUrl = $this->persistDecodedImage($decoded, $merchantId);
 
         foreach ($rows as $row) {
@@ -78,6 +79,7 @@ final class DemoRetentionCampaignController
                 e($merchantName),
                 $product,
                 $ctaUrl,
+                $brandColor,
             );
 
             $inline = [];
@@ -97,8 +99,8 @@ final class DemoRetentionCampaignController
                     'transaction_id' => $row->id,
                     'email' => $email,
                     'discount' => $data['discount'],
+                    'brand_color' => $brandColor,
                     'has_image' => $decoded !== null,
-                    'image_public_url' => $publicUrl,
                 ]);
             } catch (\Throwable $e) {
                 $errors[] = ['email' => $email, 'error' => Str::limit($e->getMessage(), 120)];
@@ -113,15 +115,38 @@ final class DemoRetentionCampaignController
             'errors' => $errors,
             'has_image' => $decoded !== null,
             'image_url' => $publicUrl,
+            'brand_color' => $brandColor,
             'message' => $sent > 0
                 ? "Campaign sent to {$sent} recipient(s)".($decoded ? ' (with image).' : '.')
                 : 'No emails sent. Check MAIL_* config and cohort filters.',
         ]);
     }
 
-    /**
-     * @return array{data:string,mime:string,ext:string}|null
-     */
+    private function safeHex(string $hex): string
+    {
+        $hex = trim($hex);
+        if (preg_match('/^#[0-9A-Fa-f]{6}$/', $hex)) {
+            return strtolower($hex);
+        }
+
+        return '#4f46e5';
+    }
+
+    /** Soft fill / border for offer box from brand hex. */
+    private function softPair(string $hex): array
+    {
+        $h = ltrim($hex, '#');
+        $r = hexdec(substr($h, 0, 2));
+        $g = hexdec(substr($h, 2, 2));
+        $b = hexdec(substr($h, 4, 2));
+
+        return [
+            'soft' => "rgba({$r},{$g},{$b},0.12)",
+            'border' => "rgba({$r},{$g},{$b},0.35)",
+        ];
+    }
+
+    /** @return array{data:string,mime:string,ext:string}|null */
     private function decodeImage(?string $imageDataUrl): ?array
     {
         if (! $imageDataUrl || ! str_starts_with($imageDataUrl, 'data:image/')) {
@@ -171,9 +196,15 @@ final class DemoRetentionCampaignController
         string $merchantName,
         string $product,
         string $ctaUrl,
+        string $brandColor,
     ): string {
         $discountLabel = $discount > 0 ? $discount.'% off' : 'special recovery offer';
         $safeCta = e($ctaUrl);
+        $color = e($brandColor);
+        $pair = $this->softPair($brandColor);
+        $soft = e($pair['soft']);
+        $border = e($pair['border']);
+
         $imgBlock = '';
         if ($imgSrc) {
             $imgBlock = '<tr><td style="padding:0 0 20px 0">'
@@ -196,7 +227,7 @@ final class DemoRetentionCampaignController
 <tr><td align="center">
 <table role="presentation" width="560" cellspacing="0" cellpadding="0" style="width:100%;max-width:560px;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e2e8f0">
   <tr>
-    <td style="padding:22px 28px;background:#4f46e5;color:#fff">
+    <td style="padding:22px 28px;background:{$color};color:#fff">
       <div style="font-size:13px;opacity:.9;letter-spacing:.04em;text-transform:uppercase">{$merchantName}</div>
       <div style="font-size:22px;font-weight:800;margin-top:6px;line-height:1.25">Your {$product} access can still be saved</div>
     </td>
@@ -215,10 +246,10 @@ final class DemoRetentionCampaignController
           We know payments fail for everyday reasons - an expired card, a bank hold, or a busy week. You do not have to start over. Finish recovery in one step and keep the benefits you already earned.
         </td></tr>
         <tr><td style="padding-bottom:20px">
-          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#eef2ff;border-radius:12px;border:1px solid #c7d2fe">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:{$soft};border-radius:12px;border:1px solid {$border}">
             <tr><td style="padding:16px 18px">
-              <div style="font-size:12px;font-weight:700;color:#4338ca;text-transform:uppercase;letter-spacing:.03em">Merchant-approved offer</div>
-              <div style="font-size:20px;font-weight:800;color:#312e81;margin-top:4px">{$discountLabel}</div>
+              <div style="font-size:12px;font-weight:700;color:{$color};text-transform:uppercase;letter-spacing:.03em">Merchant-approved offer</div>
+              <div style="font-size:20px;font-weight:800;color:#0f172a;margin-top:4px">{$discountLabel}</div>
               <div style="font-size:13px;color:#475569;margin-top:6px;line-height:1.5">
                 Limited recovery window. Renew now to restore access without losing your place.
               </div>
@@ -227,7 +258,7 @@ final class DemoRetentionCampaignController
         </td></tr>
         <tr><td align="center" style="padding:8px 0 22px 0">
           <a href="{$safeCta}"
-             style="display:inline-block;background:#4f46e5;color:#ffffff !important;text-decoration:none;padding:14px 28px;border-radius:999px;font-size:16px;font-weight:700;line-height:1.2">
+             style="display:inline-block;background:{$color};color:#ffffff !important;text-decoration:none;padding:14px 28px;border-radius:999px;font-size:16px;font-weight:700;line-height:1.2">
             Renew with {$discountLabel}
           </a>
         </td></tr>

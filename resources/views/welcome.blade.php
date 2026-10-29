@@ -53,9 +53,9 @@
     };
 @endphp
 
-{{-- Hero --}}
+{{-- Hero: swarm cursors, empat AI agent bekerja di dalam dashboard --}}
 <section class="lp-hero" style="position:relative;overflow:hidden;background:radial-gradient(70% 80% at 88% 8%,#ecebff 0%,rgba(236,235,255,0) 62%),linear-gradient(180deg,#ffffff 0%,#f7f8ff 100%)">
-    <div class="mx-auto grid max-w-7xl items-center gap-12 px-5 pb-20 pt-14 sm:px-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] lg:pb-28 lg:pt-20">
+    <div class="mx-auto grid max-w-7xl items-center gap-12 px-5 pb-28 pt-14 sm:px-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] lg:pb-32 lg:pt-20">
         <div>
             <h1 class="text-[2.7rem] font-bold leading-[1.04] tracking-[-0.035em] text-ink sm:text-[3.5rem]">
                 Build payment experiences that give a <span class="text-brand-600">second chance</span>
@@ -65,71 +65,309 @@
                 <a href="{{ route('register') }}" class="lp-btn lp-btn-dark lp-btn-lg">Start building <span aria-hidden="true">→</span></a>
                 <a href="/docs" class="lp-btn lp-btn-outline lp-btn-lg">Read the docs</a>
             </div>
+            <ul class="sw-legend" aria-label="Agents running in the preview">
+                <li style="--c:#6d5cf6"><i></i>Ledger</li>
+                <li style="--c:#f59e0b"><i></i>Nudge</li>
+                <li style="--c:#10b981"><i></i>Resale</li>
+                <li style="--c:#f43f5e"><i></i>Audit</li>
+            </ul>
         </div>
 
-        {{-- Product preview --}}
-        <div class="lp-stage relative" aria-hidden="true">
-            {{-- latar: rosette guilloche halus di belakang jendela + dua chip produk --}}
+        {{-- Product preview + swarm --}}
+        <div class="lp-stage sw-stage relative" id="swarm" aria-hidden="true">
             <style>
+                .sw-legend{list-style:none;margin:2.25rem 0 0;padding:0;display:flex;flex-wrap:wrap;gap:.5rem}
+                .sw-legend li{display:inline-flex;align-items:center;gap:.45rem;padding:.3rem .7rem .3rem .55rem;border-radius:99px;background:#fff;border:1px solid #e8eaf3;font-size:.75rem;font-weight:600;color:#0f172a}
+                .sw-legend i{width:8px;height:8px;border-radius:99px;background:var(--c);box-shadow:0 0 0 3px color-mix(in srgb,var(--c) 22%,transparent)}
+
                 .hx-rose{position:absolute;left:50%;top:50%;width:40rem;height:40rem;transform:translate(-50%,-50%);z-index:0;pointer-events:none}
                 .hx-rose svg{width:100%;height:100%;display:block}
                 .hx-win{transform:none!important;box-shadow:0 50px 90px -40px rgba(9,2,123,.45),0 0 0 1px rgba(9,2,123,.07)!important}
-                .hx-chip{position:absolute;z-index:2;display:flex;align-items:center;gap:.6rem;padding:.55rem .95rem .55rem .6rem;border-radius:.95rem;background:#fff;border:1px solid #e8eaf3;box-shadow:0 18px 36px -16px rgba(15,23,42,.3);font-size:11px;line-height:1.25;white-space:nowrap}
-                .hx-chip b{display:block;font-weight:600;color:#0f172a}
-                .hx-chip small{display:block;color:#64748b;font-size:10px}
-                .hx-ico{flex:none;width:28px;height:28px;border-radius:99px;display:grid;place-items:center}
-                .hx-chip-a{top:-2.2rem;right:1.5rem}
-                .hx-chip-b{bottom:-2.2rem;left:.5rem}
-                @media (min-width:1024px){
-                    .hx-rose{left:56%;width:50rem;height:50rem}
-                    .hx-chip-a{top:-2.4rem;right:3rem}
-                    .hx-chip-b{bottom:-2.4rem;left:-3rem}
+                @media (min-width:1024px){.hx-rose{left:56%;width:50rem;height:50rem}}
+
+                .sw-live{position:absolute;z-index:3;top:-2.1rem;right:1.25rem;display:flex;align-items:center;gap:.5rem;padding:.4rem .8rem;border-radius:99px;background:#fff;border:1px solid #e8eaf3;box-shadow:0 14px 30px -16px rgba(15,23,42,.3);font-size:11px;font-weight:600;color:#0f172a}
+                .sw-live i{width:7px;height:7px;border-radius:99px;background:#22c55e;box-shadow:0 0 0 0 rgba(34,197,94,.6);animation:swLive 2s infinite}
+                @keyframes swLive{70%{box-shadow:0 0 0 7px rgba(34,197,94,0)}100%{box-shadow:0 0 0 0 rgba(34,197,94,0)}}
+
+                .sw-feed{position:absolute;z-index:3;left:.5rem;bottom:-3.9rem;width:min(19rem,92%);padding:.6rem .8rem;border-radius:1rem;background:rgba(255,255,255,.92);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border:1px solid #e8eaf3;box-shadow:0 18px 36px -16px rgba(15,23,42,.3)}
+                @media (min-width:1024px){.sw-feed{left:-3rem}}
+                .sw-feed ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.35rem;min-height:3.6rem}
+                .sw-feed li{display:flex;align-items:flex-start;gap:.5rem;font-size:11px;line-height:1.3;color:#475569;animation:swIn .45s cubic-bezier(.2,.8,.3,1)}
+                .sw-feed li:nth-child(2){opacity:.65}
+                .sw-feed li:nth-child(3){opacity:.35}
+                .sw-feed li i{flex:none;margin-top:.3rem;width:7px;height:7px;border-radius:99px;background:var(--c)}
+                .sw-feed li b{color:#0f172a;font-weight:600}
+                @keyframes swIn{from{opacity:0;transform:translateY(-6px)}}
+
+                .lp-window-main{position:relative}
+                .sw-toast{position:absolute;top:.6rem;right:.8rem;z-index:2;padding:.3rem .65rem;border-radius:8px;background:#0f172a;color:#fff;font-size:10px;font-weight:600;opacity:0;transform:translateY(-6px);transition:opacity .25s,transform .25s}
+                .sw-toast.on{opacity:1;transform:none}
+
+                .sw-hit{animation:swHit 1.1s ease-out}
+                @keyframes swHit{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--hit,#6d5cf6) 55%,transparent);background:color-mix(in srgb,var(--hit,#6d5cf6) 10%,transparent)}100%{box-shadow:0 0 0 10px transparent;background:transparent}}
+                [data-v]{font-variant-numeric:tabular-nums}
+                .sw-dot{animation:swDot 1.8s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+                @keyframes swDot{50%{transform:scale(1.9);opacity:.35}}
+
+                .sw-cursors{position:absolute;inset:0;z-index:6;pointer-events:none}
+                .sw-cur{position:absolute;left:0;top:0;will-change:transform}
+                .sw-cur svg{display:block;filter:drop-shadow(0 4px 5px rgba(15,23,42,.28));transition:transform .15s}
+                .sw-cur.down svg{transform:scale(.82)}
+                .sw-tag{position:absolute;left:17px;top:19px;padding:2px 8px;border-radius:99px 99px 99px 3px;background:var(--c);color:#fff;font:600 10px/1.5 ui-sans-serif,system-ui,sans-serif;white-space:nowrap;box-shadow:0 6px 14px -6px var(--c)}
+                .sw-say{position:absolute;left:17px;top:44px;max-width:15rem;padding:3px 9px;border-radius:9px;background:#fff;border:1px solid var(--c);color:#0f172a;font:500 10px/1.45 ui-sans-serif,system-ui,sans-serif;white-space:nowrap;opacity:0;transform:translateY(-4px) scale(.96);transform-origin:top left;transition:opacity .2s,transform .2s}
+                .sw-cur.talk .sw-say{opacity:1;transform:none}
+                .sw-ripple{position:absolute;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%;border:2px solid var(--c);animation:swRip .65s ease-out forwards}
+                @keyframes swRip{to{transform:scale(4.2);opacity:0}}
+
+                @media (prefers-reduced-motion:reduce){
+                    .sw-cursors{display:none}
+                    .sw-live i,.sw-dot{animation:none}
                 }
             </style>
+
             <div class="hx-rose">{!! $rosette('h') !!}</div>
 
-            <div class="hx-chip hx-chip-a">
-                <span class="hx-ico" style="background:#ecfdf5"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
-                <span><b>Second Chance used</b><small>Martin H. · $12.00</small></span>
-            </div>
-            <div class="hx-chip hx-chip-b">
-                <span class="hx-ico" style="background:#fff1f2"><svg width="14" height="14" viewBox="0 0 24 24" fill="#f43f5e"><path d="M12 21l-8.2-8.2a5 5 0 0 1 7.1-7.1L12 6.8l1.1-1.1a5 5 0 0 1 7.1 7.1z"/></svg></span>
-                <span><b>Charity received +$1.20</b><small>Split settled to ledger</small></span>
-            </div>
+            <div class="sw-live"><i></i>4 agents live</div>
 
             <div class="lp-window hx-win relative" style="z-index:1">
                 <aside class="lp-window-side">
                     <div class="flex items-center gap-2 font-semibold">@include('partials.logo', ['size' => 20]) LuvuPay</div>
                     <ul>
-                        <li class="is-active">Dashboard</li><li>Transactions</li><li>Customers</li><li>Products</li><li>Webhooks</li><li>Settings</li>
+                        <li class="is-active" data-t="nav-dash">Dashboard</li><li>Transactions</li><li>Customers</li><li>Products</li><li data-t="nav-web">Webhooks</li><li>Settings</li>
                     </ul>
                 </aside>
                 <div class="lp-window-main">
+                    <div class="sw-toast" data-t="toast"></div>
                     <div class="flex items-center justify-between">
                         <strong class="text-[0.95rem]">Overview</strong>
-                        <span class="lp-tabs"><i class="is-on">7 days</i><i>30 days</i><i>3 months</i></span>
+                        <span class="lp-tabs"><i class="is-on" data-t="tab7">7 days</i><i data-t="tab30">30 days</i><i>3 months</i></span>
                     </div>
-                    <div class="mt-4 rounded-xl border border-line p-4">
+                    <div class="mt-4 rounded-xl border border-line p-4" data-t="chart">
                         <div class="text-[11px] text-muted">Payment volume</div>
-                        <div class="mt-1 flex items-baseline gap-2"><span class="text-2xl font-bold tracking-tight">$124,530</span><span class="text-[11px] font-semibold text-emerald-600">▲ 12.5% vs last period</span></div>
+                        <div class="mt-1 flex items-baseline gap-2"><span class="text-2xl font-bold tracking-tight" data-v="vol">$124,530</span><span class="text-[11px] font-semibold text-emerald-600">▲ 12.5% vs last period</span></div>
                         <svg viewBox="0 0 400 90" class="mt-3 w-full" preserveAspectRatio="none">
                             <defs><linearGradient id="lpg" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#2a24a3" stop-opacity=".28"/><stop offset="1" stop-color="#2a24a3" stop-opacity="0"/></linearGradient></defs>
                             <path d="M0 70 C40 62 60 72 100 56 S170 50 210 42 S290 38 330 22 S380 14 400 8 L400 90 L0 90Z" fill="url(#lpg)"/>
                             <path d="M0 70 C40 62 60 72 100 56 S170 50 210 42 S290 38 330 22 S380 14 400 8" fill="none" stroke="#09027b" stroke-width="2.2" stroke-linecap="round"/>
+                            <circle class="sw-dot" cx="396" cy="9" r="3.5" fill="#09027b"/>
                         </svg>
                     </div>
                     <div class="mt-3 grid grid-cols-3 gap-3">
-                        @foreach([['Successful', '4,832', '+12%'], ['Second Chance', '612', '+28%'], ['Resold access', '321', '+10%']] as [$k, $v, $d])
-                            <div class="rounded-xl border border-line p-3"><div class="text-[10px] text-muted">{{ $k }}</div><div class="text-lg font-bold">{{ $v }}</div><div class="text-[10px] font-semibold text-emerald-600">{{ $d }}</div></div>
-                        @endforeach
+                        <div class="rounded-xl border border-line p-3" data-t="card-ok"><div class="text-[10px] text-muted">Successful</div><div class="text-lg font-bold" data-v="ok">4,832</div><div class="text-[10px] font-semibold text-emerald-600">+12%</div></div>
+                        <div class="rounded-xl border border-line p-3" data-t="card-sc"><div class="text-[10px] text-muted">Second Chance</div><div class="text-lg font-bold" data-v="sc">612</div><div class="text-[10px] font-semibold text-emerald-600">+28%</div></div>
+                        <div class="rounded-xl border border-line p-3" data-t="card-rs"><div class="text-[10px] text-muted">Resold access</div><div class="text-lg font-bold" data-v="rs">321</div><div class="text-[10px] font-semibold text-emerald-600">+10%</div></div>
                     </div>
                     <div class="mt-3 overflow-hidden rounded-xl border border-line text-[11px]">
-                        @foreach([['tr_3f8a20c', 'Martin H.', 'Second Chance', 'Settled', 'ok'], ['tr_0b0e9ab', 'Salsabila A.', 'Resale', 'Settled', 'ok'], ['tr_1d1ac09', 'Dimas R.', 'Held', 'Pending', 'warn']] as [$id, $who, $kind, $status, $tone])
-                            <div class="grid grid-cols-[1.2fr_1fr_1fr_auto] gap-2 border-b border-line px-3 py-2 last:border-0"><span class="font-mono text-muted">{{ $id }}</span><span>{{ $who }}</span><span class="text-muted">{{ $kind }}</span><span class="lp-badge {{ $tone === 'ok' ? 'lp-badge-ok' : 'lp-badge-warn' }}">{{ $status }}</span></div>
-                        @endforeach
+                        <div class="grid grid-cols-[1.2fr_1fr_1fr_auto] gap-2 border-b border-line px-3 py-2" data-t="row1"><span class="font-mono text-muted">tr_3f8a20c</span><span>Martin H.</span><span class="text-muted">Second Chance</span><span class="lp-badge lp-badge-ok">Settled</span></div>
+                        <div class="grid grid-cols-[1.2fr_1fr_1fr_auto] gap-2 border-b border-line px-3 py-2" data-t="row2"><span class="font-mono text-muted">tr_0b0e9ab</span><span>Salsabila A.</span><span class="text-muted">Resale</span><span class="lp-badge lp-badge-ok">Settled</span></div>
+                        <div class="grid grid-cols-[1.2fr_1fr_1fr_auto] gap-2 px-3 py-2" data-t="row3"><span class="font-mono text-muted">tr_1d1ac09</span><span>Dimas R.</span><span class="text-muted" data-v="kind3">Held</span><span class="lp-badge lp-badge-warn" data-v="badge3">Pending</span></div>
                     </div>
                 </div>
             </div>
+
+            <div class="sw-feed">
+                <ul data-t="feed">
+                    <li style="--c:#6d5cf6"><i></i><span><b>Ledger Agent</b> watching 3 open journals</span></li>
+                </ul>
+            </div>
+
+            <div class="sw-cursors" data-t="cursors"></div>
+
+            <script>
+            (function () {
+                const root = document.getElementById('swarm');
+                if (!root) return;
+                if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+                const q = (n) => root.querySelector('[data-t="' + n + '"]');
+                const v = (n) => root.querySelector('[data-v="' + n + '"]');
+                const layer = q('cursors');
+                const feed = q('feed');
+
+                // Jeda otomatis saat hero keluar dari layar atau tab tidak aktif
+                let visible = true;
+                new IntersectionObserver((e) => { visible = e[0].isIntersecting && !document.hidden; }).observe(root);
+                document.addEventListener('visibilitychange', () => { if (document.hidden) visible = false; });
+
+                const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+                const sleep = async (ms) => { await wait(ms); while (!visible) await wait(300); };
+
+                const ARROW = '<svg width="22" height="22" viewBox="0 0 24 24"><path d="M3 2l7.5 19 2.6-7.9L21 10.5z" fill="var(--c)" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg>';
+                const make = (name, color, x, y) => {
+                    const el = document.createElement('div');
+                    el.className = 'sw-cur';
+                    el.style.setProperty('--c', color);
+                    el.innerHTML = ARROW + '<span class="sw-tag">' + name + '</span><span class="sw-say"></span>';
+                    el.style.transform = 'translate3d(' + x + 'px,' + y + 'px,0)';
+                    layer.appendChild(el);
+                    return { el, name, color, x, y, say: el.querySelector('.sw-say') };
+                };
+
+                const W = root.clientWidth, H = root.clientHeight;
+                const A = {
+                    ledger: make('Ledger Agent', '#6d5cf6', W * 0.92, -30),
+                    nudge:  make('Nudge Agent',  '#f59e0b', -30, H * 0.35),
+                    resale: make('Resale Agent', '#10b981', W * 0.98, H * 0.9),
+                    audit:  make('Audit Agent',  '#f43f5e', W * 0.3, H + 20),
+                };
+
+                const go = (a, x, y, ms, ease) => {
+                    a.el.style.transition = 'transform ' + ms + 'ms ' + ease;
+                    a.el.style.transform = 'translate3d(' + x + 'px,' + y + 'px,0)';
+                    a.x = x; a.y = y;
+                };
+
+                // Gerak dua tahap supaya jalurnya melengkung seperti tangan manusia
+                async function move(a, target, dx, dy, ms) {
+                    const el = typeof target === 'string' ? q(target) : target;
+                    const s = root.getBoundingClientRect(), r = el.getBoundingClientRect();
+                    const x = r.left - s.left + r.width * dx + (Math.random() - .5) * 6;
+                    const y = r.top - s.top + r.height * dy + (Math.random() - .5) * 6;
+                    const mx = (a.x + x) / 2 + (Math.random() - .5) * 90;
+                    const my = (a.y + y) / 2 + (Math.random() - .5) * 90;
+                    go(a, mx, my, ms * .55, 'cubic-bezier(.4,0,.6,1)');
+                    await sleep(ms * .55);
+                    go(a, x, y, ms * .45, 'cubic-bezier(.2,.8,.3,1)');
+                    await sleep(ms * .45);
+                }
+
+                async function click(a, target) {
+                    a.el.classList.add('down');
+                    const r = document.createElement('i');
+                    r.className = 'sw-ripple';
+                    r.style.cssText = 'left:' + (a.x + 3) + 'px;top:' + (a.y + 2) + 'px;--c:' + a.color;
+                    layer.appendChild(r);
+                    setTimeout(() => r.remove(), 700);
+                    if (target) hit(target, a.color);
+                    await sleep(160);
+                    a.el.classList.remove('down');
+                }
+
+                async function say(a, text, ms) {
+                    a.say.textContent = text;
+                    a.el.classList.add('talk');
+                    await sleep(ms);
+                    a.el.classList.remove('talk');
+                }
+
+                function hit(name, color) {
+                    const el = typeof name === 'string' ? q(name) : name;
+                    if (!el) return;
+                    el.style.setProperty('--hit', color);
+                    el.classList.remove('sw-hit'); void el.offsetWidth; el.classList.add('sw-hit');
+                }
+
+                function log(a, text) {
+                    const li = document.createElement('li');
+                    li.style.setProperty('--c', a.color);
+                    li.innerHTML = '<i></i><span><b>' + a.name + '</b> ' + text + '</span>';
+                    feed.prepend(li);
+                    while (feed.children.length > 3) feed.lastElementChild.remove();
+                }
+
+                const nums = { vol: 124530, ok: 4832, sc: 612, rs: 321 };
+                function bump(key, by) {
+                    nums[key] += by;
+                    v(key).textContent = (key === 'vol' ? '$' : '') + nums[key].toLocaleString('en-US');
+                }
+
+                function toast(text) {
+                    const t = q('toast');
+                    t.textContent = text; t.classList.add('on');
+                    setTimeout(() => t.classList.remove('on'), 1900);
+                }
+
+                function row3(state) {
+                    const b = v('badge3');
+                    b.textContent = state === 'held' ? 'Pending' : 'Settled';
+                    b.className = 'lp-badge ' + (state === 'held' ? 'lp-badge-warn' : 'lp-badge-ok');
+                    v('kind3').textContent = state === 'held' ? 'Held' : 'Second Chance';
+                }
+
+                function nav(which) {
+                    q('nav-dash').classList.toggle('is-active', which === 'dash');
+                    q('nav-web').classList.toggle('is-active', which === 'web');
+                }
+                function tab(which) {
+                    q('tab7').classList.toggle('is-on', which === 7);
+                    q('tab30').classList.toggle('is-on', which === 30);
+                }
+
+                // Skenario tiap agent berjalan paralel dengan ritme berbeda
+                async function ledger() {
+                    const a = A.ledger;
+                    await sleep(600);
+                    for (;;) {
+                        row3('held');
+                        await move(a, 'row3', .88, .5, 1500);
+                        await say(a, 'Posting journal…', 950);
+                        await click(a, 'row3');
+                        row3('settled'); bump('vol', 12); bump('ok', 1);
+                        log(a, 'balanced journal for tr_1d1ac09');
+                        await sleep(500);
+                        await move(a, 'chart', .78, .35, 1200);
+                        hit('chart', a.color);
+                        await say(a, 'Reconciled, 0 drift', 1300);
+                        await sleep(3200);
+                    }
+                }
+
+                async function nudge() {
+                    const a = A.nudge;
+                    await sleep(2200);
+                    for (;;) {
+                        await move(a, 'card-sc', .5, .45, 1600);
+                        await say(a, 'Renewal in 72h, sending reminder', 1200);
+                        await click(a, 'card-sc');
+                        bump('sc', 1);
+                        log(a, 'reminder sent to Martin H.');
+                        await sleep(600);
+                        await move(a, 'row1', .45, .5, 1300);
+                        await say(a, 'Trust score: High', 1300);
+                        await sleep(4200);
+                    }
+                }
+
+                async function resale() {
+                    const a = A.resale;
+                    await sleep(4200);
+                    for (;;) {
+                        await move(a, 'card-rs', .55, .5, 1700);
+                        await say(a, 'Matching a buyer…', 1000);
+                        await click(a, 'card-rs');
+                        bump('rs', 1); bump('vol', 5);
+                        log(a, 'moved 18 days of access, $5.40');
+                        await sleep(500);
+                        await move(a, 'row2', .6, .5, 1300);
+                        await say(a, 'Ledger entry posted, no fake refund', 1500);
+                        await sleep(4800);
+                    }
+                }
+
+                async function audit() {
+                    const a = A.audit;
+                    await sleep(6200);
+                    for (;;) {
+                        await move(a, 'nav-web', .7, .5, 1700);
+                        await click(a, 'nav-web'); nav('web');
+                        toast('Webhook delivered · 200 OK');
+                        log(a, 'verified webhook inbox, 0 lost');
+                        await sleep(1700);
+                        await move(a, 'nav-dash', .7, .5, 1100);
+                        await click(a, 'nav-dash'); nav('dash');
+                        await sleep(400);
+                        await move(a, 'tab30', .5, .5, 1300);
+                        await click(a); tab(30);
+                        await say(a, 'audit:verify · chain intact', 1500);
+                        await move(a, 'tab7', .5, .5, 900);
+                        await click(a); tab(7);
+                        await sleep(5200);
+                    }
+                }
+
+                ledger(); nudge(); resale(); audit();
+            })();
+            </script>
         </div>
     </div>
 </section>
@@ -443,7 +681,6 @@
                 .cs-r2{right:12%;width:15%;top:11%;bottom:9%;background:linear-gradient(180deg,#d6cffd 0%,#b3b9fa 100%)}
                 .cs-r3{right:20.5%;width:14%;top:18%;bottom:16%;background:linear-gradient(180deg,#e5e1fe 0%,#cfd2fb 100%)}
                 .cs-r4{right:29%;width:12%;top:26%;bottom:24%;background:linear-gradient(180deg,rgba(255,255,255,.72),rgba(236,233,255,.55))}
-                .cs-bg .cs-orb{left:50%;top:50%;width:52%;aspect-ratio:1/1;height:auto;transform:translate(-50%,-50%);border-radius:50%;border:1px solid rgba(255,255,255,.8);background:radial-gradient(circle at 30% 25%,rgba(255,255,255,.95),rgba(255,255,255,.42) 60%,rgba(255,255,255,.25));box-shadow:0 30px 60px -32px rgba(98,70,234,.4)}
                 .cs-phone{position:relative;z-index:1;display:block;width:78%;margin:1.25rem auto 0}
                 .cs-card{position:relative;z-index:1;align-self:stretch;margin:.25rem 1.1rem 1.1rem;padding:1rem 1.15rem;border-radius:1.15rem;background:rgba(255,255,255,.72);border:1px solid rgba(255,255,255,.8);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);box-shadow:0 18px 40px -22px rgba(9,2,123,.35)}
                 /* semua animasi 12s, tiga langkah x 4s, selalu sinkron */
@@ -473,7 +710,6 @@
             <div class="cs-bg">
                 <i class="cs-l1"></i><i class="cs-l2"></i><i class="cs-l3"></i><i class="cs-l4"></i>
                 <i class="cs-r1"></i><i class="cs-r2"></i><i class="cs-r3"></i><i class="cs-r4"></i>
-                <i class="cs-orb"></i>
             </div>
 
             <svg viewBox="0 20 520 470" class="cs-phone" fill="none" font-family="inherit">

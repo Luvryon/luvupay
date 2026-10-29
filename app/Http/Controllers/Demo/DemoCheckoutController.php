@@ -363,10 +363,65 @@ final class DemoCheckoutController
 
             return ['state' => 'captured', 'message' => 'Payment captured. Funds are in your PayPal sandbox business balance'];
         } catch (\Throwable $e) {
-            $this->logWebhookEvent('paypal', 'PAYMENT.CAPTURE.FAILED', ['transaction_id' => $txId, 'error' => $e->getMessage()], 'failed');
-            Log::warning('demo.checkout.settle_failed', ['tx' => $txId, 'err' => $e->getMessage()]);
+            $err = $e->getMessage();
+            Log::warning('demo.checkout.settle_failed', ['tx' => $txId, 'err' => $err]);
 
-            return ['state' => 'failed', 'message' => 'Could not confirm the payment with PayPal', 'error' => Str::limit($e->getMessage(), 160)];
+            // Race / idempotency: payment often already succeeded on PayPal while our capture call raced.
+            // Re-read status before declaring failure so the UI does not flash a false error.
+            try {
+                $client = PayPalClient::fromConfig();
+                $kind = (string) ($meta['paypal_kind'] ?? '');
+                if ($kind === 'subscription') {
+                    $paypalSubId = (string) ($meta['paypal_subscription_id'] ?? '');
+                    if ($paypalSubId !== '') {
+                        $sub = $client->getSubscription($paypalSubId);
+                        $status = strtoupper((string) ($sub['status'] ?? ''));
+                        if ($status === 'ACTIVE') {
+                            $this->activate($merchantId, $row, $meta, [
+                                'reference' => $paypalSubId,
+                                'provider_subscription_id' => $paypalSubId,
+                                'next_billing' => data_get($sub, 'billing_info.next_billing_time'),
+                            ]);
+
+                            return ['state' => 'captured', 'message' => 'Subscription active. Funds are in your PayPal sandbox business balance'];
+                        }
+                        if (in_array($status, ['APPROVED', 'APPROVAL_PENDING'], true)) {
+                            return ['state' => 'processing', 'message' => 'Approved. Waiting for PayPal to confirm the first payment', 'error' => Str::limit($err, 160)];
+                        }
+                    }
+                } else {
+                    $orderId = (string) ($meta['paypal_order_id'] ?? $row->provider_reference ?? '');
+                    if ($orderId !== '') {
+                        $order = $client->getOrder($orderId);
+                        $orderStatus = strtoupper((string) ($order['status'] ?? ''));
+                        $unit = $order['purchase_units'][0] ?? [];
+                        $captureId = $unit['payments']['captures'][0]['id'] ?? null;
+                        $capStatus = strtoupper((string) ($unit['payments']['captures'][0]['status'] ?? ''));
+                        if ($orderStatus === 'COMPLETED' || $capStatus === 'COMPLETED') {
+                            $this->activate($merchantId, $row, $meta, ['reference' => $captureId ?: $orderId]);
+
+                            return ['state' => 'captured', 'message' => 'Payment captured. Funds are in your PayPal sandbox business balance'];
+                        }
+                        if (in_array($orderStatus, ['APPROVED', 'CREATED', 'PAYER_ACTION_REQUIRED'], true) || $capStatus === 'PENDING') {
+                            return ['state' => 'processing', 'message' => 'PayPal is still confirming the payment', 'error' => Str::limit($err, 160)];
+                        }
+                    }
+                }
+            } catch (\Throwable $inner) {
+                Log::warning('demo.checkout.settle_recovery_failed', ['tx' => $txId, 'err' => $inner->getMessage()]);
+            }
+
+            // Transient API errors should not kill a payment that may still complete — keep polling.
+            $transient = (bool) preg_match('/timeout|timed out|temporarily|rate limit|429|503|502|connection|network|already.?captured|ORDER_ALREADY_CAPTURED/i', $err);
+            if ($transient) {
+                $this->logWebhookEvent('paypal', 'PAYMENT.CAPTURE.PENDING', ['transaction_id' => $txId, 'error' => $err], 'pending');
+
+                return ['state' => 'processing', 'message' => 'PayPal is still confirming the payment', 'error' => Str::limit($err, 160)];
+            }
+
+            $this->logWebhookEvent('paypal', 'PAYMENT.CAPTURE.FAILED', ['transaction_id' => $txId, 'error' => $err], 'failed');
+
+            return ['state' => 'failed', 'message' => 'Could not confirm the payment with PayPal', 'error' => Str::limit($err, 160)];
         }
     }
 
