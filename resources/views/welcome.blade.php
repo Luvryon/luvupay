@@ -432,7 +432,9 @@
             <style>
                 .cs{position:relative;display:flex;flex-direction:column;align-items:center;width:100%;max-width:34rem;margin:0 auto;overflow:hidden;border-radius:2rem;background:#eef0ff}
                 @media (min-width:1024px){.cs{max-width:none}}
-                .cs-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+                .cs-img{position:absolute;top:50%;width:62%;height:auto;aspect-ratio:1/1;object-fit:cover;transform:translateY(-50%)}
+                .cs-img-l{left:3rem}
+                .cs-img-r{right:3rem}
                 .cs-phone{position:relative;z-index:1;display:block;width:78%;margin:1.25rem auto 0}
                 .cs-card{position:relative;z-index:1;align-self:stretch;margin:.25rem 1.1rem 1.1rem;padding:1rem 1.15rem;border-radius:1.15rem;background:rgba(255,255,255,.72);border:1px solid rgba(255,255,255,.8);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);box-shadow:0 18px 40px -22px rgba(9,2,123,.35)}
                 /* semua animasi 12s, tiga langkah x 4s, selalu sinkron */
@@ -458,7 +460,8 @@
                 }
             </style>
 
-            <img src="{{ asset('images/ready-start.webp') }}" alt="" width="640" height="640" class="cs-img" loading="lazy">
+            <img src="{{ asset('images/ready-start.webp') }}" alt="" width="640" height="640" class="cs-img cs-img-l" loading="lazy">
+            <img src="{{ asset('images/ready-start.webp') }}" alt="" width="640" height="640" class="cs-img cs-img-r" loading="lazy">
 
             <svg viewBox="0 20 520 470" class="cs-phone" fill="none" font-family="inherit">
                 <defs>
