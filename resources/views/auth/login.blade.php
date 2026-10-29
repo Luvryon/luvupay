@@ -16,7 +16,7 @@
         </div>
         <div>
             <label for="password" class="lp-label">Password</label>
-            <input id="password" type="password" name="password" required autocomplete="current-password" class="lp-input">
+            <input id="password" type="password" name="password" required autocomplete="current-password" placeholder="your password" class="lp-input">
         </div>
         <label class="flex items-center gap-2 text-sm text-muted"><input type="checkbox" name="remember" value="1" class="size-4 rounded border-line accent-brand-600"> Keep me signed in</label>
         <button class="lp-btn lp-btn-primary w-full lp-btn-lg">Continue</button>
