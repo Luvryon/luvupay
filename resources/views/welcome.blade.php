@@ -432,9 +432,18 @@
             <style>
                 .cs{position:relative;display:flex;flex-direction:column;align-items:center;width:100%;max-width:34rem;margin:0 auto;overflow:hidden;border-radius:2rem;background:#eef0ff}
                 @media (min-width:1024px){.cs{max-width:none}}
-                .cs-img{position:absolute;top:50%;width:62%;height:auto;aspect-ratio:1/1;object-fit:cover;transform:translateY(-50%)}
-                .cs-img-l{left:3rem}
-                .cs-img-r{right:3rem}
+                /* latar panel kaca bertumpuk, dibuat murni dengan CSS (tanpa gambar) */
+                .cs-bg{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:0;background:radial-gradient(70% 55% at 50% 45%,#f4f3ff 0%,rgba(244,243,255,0) 70%)}
+                .cs-bg i{position:absolute;display:block;border-radius:1.25rem;border:1px solid rgba(255,255,255,.55);box-shadow:0 26px 42px -28px rgba(98,70,234,.5),inset 0 1px 0 rgba(255,255,255,.6)}
+                .cs-l1{left:4%;width:14%;top:7%;bottom:5%;background:linear-gradient(180deg,#cbc1fc 0%,#a89bf2 100%)}
+                .cs-l2{left:12%;width:15%;top:11%;bottom:9%;background:linear-gradient(180deg,#d6cffd 0%,#b3b9fa 100%)}
+                .cs-l3{left:20.5%;width:14%;top:18%;bottom:16%;background:linear-gradient(180deg,#e5e1fe 0%,#cfd2fb 100%)}
+                .cs-l4{left:29%;width:12%;top:26%;bottom:24%;background:linear-gradient(180deg,rgba(255,255,255,.72),rgba(236,233,255,.55))}
+                .cs-r1{right:4%;width:14%;top:7%;bottom:5%;background:linear-gradient(180deg,#cbc1fc 0%,#a89bf2 100%)}
+                .cs-r2{right:12%;width:15%;top:11%;bottom:9%;background:linear-gradient(180deg,#d6cffd 0%,#b3b9fa 100%)}
+                .cs-r3{right:20.5%;width:14%;top:18%;bottom:16%;background:linear-gradient(180deg,#e5e1fe 0%,#cfd2fb 100%)}
+                .cs-r4{right:29%;width:12%;top:26%;bottom:24%;background:linear-gradient(180deg,rgba(255,255,255,.72),rgba(236,233,255,.55))}
+                .cs-bg .cs-orb{left:50%;top:50%;width:52%;aspect-ratio:1/1;height:auto;transform:translate(-50%,-50%);border-radius:50%;border:1px solid rgba(255,255,255,.8);background:radial-gradient(circle at 30% 25%,rgba(255,255,255,.95),rgba(255,255,255,.42) 60%,rgba(255,255,255,.25));box-shadow:0 30px 60px -32px rgba(98,70,234,.4)}
                 .cs-phone{position:relative;z-index:1;display:block;width:78%;margin:1.25rem auto 0}
                 .cs-card{position:relative;z-index:1;align-self:stretch;margin:.25rem 1.1rem 1.1rem;padding:1rem 1.15rem;border-radius:1.15rem;background:rgba(255,255,255,.72);border:1px solid rgba(255,255,255,.8);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);box-shadow:0 18px 40px -22px rgba(9,2,123,.35)}
                 /* semua animasi 12s, tiga langkah x 4s, selalu sinkron */
@@ -460,8 +469,12 @@
                 }
             </style>
 
-            <img src="{{ asset('images/ready-start.webp') }}" alt="" width="640" height="640" class="cs-img cs-img-l" loading="lazy">
-            <img src="{{ asset('images/ready-start.webp') }}" alt="" width="640" height="640" class="cs-img cs-img-r" loading="lazy">
+            {{-- latar: panel kaca bertumpuk kiri dan kanan, tanpa gambar dan tanpa logo --}}
+            <div class="cs-bg">
+                <i class="cs-l1"></i><i class="cs-l2"></i><i class="cs-l3"></i><i class="cs-l4"></i>
+                <i class="cs-r1"></i><i class="cs-r2"></i><i class="cs-r3"></i><i class="cs-r4"></i>
+                <i class="cs-orb"></i>
+            </div>
 
             <svg viewBox="0 20 520 470" class="cs-phone" fill="none" font-family="inherit">
                 <defs>
