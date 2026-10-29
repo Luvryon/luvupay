@@ -30,6 +30,27 @@
         ['MFA, roles and teams', 'TOTP with recovery codes. Owner, Admin, Finance, Developer and Viewer'],
         ['PayPal reconciliation', 'Payouts left hanging are checked against PayPal and settled automatically'],
     ];
+    // Rosette guilloche: pola garis halus ala uang kertas dan kartu premium.
+    // Dipakai di hero dan CTA supaya dua section terasa satu keluarga.
+    $rosette = function (string $id, string $class = '') {
+        $lines = '';
+        for ($i = 0; $i < 48; $i++) {
+            $lines .= '<ellipse rx="300" ry="80" transform="rotate(' . ($i * 3.75) . ')" stroke-opacity=".17"/>';
+        }
+        for ($i = 0; $i < 36; $i++) {
+            $lines .= '<ellipse rx="175" ry="48" transform="rotate(' . (2.5 + $i * 5) . ')" stroke-opacity=".14"/>';
+        }
+        return '<svg class="' . $class . '" viewBox="-330 -330 660 660" fill="none" aria-hidden="true">'
+            . '<defs>'
+            . '<radialGradient id="rs-halo-' . $id . '"><stop offset="0" stop-color="#e4e2ff" stop-opacity=".75"/><stop offset=".7" stop-color="#e4e2ff" stop-opacity=".25"/><stop offset="1" stop-color="#e4e2ff" stop-opacity="0"/></radialGradient>'
+            . '<radialGradient id="rs-fade-' . $id . '"><stop offset=".45" stop-color="#fff"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>'
+            . '<mask id="rs-mask-' . $id . '" maskUnits="userSpaceOnUse" x="-330" y="-330" width="660" height="660"><circle r="330" fill="url(#rs-fade-' . $id . ')"/></mask>'
+            . '</defs>'
+            . '<g mask="url(#rs-mask-' . $id . ')">'
+            . '<circle r="300" fill="url(#rs-halo-' . $id . ')"/>'
+            . '<g stroke="#09027b" stroke-width=".7">' . $lines . '<circle r="300" stroke-opacity=".18"/><circle r="118" stroke-opacity=".16"/></g>'
+            . '</g></svg>';
+    };
 @endphp
 
 {{-- Hero --}}
@@ -48,29 +69,24 @@
 
         {{-- Product preview --}}
         <div class="lp-stage relative" aria-hidden="true">
-            {{-- latar: tiga lapisan panel bertumpuk di belakang jendela, plus chip produk --}}
+            {{-- latar: rosette guilloche halus di belakang jendela + dua chip produk --}}
             <style>
-                .hx-layer{position:absolute;inset:0;border-radius:1.25rem;pointer-events:none;z-index:0}
-                .hx-l3{transform:translate(1.6rem,-1.5rem);background:linear-gradient(150deg,rgba(221,214,254,.55),rgba(237,233,254,.25));border:1px solid rgba(124,92,246,.10)}
-                .hx-l2{transform:translate(1.05rem,-1rem);background:linear-gradient(150deg,rgba(233,228,255,.85),rgba(243,241,255,.6));border:1px solid rgba(124,92,246,.12)}
-                .hx-l1{transform:translate(.5rem,-.45rem);background:linear-gradient(150deg,rgba(255,255,255,.95),rgba(246,245,255,.8));border:1px solid rgba(9,2,123,.08);box-shadow:0 30px 60px -34px rgba(9,2,123,.35)}
-                .hx-chip{position:absolute;z-index:2;display:flex;align-items:center;gap:.6rem;padding:.55rem .9rem .55rem .6rem;border-radius:.95rem;background:#fff;border:1px solid #e8eaf3;box-shadow:0 16px 34px -14px rgba(15,23,42,.28);font-size:11px;line-height:1.25;white-space:nowrap}
+                .hx-rose{position:absolute;left:50%;top:50%;width:40rem;height:40rem;transform:translate(-50%,-50%);z-index:0;pointer-events:none}
+                .hx-rose svg{width:100%;height:100%;display:block}
+                .hx-win{transform:none!important;box-shadow:0 50px 90px -40px rgba(9,2,123,.45),0 0 0 1px rgba(9,2,123,.07)!important}
+                .hx-chip{position:absolute;z-index:2;display:flex;align-items:center;gap:.6rem;padding:.55rem .95rem .55rem .6rem;border-radius:.95rem;background:#fff;border:1px solid #e8eaf3;box-shadow:0 18px 36px -16px rgba(15,23,42,.3);font-size:11px;line-height:1.25;white-space:nowrap}
                 .hx-chip b{display:block;font-weight:600;color:#0f172a}
                 .hx-chip small{display:block;color:#64748b;font-size:10px}
                 .hx-ico{flex:none;width:28px;height:28px;border-radius:99px;display:grid;place-items:center}
-                .hx-chip-a{top:-1.4rem;right:.25rem}
-                .hx-chip-b{bottom:-1.4rem;left:.25rem}
+                .hx-chip-a{top:-2.2rem;right:1.5rem}
+                .hx-chip-b{bottom:-2.2rem;left:.5rem}
                 @media (min-width:1024px){
-                    .hx-l3{transform:translate(3.4rem,-3.2rem)}
-                    .hx-l2{transform:translate(2.2rem,-2.1rem)}
-                    .hx-l1{transform:translate(1.05rem,-1rem)}
-                    .hx-chip-a{top:-1.6rem;right:-1.25rem}
-                    .hx-chip-b{bottom:-1.6rem;left:-2.25rem}
+                    .hx-rose{left:56%;width:50rem;height:50rem}
+                    .hx-chip-a{top:-2.4rem;right:3rem}
+                    .hx-chip-b{bottom:-2.4rem;left:-3rem}
                 }
             </style>
-            <div class="hx-layer hx-l3"></div>
-            <div class="hx-layer hx-l2"></div>
-            <div class="hx-layer hx-l1"></div>
+            <div class="hx-rose">{!! $rosette('h') !!}</div>
 
             <div class="hx-chip hx-chip-a">
                 <span class="hx-ico" style="background:#ecfdf5"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
@@ -81,7 +97,7 @@
                 <span><b>Charity received +$1.20</b><small>Split settled to ledger</small></span>
             </div>
 
-            <div class="lp-window relative" style="z-index:1">
+            <div class="lp-window hx-win relative" style="z-index:1">
                 <aside class="lp-window-side">
                     <div class="flex items-center gap-2 font-semibold">@include('partials.logo', ['size' => 20]) LuvuPay</div>
                     <ul>
@@ -401,7 +417,7 @@
 </section>
 
 {{-- Call to action --}}
-<section class="py-20">
+<section class="py-20" style="background:radial-gradient(60% 90% at 8% 100%,#efeeff 0%,rgba(239,238,255,0) 60%),#fff">
     <div class="mx-auto grid max-w-7xl items-center gap-10 overflow-hidden px-5 sm:px-8 lg:grid-cols-2">
         <div>
             <p class="lp-eyebrow">Ready to start</p>
@@ -412,17 +428,20 @@
                 <a href="/docs/sandbox" class="lp-btn lp-btn-outline lp-btn-lg">Sandbox guide</a>
             </div>
         </div>
-        <div class="lp-cta-visual cs relative mx-auto w-full max-w-md overflow-hidden rounded-[2rem] lg:max-w-none" style="background:#eef0ff" aria-hidden="true">
+        <div class="lp-cta-visual cs relative mx-auto w-full max-w-xl lg:max-w-none" aria-hidden="true">
             <style>
-                /* semua animasi 12s, tiga langkah x 4s, dan selalu sinkron */
+                .cs-rose{position:absolute;left:calc(50% + 3rem);top:11rem;width:30rem;height:30rem;transform:translate(-50%,-50%);pointer-events:none;z-index:0}
+                .cs-rose svg{width:100%;height:100%;display:block}
+                @media (min-width:640px){.cs-rose{left:14rem;top:50%;width:36rem;height:36rem}}
+                /* semua animasi 12s, tiga langkah x 4s, selalu sinkron */
                 .cs-a{opacity:0;animation:csFade 12s ease-in-out infinite}
                 .cs-s2{animation-delay:4s}
                 .cs-s3{animation-delay:8s}
-                .cs-slides{position:relative;height:4.1rem}
-                .cs-slides p{position:absolute;inset:0;margin:0;font-size:1.12rem;line-height:1.3;font-weight:600;letter-spacing:-.01em;color:#0f172a;opacity:0;animation:csSlide 12s ease-in-out infinite}
+                .cs-slides{position:relative;height:6.3rem}
+                .cs-slides p{position:absolute;inset:0;margin:0;font-size:1.25rem;line-height:1.24;font-weight:600;letter-spacing:-.02em;color:#0f172a;opacity:0;animation:csSlide 12s ease-in-out infinite}
                 .cs-slides p:nth-child(2){animation-delay:4s}
                 .cs-slides p:nth-child(3){animation-delay:8s}
-                .cs-bars{display:flex;gap:6px}
+                .cs-bars{display:flex;gap:6px;max-width:11rem;margin-top:.9rem}
                 .cs-bars span{flex:1;height:3px;border-radius:99px;background:rgba(9,2,123,.12);overflow:hidden}
                 .cs-bars i{display:block;height:100%;width:0;border-radius:99px;background:#09027b;animation:csSeg 12s linear infinite}
                 .cs-bars span:nth-child(2) i{animation-delay:4s}
@@ -437,19 +456,20 @@
                 }
             </style>
 
-            <img src="{{ asset('images/ready-start.webp') }}" alt="" width="640" height="640" class="absolute inset-0 h-full w-full object-cover" loading="lazy">
+            <div class="cs-rose">{!! $rosette('c') !!}</div>
 
-            <svg viewBox="0 20 520 470" class="relative block w-full" style="z-index:1" fill="none" font-family="inherit">
-                <defs>
-                    <filter id="cta-sh" x="-30%" y="-30%" width="160%" height="170%">
-                        <feDropShadow dx="0" dy="14" stdDeviation="16" flood-color="#09027b" flood-opacity=".22"/>
-                    </filter>
-                    <filter id="cta-sh2" x="-30%" y="-40%" width="160%" height="190%">
-                        <feDropShadow dx="0" dy="8" stdDeviation="9" flood-color="#0f172a" flood-opacity=".16"/>
-                    </filter>
-                </defs>
+            <div class="relative grid items-center gap-4 sm:grid-cols-[auto_minmax(0,1fr)] sm:gap-6" style="z-index:1">
+                <svg viewBox="0 20 390 470" class="mx-auto block w-[19rem] sm:w-[21rem]" fill="none" font-family="inherit">
+                    <defs>
+                        <filter id="cta-sh" x="-30%" y="-30%" width="160%" height="170%">
+                            <feDropShadow dx="0" dy="14" stdDeviation="16" flood-color="#09027b" flood-opacity=".22"/>
+                        </filter>
+                        <filter id="cta-sh2" x="-30%" y="-40%" width="160%" height="190%">
+                            <feDropShadow dx="0" dy="8" stdDeviation="9" flood-color="#0f172a" flood-opacity=".16"/>
+                        </filter>
+                    </defs>
 
-                {{-- ponsel: bingkai dan elemen yang tetap --}}
+                    {{-- ponsel: bingkai dan elemen yang tetap --}}
                 <g filter="url(#cta-sh)">
                     <rect x="150" y="30" width="220" height="450" rx="38" fill="#0b0f1e"/>
                 </g>
@@ -561,34 +581,33 @@
                     <text x="64" y="190" font-size="9" fill="#64748b">Keep it or undo in one tap</text>
                 </g>
 
-                {{-- melayang kanan, muncul bersama layar 2 --}}
+                {{-- melayang kiri, muncul bersama layar 2 --}}
                 <g class="cs-a cs-s2">
-                    <g filter="url(#cta-sh2)"><rect x="336" y="300" width="164" height="48" rx="16" fill="#fff"/></g>
-                    <circle cx="361" cy="324" r="13" fill="#fff1f2"/>
-                    <path d="M361 331L354.5 324.5A3.6 3.6 0 0 1 361 320.2A3.6 3.6 0 0 1 367.5 324.5Z" fill="#f43f5e"/>
-                    <text x="382" y="321" font-size="10" font-weight="600" fill="#0f172a">Charity received</text>
-                    <text x="382" y="336" font-size="10" font-weight="700" fill="#059669" font-family="ui-monospace,SFMono-Regular,Menlo,monospace">+$1.20</text>
+                    <g filter="url(#cta-sh2)"><rect x="14" y="312" width="172" height="48" rx="16" fill="#fff"/></g>
+                    <circle cx="39" cy="336" r="13" fill="#fff1f2"/>
+                    <path d="M39 343L32.5 336.5A3.6 3.6 0 0 1 39 332.2A3.6 3.6 0 0 1 45.5 336.5Z" fill="#f43f5e"/>
+                    <text x="60" y="333" font-size="10" font-weight="600" fill="#0f172a">Charity received</text>
+                    <text x="60" y="348" font-size="10" font-weight="700" fill="#059669" font-family="ui-monospace,SFMono-Regular,Menlo,monospace">+$1.20</text>
                 </g>
 
-                {{-- melayang kanan, muncul bersama layar 3 --}}
+                {{-- melayang kiri, muncul bersama layar 3 --}}
                 <g class="cs-a cs-s3">
-                    <g filter="url(#cta-sh2)"><rect x="336" y="300" width="164" height="48" rx="16" fill="#fff"/></g>
-                    <circle cx="361" cy="324" r="13" fill="#ecfdf5"/>
-                    <path d="M355 324.5l4 4 7-8" stroke="#059669" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                    <text x="382" y="321" font-size="10" font-weight="600" fill="#0f172a">Access sold</text>
-                    <text x="382" y="336" font-size="10" font-weight="700" fill="#059669" font-family="ui-monospace,SFMono-Regular,Menlo,monospace">+$5.40</text>
+                    <g filter="url(#cta-sh2)"><rect x="14" y="312" width="172" height="48" rx="16" fill="#fff"/></g>
+                    <circle cx="39" cy="336" r="13" fill="#ecfdf5"/>
+                    <path d="M33 336.5l4 4 7-8" stroke="#059669" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <text x="60" y="333" font-size="10" font-weight="600" fill="#0f172a">Access sold</text>
+                    <text x="60" y="348" font-size="10" font-weight="700" fill="#059669" font-family="ui-monospace,SFMono-Regular,Menlo,monospace">+$5.40</text>
                 </g>
-            </svg>
+</svg>
 
-            {{-- teks auto slide, sinkron dengan layar ponsel --}}
-            <div class="relative px-4 pb-4 sm:px-5 sm:pb-5" style="z-index:1">
-                <div class="rounded-2xl border border-white/70 bg-white/80 p-4 backdrop-blur-md">
+                {{-- teks auto slide, sinkron dengan layar ponsel --}}
+                <div class="px-2 sm:px-0">
                     <div class="cs-slides">
                         <p>Get a nudge<br>before every<br>renewal.</p>
                         <p>Changed your mind?<br>Second Chance<br>lasts 48 hours.</p>
                         <p>Sell unused access,<br>no fake refund.</p>
                     </div>
-                    <div class="cs-bars mt-3"><span><i></i></span><span><i></i></span><span><i></i></span></div>
+                    <div class="cs-bars"><span><i></i></span><span><i></i></span><span><i></i></span></div>
                 </div>
             </div>
         </div>
