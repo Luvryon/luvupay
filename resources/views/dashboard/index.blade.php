@@ -29,22 +29,14 @@
         <div><h1 class="page-title">Overview</h1><p class="page-sub">Wallet, ledger, and retention tools for {{ $project->name ?? 'your project' }}</p></div>
         <div style="display:flex;align-items:center;gap:24px">
             <div class="usage" title="Monthly API quota"><div class="t"><span>API usage</span><span x-text="(usage.used || 0) + ' / ' + (usage.limit || 1000)"></span></div><div class="bar"><i x-bind:style="'width:' + usagePct + '%'"></i></div></div>
-            <button type="button" class="c-btn" x-bind:class="(loading || bgLoading) ? 'is-busy' : ''" x-bind:disabled="false" x-on:click="load()" title="Refresh in background">
-                <span x-show="!(loading || bgLoading)">Refresh</span>
-                <span x-show="loading || bgLoading" x-cloak>Updating…</span>
-            </button>
+            <button type="button" class="c-btn" x-bind:class="loading ? 'is-busy' : ''" x-on:click="load()">Refresh</button>
         </div>
-    </div>
-
-    {{-- Soft background indicator (never blocks the page) --}}
-    <div x-show="bgLoading" x-cloak class="c-alert" style="padding:8px 14px;font-size:12px;opacity:.9" role="status">
-        Syncing latest data in the background…
     </div>
 
     {{-- Empty state --}}
     <x-ui.dashboard-empty-state />
 
-    <div x-show="hasData" x-cloak style="display:none" class="stack" x-bind:class="bgLoading ? 'lp-loading' : ''">
+    <div x-show="hasData" x-cloak style="display:none" class="stack">
 
         <section class="cols cols-wallet">
             <div class="c-wallet">

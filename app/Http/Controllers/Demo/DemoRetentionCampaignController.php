@@ -23,7 +23,7 @@ final class DemoRetentionCampaignController
             'body' => ['required', 'string', 'max:5000'],
             'discount' => ['required', 'integer', 'min:0', 'max:50'],
             'tone' => ['nullable', 'string', 'max:40'],
-            'image_data_url' => ['nullable', 'string', 'max:400000'],
+            'image_data_url' => ['nullable', 'string', 'max:300000'], // client must compress; ~225KB binary
             'cohort' => ['nullable', 'in:failed_and_refund,selected'],
             'transaction_ids' => ['nullable', 'array', 'max:100'],
             'transaction_ids.*' => ['uuid'],

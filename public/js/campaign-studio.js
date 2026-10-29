@@ -1,13 +1,57 @@
 /**
- * AI Retention Campaign Studio — Alpine factory (hard security: no inline x-data JS).
- * Never put large JS objects in HTML attributes; double quotes break the page.
+ * AI Retention Campaign Studio — Alpine factory (no inline x-data JS).
+ * Images are compressed client-side so image_data_url stays under the API limit.
  */
 (function (global) {
   'use strict';
 
+  var MAX_DATA_URL = 280000; // stay under server max:300000
+  var MAX_EDGE = 1200;
+
   function csrf() {
     var m = document.querySelector('meta[name=csrf-token]');
     return m ? m.getAttribute('content') : '';
+  }
+
+  function compressDataUrl(dataUrl, mime) {
+    return new Promise(function (resolve) {
+      try {
+        var img = new Image();
+        img.onload = function () {
+          var w = img.naturalWidth || img.width;
+          var h = img.naturalHeight || img.height;
+          if (!w || !h) { resolve(dataUrl); return; }
+          var scale = Math.min(1, MAX_EDGE / Math.max(w, h));
+          var cw = Math.max(1, Math.round(w * scale));
+          var ch = Math.max(1, Math.round(h * scale));
+          var canvas = document.createElement('canvas');
+          canvas.width = cw;
+          canvas.height = ch;
+          var ctx = canvas.getContext('2d');
+          if (!ctx) { resolve(dataUrl); return; }
+          ctx.drawImage(img, 0, 0, cw, ch);
+          var quality = 0.82;
+          var out = canvas.toDataURL('image/jpeg', quality);
+          while (out.length > MAX_DATA_URL && quality > 0.4) {
+            quality -= 0.1;
+            out = canvas.toDataURL('image/jpeg', quality);
+          }
+          if (out.length > MAX_DATA_URL) {
+            // last resort: shrink more
+            canvas.width = Math.round(cw * 0.7);
+            canvas.height = Math.round(ch * 0.7);
+            ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            out = canvas.toDataURL('image/jpeg', 0.55);
+          }
+          resolve(out.length <= MAX_DATA_URL ? out : null);
+        };
+        img.onerror = function () { resolve(null); };
+        img.src = dataUrl;
+      } catch (e) {
+        resolve(null);
+      }
+    });
   }
 
   global.campaignStudio = function campaignStudio() {
@@ -29,13 +73,30 @@
       brand: 'your plan',
       tone: 'Empathetic (loyal user)',
 
-      onFile: function (e) {
+      onFile: async function (e) {
         var f = e.target.files && e.target.files[0];
         if (!f) return;
+        if (!/^image\//.test(f.type || '')) {
+          if (global.LuvuToast) global.LuvuToast.error('Invalid file', 'Please choose a PNG, JPEG, or WebP image');
+          return;
+        }
+        if (f.size > 8 * 1024 * 1024) {
+          if (global.LuvuToast) global.LuvuToast.error('Image too large', 'Use an image under 8 MB');
+          return;
+        }
         var self = this;
         var reader = new FileReader();
-        reader.onload = function (ev) {
-          self.customImage = ev.target.result;
+        reader.onload = async function (ev) {
+          var raw = ev.target.result;
+          var compressed = await compressDataUrl(String(raw), f.type);
+          if (!compressed) {
+            if (global.LuvuToast) {
+              global.LuvuToast.error('Image too large', 'Could not compress enough. Try a smaller photo.');
+            }
+            self.customImage = null;
+            return;
+          }
+          self.customImage = compressed;
           self.selectedImage = -1;
         };
         reader.readAsDataURL(f);
@@ -43,7 +104,6 @@
 
       regenerateCopy: async function () {
         this.generating = true;
-        // Soft wait only for UX pulse; replace with real Nebius call when wired
         await new Promise(function (r) { setTimeout(r, 400); });
         var variants = [
           {
@@ -67,6 +127,12 @@
 
       approveAndSend: async function () {
         if (this.sending || this.sent) return;
+        if (this.customImage && this.customImage.length > MAX_DATA_URL) {
+          if (global.LuvuToast) {
+            global.LuvuToast.error('Image too large', 'Re-upload a smaller image (auto-compress failed)');
+          }
+          return;
+        }
         this.sending = true;
         if (global.LuvuLoader && global.LuvuLoader.begin) global.LuvuLoader.begin();
         try {
@@ -91,9 +157,11 @@
           var data = await res.json().catch(function () { return {}; });
           this.sending = false;
           if (!res.ok || data.ok === false) {
-            if (global.LuvuToast) {
-              global.LuvuToast.error('Send failed', data.message || 'Check mail config');
+            var msg = data.message || (data.errors && data.errors.image_data_url && data.errors.image_data_url[0]) || 'Check mail config';
+            if (/image data url|image_data_url|greater than/i.test(String(msg))) {
+              msg = 'Image is still too large after compress. Try a smaller photo.';
             }
+            if (global.LuvuToast) global.LuvuToast.error('Send failed', msg);
             return;
           }
           this.sent = true;
@@ -105,9 +173,7 @@
           }
         } catch (e) {
           this.sending = false;
-          if (global.LuvuToast) {
-            global.LuvuToast.error('Send failed', String(e.message || e));
-          }
+          if (global.LuvuToast) global.LuvuToast.error('Send failed', String(e.message || e));
         } finally {
           if (global.LuvuLoader && global.LuvuLoader.end) global.LuvuLoader.end();
         }

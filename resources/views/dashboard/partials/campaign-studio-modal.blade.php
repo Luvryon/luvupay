@@ -1,9 +1,8 @@
-{{-- AI Retention Campaign Studio — logic lives in /js/campaign-studio.js (never inline x-data JS) --}}
+{{-- AI Retention Campaign Studio — logic in /js/campaign-studio.js (never inline x-data JS) --}}
 <x-ui.modal show="campaignStudioOpen" title="AI Retention Campaign Studio" size="xl">
     <div class="campaign-studio space-y-4 text-slate-900 px-6 pt-4 pb-6"
          x-data="campaignStudio()">
         <div class="grid gap-4 lg:grid-cols-2">
-            {{-- Preview --}}
             <section class="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
                 <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Email preview</p>
                 <div class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
@@ -25,7 +24,6 @@
                 <p class="text-[11px] text-slate-500">Tone: <span x-text="tone"></span></p>
             </section>
 
-            {{-- Controls --}}
             <section class="space-y-4">
                 <div>
                     <label class="text-xs font-semibold text-slate-700" for="campaign-discount">Discount offer (merchant controlled)</label>
@@ -48,8 +46,8 @@
                     </div>
                     <label class="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-slate-300 px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-                        Upload image
-                        <input type="file" accept="image/*" class="hidden" x-on:change="onFile($event)">
+                        Upload image (auto-compressed)
+                        <input type="file" accept="image/png,image/jpeg,image/webp" class="hidden" x-on:change="onFile($event)">
                     </label>
                 </div>
 

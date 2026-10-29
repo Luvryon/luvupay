@@ -993,10 +993,15 @@ pushToast: function (message, icon) {
 
         pop.location.href = pp.approve_url;
         var txId = j.transaction_id;
+        row.txId = txId;
         var msg = await waitForPopup(pop, txId, function () {
           return request('GET', 'demo/checkout/' + txId + '/status').then(function (r) {
             var d = r.data || {};
-            return (r.ok && (d.state === 'captured' || d.state === 'failed' || d.state === 'gone')) ? d : null;
+            // Do not stop early on transient "failed" confirm errors — keep polling until settle.
+            if (!r.ok) return null;
+            if (d.state === 'captured' || d.state === 'gone' || d.state === 'cancelled') return d;
+            if (d.state === 'failed' && !/could not confirm|still confirming/i.test(String(d.message || ''))) return d;
+            return null;
           });
         });
         var res = await this._checkoutResolve(msg, j.transaction_id);
@@ -1033,11 +1038,26 @@ pushToast: function (message, icon) {
           return r.ok ? (r.data || { state: 'cancelled' }) : { state: 'failed', message: (r.data && r.data.message) || 'Could not cancel the checkout' };
         }
 
-        for (i = 0; i < 4; i++) {
+        // Poll longer: PayPal often activates a second after the popup closes.
+        // Never treat a one-off "Could not confirm" as final while status may still flip to captured.
+        for (i = 0; i < 10; i++) {
           r = await request('GET', 'demo/checkout/' + tx + '/status');
           d = r.data || {};
-          if (!r.ok) return { state: 'failed', message: d.message || 'Could not check the payment status' };
-          if (d.state === 'processing' && !d.awaiting_buyer && i < 3) { await sleep(2000); continue; }
+          if (!r.ok) {
+            if (i < 9) { await sleep(2000); continue; }
+            return { state: 'failed', message: d.message || 'Could not check the payment status' };
+          }
+          if (d.state === 'captured' || d.state === 'cancelled' || d.state === 'gone') return d;
+          if (d.state === 'failed') {
+            var msg = String(d.message || '');
+            if (/could not confirm|still confirming|pending/i.test(msg) && i < 9) {
+              await sleep(2000);
+              continue;
+            }
+            return d;
+          }
+          // processing (with or without awaiting_buyer)
+          if (i < 9) { await sleep(2000); continue; }
           return d;
         }
         return { state: 'processing', message: 'PayPal is still confirming the payment' };
@@ -1055,6 +1075,16 @@ pushToast: function (message, icon) {
         } else if (res.state === 'processing') {
           row.status = 'awaiting'; row.note = 'Approved, waiting for PayPal to confirm…';
           this.pushToast(res.message || 'PayPal is still confirming the payment', '⏳');
+          // Quiet background recheck — avoids false "failed" while PayPal settles
+          var self = this;
+          setTimeout(function () {
+            request('GET', 'demo/checkout/' + encodeURIComponent(row.txId || row.id || '') + '/status').then(function (r) {
+              var d = (r && r.data) || {};
+              if (d.state === 'captured') {
+                self._checkoutApplyResult(row, d);
+              }
+            }).catch(function () {});
+          }, 4000);
         } else if (res.state === 'cancelled' || res.state === 'gone') {
           row.status = 'idle'; row.note = 'Cancelled on PayPal, nothing was charged';
           this.pushToast('PayPal checkout cancelled. No money moved', '⚠️');
