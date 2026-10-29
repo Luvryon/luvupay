@@ -3,12 +3,7 @@
 @section('meta_description', 'LuvuPay merchant support: contact channels, incident reporting, documentation, and status')
 @section('content')
 @php
-    $appUrl = rtrim((string) config('app.url', ''), '/');
-    $host = parse_url($appUrl, PHP_URL_HOST);
-    if (! is_string($host) || $host === '' || str_contains($host, 'localhost') || str_contains($host, '127.0.0.1')) {
-        $host = 'luvupay.com';
-    }
-    $supportEmail = 'support@'.$host;
+    $supportEmail = 'contact@luvryon.com';
 @endphp
 
 <section class="border-b border-line bg-wash">
