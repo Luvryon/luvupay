@@ -58,7 +58,7 @@
                 @keyframes wlRise{from{opacity:0;transform:translateY(34px) rotate(0)}}
 
                 /* badan dompet */
-                .wl-body{position:relative;z-index:1;display:grid;gap:1.25rem;grid-template-columns:minmax(0,1fr);padding:1.6rem 1.6rem 1.7rem;border-radius:1.4rem;color:#fff;
+                .wl-body{position:relative;height:100%;z-index:1;display:grid;gap:1.25rem;grid-template-columns:minmax(0,1fr);padding:1.6rem 1.6rem 1.7rem;border-radius:1.4rem;color:#fff;
                     background-image:
                         url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .55 0'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='.22'/></svg>"),
                         linear-gradient(160deg,var(--leather-1) 0%,var(--leather-2) 52%,var(--leather-3) 100%);
@@ -271,7 +271,7 @@
             {{-- Tertiary: debug --}}
             <button
                 type="button"
-                class="text-slate-500 hover:text-indigo-600 px-4 py-2 font-medium text-sm"
+                class="text-[#2c2b2b] bg-[#c5c5c5] hover:text-indigo-600 px-4 py-2 font-medium text-sm"
                 x-on:click="openWebhookLogs()"
             >
                 Webhook logs
