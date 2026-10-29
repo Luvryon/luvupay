@@ -90,7 +90,7 @@ final class DemoCheckoutController
             return response()->json([
                 'ok' => false,
                 'error' => 'paypal_not_configured',
-                'message' => 'LUVUPAY_PAYMENT_DRIVER=paypal but PAYPAL_CLIENT_ID / PAYPAL_SECRET are empty. Fill them from developer.paypal.com (Sandbox app) or set LUVUPAY_PAYMENT_DRIVER=mock',
+                'message' => 'PayPal is not fully set up yet. Add your Sandbox Client ID and Secret in Settings, or ask your admin to finish the PayPal setup.',
             ], 422);
         }
 
@@ -112,7 +112,7 @@ final class DemoCheckoutController
             'plan_id' => 'premium_monthly',
         ];
 
-        DB::transaction(function () use ($merchantId, $currency, $now, $userId, $email, $subId, $txId, $ref, $trust, $churn, $amountMinor, $live, $meta) {
+        DB::transaction(function () use ($merchantId, $currency, $now, $userId, $email, $subId, $txId, $ref, $trust, $churn, $amountMinor, $live, $meta, $popup) {
             DB::table('subscriptions')->insert([
                 'id' => $subId,
                 'merchant_id' => $merchantId,

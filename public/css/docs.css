@@ -44,6 +44,7 @@
 }
 
 /* Article typography */
+.docs-content .bg-ink h1, .docs-content .bg-ink .text-white, .docs-content header.bg-ink h1 { color: #fff !important; }
 .docs-content h1 { margin: 0 0 12px; font-size: 1.9rem; font-weight: 700; letter-spacing: -.03em; line-height: 1.2; color: var(--docs-ink); }
 .docs-content h2 { margin: 40px 0 12px; padding-top: 24px; border-top: 1px solid var(--docs-edge); font-size: 1.25rem; font-weight: 650; color: var(--docs-ink); scroll-margin-top: 88px; }
 .docs-content h2:first-of-type { margin-top: 28px; border-top: 0; padding-top: 0; }
@@ -52,7 +53,13 @@
 .docs-content ul { list-style: disc; padding-left: 22px; }
 .docs-content ol { list-style: decimal; padding-left: 22px; }
 .docs-content li { margin: 4px 0; }
-.docs-content a { color: var(--docs-brand); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: #cfc4ff; }
+.docs-content a { color: var(--docs-brand); text-decoration: none; }
+.docs-content a:hover { text-decoration: underline; text-underline-offset: 3px; text-decoration-color: #cfc4ff; }
+.docs-content a.lp-btn,
+.docs-content a.rounded-lg,
+.docs-content a[class*="bg-"] { text-decoration: none !important; color: inherit; }
+.docs-content a.lp-btn-primary,
+.docs-content a.lp-btn-dark { color: #fff !important; }
 .docs-content code { padding: 2px 6px; border-radius: 6px; background: #f5f5f8; font-size: .85em; color: var(--docs-ink); }
 .docs-content pre { margin: 16px 0; padding: 16px 18px; overflow-x: auto; border-radius: 12px; background: #14151f; color: #e6e7f2; font-size: .8rem; line-height: 1.6; }
 .docs-content pre code { padding: 0; background: none; color: inherit; }

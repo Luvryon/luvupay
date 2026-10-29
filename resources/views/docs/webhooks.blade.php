@@ -25,8 +25,8 @@
   .facts dd { margin: .15rem 0 0; font-weight: 600; }
 
   /* real sequences only: verification and URL change */
-  .steps { list-style: none; padding: 0; margin: 1.25rem 0; counter-reset: s; }
-  .steps li { counter-increment: s; position: relative; padding: 0 0 1.1rem 2.75rem; margin: 0; }
+  .steps { list-style: none !important; padding: 0; margin: 1.25rem 0; counter-reset: s; }
+  .steps li { list-style: none !important; counter-increment: s; position: relative; padding: 0 0 1.1rem 2.75rem; margin: 0; }
   .steps li::before { content: counter(s); position: absolute; left: 0; top: -.05rem; width: 1.75rem; height: 1.75rem; border-radius: 999px; border: 1.5px solid currentColor; display: grid; place-items: center; font-size: .8125rem; font-weight: 700; }
   .steps li::after { content: ""; position: absolute; left: .85rem; top: 1.85rem; bottom: .15rem; border-left: 1.5px solid rgba(127,127,127,.35); }
   .steps li:last-child { padding-bottom: 0; }
@@ -90,7 +90,7 @@
         <h2>Verify every request</h2>
         <p>Each delivery carries three headers. Check them in this order and reject the request at the first failure</p>
 
-        <ol class="steps">
+        <ol class="steps" style="list-style:none;padding-left:0">
           <li><strong>Check the timestamp</strong> Read <code>X-LuvuPay-Timestamp</code> and reject anything older than <strong>5 minutes</strong>. The tolerance is configurable</li>
           <li><strong>Check the nonce</strong> Read <code>X-LuvuPay-Nonce</code> and reject replays. The nonce store TTL is typically 10 minutes</li>
           <li><strong>Check the signature</strong> Compute HMAC-SHA256 over the canonical string with your endpoint secret. Compare it to <code>X-LuvuPay-Signature</code> with a constant-time compare</li>
@@ -166,7 +166,7 @@ if (! hash_equals($expected, $signature)) {
       {{-- URL CHANGE --}}
       <section id="url-change">
         <h2>Changing the webhook URL</h2>
-        <ol class="steps">
+        <ol class="steps" style="list-style:none;padding-left:0">
           <li><strong>Request the change</strong> In Console, open Settings and request a new URL</li>
           <li><strong>Confirm by email</strong> Enter the verification code we send you</li>
           <li><strong>Wait for the cooling-off period</strong> It ends at <code>pending_url_activates_at</code>. Until then the previous URL stays active</li>

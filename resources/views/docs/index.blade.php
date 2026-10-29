@@ -40,12 +40,12 @@
         <ol class="mt-4 list-decimal space-y-3 pl-5 text-sm text-ink/80">
             <li>Register a merchant account and complete email verification</li>
             <li>Create an API key in <strong>Console → Settings</strong> (secret key for server-side calls)</li>
-            <li>Point webhooks at your app and verify HMAC signatures (see <a href="/docs/webhooks" class="text-brand-700 underline underline-offset-2">Webhooks</a>)</li>
+            <li>Point webhooks at your app and verify HMAC signatures (see <a href="/docs/webhooks" class="text-brand-700" style="text-decoration:none">Webhooks</a>)</li>
             <li>Start with <code class="rounded border border-line bg-white px-1.5 py-0.5 font-mono text-xs">LUVUPAY_PAYMENT_DRIVER=mock</code>, then move to PayPal sandbox</li>
             <li>Exercise Second Chance and resale flows before requesting live credentials</li>
         </ol>
         <div class="mt-6 flex flex-wrap gap-3">
-            <a href="/docs/api" class="lp-btn lp-btn-primary text-sm">API reference</a>
+            <a href="/docs/api" class="lp-btn lp-btn-primary text-sm" style="color:#fff;text-decoration:none">API reference</a>
             <a href="/docs/sandbox" class="lp-btn lp-btn-outline text-sm">Sandbox setup</a>
             <a href="/register" class="lp-btn lp-btn-outline text-sm">Create account</a>
         </div>

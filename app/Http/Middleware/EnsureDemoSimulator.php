@@ -38,7 +38,11 @@ final class EnsureDemoSimulator
             return response()->json([
                 'ok' => false,
                 'error' => 'paypal_not_connected',
-                'message' => 'Connect PayPal in Settings (Merchant ID is enough) before running Sandbox simulations. Or set LUVUPAY_PAYMENT_DRIVER=mock in .env for offline demo',
+                'message' => 'Connect your PayPal account in Settings before starting a checkout. It only takes a moment.',
+                'action' => [
+                    'label' => 'Open Settings',
+                    'href' => '/settings',
+                ],
             ], 403);
         }
 

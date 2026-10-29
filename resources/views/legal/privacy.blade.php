@@ -21,7 +21,7 @@
 <h2>Retention</h2>
 <p>Records are kept while the account is active and as required for compliance, then deleted or anonymized</p>
 <h2>Contact</h2>
-<p><a href="mailto:privacy@luvupay.example">privacy@luvupay.example</a></p>
+<p><a href="mailto:contact@luvryon.com">contact@luvryon.com</a></p>
 
   </article>
 </div>

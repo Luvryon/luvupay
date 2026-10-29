@@ -26,14 +26,14 @@
   .facts dd { margin: .15rem 0 0; font-weight: 600; }
 
   /* rollout sequence */
-  .steps { list-style: none; padding: 0; margin: 1.25rem 0; counter-reset: s; }
-  .steps li { counter-increment: s; position: relative; padding: 0 0 1.1rem 2.75rem; margin: 0; }
-  .steps li::before { content: counter(s); position: absolute; left: 0; top: -.05rem; width: 1.75rem; height: 1.75rem; border-radius: 999px; border: 1.5px solid currentColor; display: grid; place-items: center; font-size: .8125rem; font-weight: 700; }
+  .steps { list-style: none !important; padding: 0; margin: 1.25rem 0; counter-reset: s; }
+  .steps li { list-style: none !important; counter-increment: s; position: relative; padding: 0 0 1.1rem 2.75rem; margin: 0; }
+  .steps li::marker { content: none !important; display: none !important; }
+  .steps li::before { content: counter(s); position: absolute; left: 0; top: -.05rem; width: 1.75rem; height: 1.75rem; border-radius: 999px; border: 1.5px solid currentColor; display: grid; place-items: center; font-size: .8125rem; font-weight: 700; background: #fff; z-index: 1; }
   .steps li::after { content: ""; position: absolute; left: .85rem; top: 1.85rem; bottom: .15rem; border-left: 1.5px solid rgba(127,127,127,.35); }
   .steps li:last-child { padding-bottom: 0; }
   .steps li:last-child::after { display: none; }
-  .steps li.live::before { background: currentColor; }
-  .steps li.live::before { color: inherit; }
+  .steps li.live::before { background: currentColor; color: #fff; }
 
   /* tables */
   .tbl { width: 100%; border-collapse: collapse; font-size: .875rem; }
@@ -116,7 +116,7 @@ APP_URL=https://your-public-host</code></pre>
       {{-- ORDER --}}
       <section id="order">
         <h2>Recommended rollout order</h2>
-        <ol class="steps">
+        <ol class="steps" style="list-style:none;padding-left:0">
           <li><strong>Start on mock</strong> Work through register, console, settings and your product webhook receivers. Try <code>php artisan demo:second-chance</code> and <code>demo:resale</code>.</li>
           <li><strong>Switch to the sandbox</strong> Set the <code>paypal</code> driver with sandbox credentials, then run <code>luvupay:sandbox-check</code>.</li>
           <li><strong>Create a subscription</strong> Call the API, then complete approval with a PayPal sandbox buyer account</li>

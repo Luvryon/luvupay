@@ -42,12 +42,16 @@ final class EnsurePayPalConnected
         if ($request->expectsJson()) {
             return response()->json([
                 'error' => 'paypal_not_connected',
-                'message' => 'Connect a PayPal Business account before using this endpoint',
+                'message' => 'Connect your PayPal account in Settings to continue.',
+                'action' => [
+                    'label' => 'Open Settings',
+                    'href' => '/settings',
+                ],
             ], 403);
         }
 
         return redirect()->route('settings')
-            ->with('warning', 'Connect PayPal before using the console.');
+            ->with('warning', 'Connect your PayPal account in Settings to continue.');
     }
 
     public static function isConnected(Request $request): bool

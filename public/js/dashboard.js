@@ -434,15 +434,15 @@
         if (ob && ob.getAttribute('data-payment-driver') === 'paypal' && ob.getAttribute('data-has-paypal') !== '1') {
           if (window.LuvuToast) {
             window.LuvuToast.info(
-              'Connect PayPal Sandbox',
-              'Payment driver is paypal. Link your Sandbox merchant in Settings before Simulate',
+              'Connect PayPal to continue',
+              'Link your PayPal account in Settings, then try again. It only takes a moment.',
               {
                 id: 'need-paypal-sim',
                 action: { label: 'Open Settings', href: '/settings#paypal' },
               }
             );
           } else {
-            this.pushToast('Connect PayPal in Settings first', '⚠️');
+            this.pushToast('Connect PayPal in Settings to continue', '⚠️');
           }
           return;
         }
@@ -669,7 +669,7 @@
         if (this.walletWithdrawing || this.walletBalanceMinor <= 0) return;
         // Gate: only when the live PayPal driver is on and no PayPal merchant is linked (mock mode never needs it)
         if (!this.paypalConnected) {
-          this.pushToast('Connect PayPal in Settings before withdrawing', '⚠️');
+          this.pushToast('Connect PayPal in Settings before withdrawing funds', '⚠️');
           try { window.location.href = '/settings'; } catch (e) {}
           return;
         }
@@ -714,7 +714,7 @@
           } else {
             var err = (res && res.data && (res.data.message || res.data.error)) || ('HTTP ' + (res && res.status));
             if (res && res.status === 403) {
-              this.pushToast('Connect PayPal in Settings first', '⚠️');
+              this.pushToast('Connect PayPal in Settings to continue', '⚠️');
               try { window.location.href = '/settings'; } catch (e2) {}
             } else {
               this.pushToast(err || 'Withdraw failed', '❌');
@@ -736,9 +736,24 @@
           this.simMsg = res.ok ? (res.data.message || 'Done') : (res.data.message || res.data.error || ('HTTP ' + res.status));
           if (!res.ok) {
             var err = res.data.message || res.data.error || ('HTTP ' + res.status);
-            this.pushToast(err, '❌');
+            // Prefer a single friendly toast for missing PayPal link
             if (res.status === 403 && (res.data.error === 'paypal_not_connected' || String(err).indexOf('PayPal') !== -1)) {
-              this.pushToast('Open Settings → PayPal, or set LUVUPAY_PAYMENT_DRIVER=mock', '⚠️');
+              if (window.LuvuToast) {
+                window.LuvuToast.info(
+                  'Connect PayPal to continue',
+                  err,
+                  {
+                    id: 'need-paypal-checkout',
+                    action: (res.data.action && res.data.action.href)
+                      ? { label: res.data.action.label || 'Open Settings', href: res.data.action.href }
+                      : { label: 'Open Settings', href: '/settings#paypal' },
+                  }
+                );
+              } else {
+                this.pushToast(err, '⚠️');
+              }
+            } else {
+              this.pushToast(err, '❌');
             }
           }
           if (res.ok) { await this.refreshKpi(); }

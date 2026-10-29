@@ -36,8 +36,7 @@
 <section class="lp-hero">
     <div class="mx-auto grid max-w-7xl items-center gap-12 px-5 pb-20 pt-14 sm:px-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] lg:pb-28 lg:pt-20">
         <div>
-            <a href="/docs/sandbox" class="lp-pill"><span class="size-1.5 rounded-full bg-emerald-500"></span>Ready on PayPal Sandbox today</a>
-            <h1 class="mt-6 text-[2.7rem] font-bold leading-[1.04] tracking-[-0.035em] text-ink sm:text-[3.5rem]">
+            <h1 class="text-[2.7rem] font-bold leading-[1.04] tracking-[-0.035em] text-ink sm:text-[3.5rem]">
                 Build payment experiences that give a <span class="text-brand-600">second chance</span>
             </h1>
             <p class="mt-6 max-w-lg text-[1.05rem] leading-relaxed text-muted">One API for the 48-hour Second Chance, resale of unused access and money movement you can audit to the cent. Designed for developers and trusted by finance teams</p>
@@ -148,58 +147,68 @@
 </section>
 
 {{-- Ecosystem --}}
-<section class="border-t border-line py-20 overflow-hidden">
-    <div class="mx-auto max-w-7xl px-5 sm:px-8">
-        <div class="grid gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:items-center">
+<section class="relative overflow-hidden border-t border-line bg-[#fafbff] py-20 sm:py-24">
+    {{-- soft background glow --}}
+    <div class="pointer-events-none absolute inset-0" aria-hidden="true">
+        <div class="absolute -right-20 top-10 h-72 w-72 rounded-full bg-brand-50/80 blur-3xl"></div>
+        <div class="absolute bottom-0 left-1/3 h-64 w-64 rounded-full bg-violet-50/60 blur-3xl"></div>
+    </div>
+
+    <div class="relative mx-auto max-w-7xl px-5 sm:px-8">
+        <div class="grid items-center gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:gap-8">
             {{-- Left copy --}}
-            <div>
+            <div class="max-w-lg">
                 <p class="lp-eyebrow">Ecosystem</p>
-                <h2 class="lp-h2 max-w-xl">Integrated with the tools you already know and trust</h2>
-                <p class="mt-4 max-w-md text-muted">Use LuvuPay with the tools and platforms you already run. Our integrations keep growing to support your stack — from backend to frontend frameworks.</p>
+                <h2 class="mt-3 text-3xl font-bold tracking-tight text-ink sm:text-4xl lg:text-[2.5rem] lg:leading-[1.15]">
+                    Integrated with the tools you already know and trust
+                </h2>
+                <p class="mt-4 text-[1.05rem] leading-relaxed text-muted">
+                    Use LuvuPay with the tools and platforms you already run. Our integrations keep growing to support your business stack.
+                </p>
             </div>
 
-            {{-- Right floating logos --}}
-            <div class="relative hidden min-h-[280px] lg:block" aria-hidden="true">
-                <svg class="absolute inset-0 h-full w-full" viewBox="0 0 400 280" fill="none">
-                    <path d="M80 140 C140 80, 200 60, 280 90" stroke="#e0e4ff" stroke-width="1.5" stroke-dasharray="4 6"/>
-                    <path d="M100 180 C160 200, 220 160, 300 170" stroke="#e0e4ff" stroke-width="1.5" stroke-dasharray="4 6"/>
-                    <path d="M60 100 C120 140, 180 200, 260 220" stroke="#e0e4ff" stroke-width="1.5" stroke-dasharray="4 6"/>
+            {{-- Right: floating logos + wave lines --}}
+            <div class="relative mx-auto h-[280px] w-full max-w-md lg:mx-0 lg:h-[320px] lg:max-w-none" aria-hidden="true">
+                {{-- Wave / dashed curves --}}
+                <svg class="absolute inset-0 h-full w-full" viewBox="0 0 420 320" fill="none" preserveAspectRatio="xMidYMid meet">
+                    <path d="M40 180 C90 120, 140 90, 200 110 C260 130, 300 90, 360 70" stroke="#c4b5fd" stroke-width="1.6" stroke-dasharray="5 7" opacity="0.85"/>
+                    <path d="M60 220 C120 200, 160 240, 220 210 C280 180, 320 220, 380 190" stroke="#ddd6fe" stroke-width="1.5" stroke-dasharray="4 6" opacity="0.9"/>
+                    <path d="M80 100 C130 140, 180 160, 240 150 C300 140, 340 180, 390 200" stroke="#e9e5ff" stroke-width="1.4" stroke-dasharray="5 8" opacity="0.8"/>
                 </svg>
-                <div class="absolute left-[8%] top-[12%] grid size-14 place-items-center rounded-2xl border border-line bg-white shadow-sm">
-                    <svg viewBox="0 0 24 24" class="size-7" aria-hidden="true">{!! $ecosystem[1]['svg'] !!}</svg>
+
+                {{-- Floating logo tiles --}}
+                <div class="absolute left-[8%] top-[38%] grid size-[3.4rem] place-items-center rounded-2xl border border-white/80 bg-white shadow-[0_8px_30px_rgba(91,61,245,0.08)] ring-1 ring-black/[0.04]">
+                    <svg viewBox="0 0 24 24" class="size-7">{!! $ecosystem[0]['svg'] !!}</svg>
                 </div>
-                <div class="absolute left-[38%] top-[28%] grid size-14 place-items-center rounded-2xl border border-line bg-white shadow-sm">
-                    <svg viewBox="0 0 24 24" class="size-7" aria-hidden="true">{!! $ecosystem[0]['svg'] !!}</svg>
+                <div class="absolute left-[42%] top-[8%] grid size-[3.4rem] place-items-center rounded-2xl border border-white/80 bg-white shadow-[0_8px_30px_rgba(91,61,245,0.08)] ring-1 ring-black/[0.04]">
+                    <svg viewBox="0 0 24 24" class="size-7">{!! $ecosystem[1]['svg'] !!}</svg>
                 </div>
-                <div class="absolute left-[58%] top-[8%] grid size-14 place-items-center rounded-2xl border border-line bg-white shadow-sm">
-                    <svg viewBox="0 0 24 24" class="size-7" aria-hidden="true">{!! $ecosystem[3]['svg'] !!}</svg>
+                <div class="absolute left-[48%] top-[48%] grid size-[3.4rem] place-items-center rounded-2xl border border-white/80 bg-white shadow-[0_8px_30px_rgba(91,61,245,0.08)] ring-1 ring-black/[0.04]">
+                    <svg viewBox="0 0 24 24" class="size-7">{!! $ecosystem[3]['svg'] !!}</svg>
                 </div>
-                <div class="absolute left-[78%] top-[32%] grid size-12 place-items-center rounded-2xl border border-line bg-white shadow-sm text-muted text-lg font-semibold">···</div>
-                <div class="absolute left-[48%] top-[62%] grid size-14 place-items-center rounded-2xl border border-line bg-white shadow-sm">
-                    <svg viewBox="0 0 24 24" class="size-7" aria-hidden="true">{!! $ecosystem[2]['svg'] !!}</svg>
+                <div class="absolute left-[72%] top-[62%] grid size-[3.4rem] place-items-center rounded-2xl border border-white/80 bg-white shadow-[0_8px_30px_rgba(91,61,245,0.08)] ring-1 ring-black/[0.04]">
+                    <svg viewBox="0 0 24 24" class="size-7">{!! $ecosystem[2]['svg'] !!}</svg>
                 </div>
-                <div class="absolute left-[22%] top-[58%] grid size-14 place-items-center rounded-2xl border border-line bg-white shadow-sm">
-                    <svg viewBox="0 0 24 24" class="size-7" aria-hidden="true">{!! $ecosystem[6]['svg'] !!}</svg>
-                </div>
+                <div class="absolute left-[82%] top-[22%] grid size-12 place-items-center rounded-2xl border border-white/80 bg-white text-lg font-semibold tracking-widest text-muted/70 shadow-[0_8px_30px_rgba(91,61,245,0.06)] ring-1 ring-black/[0.04]">···</div>
             </div>
         </div>
 
-        {{-- Logo strip --}}
-        <div class="mt-12 flex flex-wrap gap-3">
-            @foreach($ecosystem as $item)
-                <div class="lp-card flex min-w-[9.5rem] flex-1 items-center gap-3 p-4 sm:min-w-0 sm:flex-none">
-                    <span class="grid size-10 shrink-0 place-items-center rounded-xl border border-line bg-white">
-                        <svg viewBox="0 0 24 24" class="size-6" aria-hidden="true">{!! $item['svg'] !!}</svg>
+        {{-- Logo strip — matches reference cards --}}
+        <div class="mt-12 flex flex-wrap gap-3 sm:mt-14">
+            @foreach(array_slice($ecosystem, 0, 5) as $item)
+                <div class="flex min-w-[7.5rem] flex-1 flex-col items-start gap-3 rounded-2xl border border-line/80 bg-white p-4 shadow-sm sm:min-w-0 sm:flex-none sm:w-[9.25rem]">
+                    <span class="grid size-9 place-items-center">
+                        <svg viewBox="0 0 24 24" class="size-7" aria-hidden="true">{!! $item['svg'] !!}</svg>
                     </span>
-                    <div class="min-w-0">
-                        <div class="truncate text-sm font-semibold">{{ $item['name'] }}</div>
+                    <div>
+                        <div class="text-sm font-semibold text-ink">{{ $item['name'] }}</div>
                         <div class="text-xs text-muted">{{ $item['kind'] }}</div>
                     </div>
                 </div>
             @endforeach
-            <a href="/docs" class="lp-card flex min-w-[9.5rem] flex-1 items-center gap-2 p-4 text-brand-600 transition hover:border-brand-200 sm:min-w-0 sm:flex-none">
-                <span class="grid size-10 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-600 text-lg font-bold">↗</span>
-                <div class="text-sm font-semibold">See all integrations <span aria-hidden="true">→</span></div>
+            <a href="/docs" class="flex min-w-[7.5rem] flex-1 flex-col items-start justify-center gap-2 rounded-2xl border border-dashed border-brand-200 bg-brand-50/40 p-4 text-brand-600 transition hover:border-brand-300 hover:bg-brand-50 sm:min-w-0 sm:flex-none sm:w-[9.25rem]">
+                <span class="text-lg font-bold leading-none">↗</span>
+                <span class="text-sm font-semibold leading-snug">See all integrations →</span>
             </a>
         </div>
     </div>
@@ -207,77 +216,88 @@
 
 {{-- Infrastructure --}}
 <section class="lp-dark py-24 overflow-hidden">
-    <div class="mx-auto grid max-w-7xl items-center gap-12 px-5 sm:px-8 lg:grid-cols-2">
-        {{-- Left: world map + status --}}
-        <div class="relative order-2 lg:order-1 min-h-[320px] sm:min-h-[380px]">
-            {{-- Dotted world map (simplified SVG) --}}
-            <svg class="absolute inset-0 h-full w-full opacity-90" viewBox="0 0 560 320" fill="none" aria-hidden="true">
-                {{-- Soft grid dots for oceans --}}
+    <div class="mx-auto grid max-w-7xl items-center gap-10 px-5 sm:px-8 lg:grid-cols-2 lg:gap-16">
+        {{-- Left: world map + regions --}}
+        <div class="relative order-2 lg:order-1 aspect-[4/3] w-full rounded-2xl bg-[#0e1018] ring-1 ring-white/5">
+            <svg class="absolute inset-0 h-full w-full" viewBox="0 0 520 400" fill="none" aria-hidden="true" preserveAspectRatio="xMidYMid meet">
                 <defs>
-                    <pattern id="infra-dots" x="0" y="0" width="10" height="10" patternUnits="userSpaceOnUse">
-                        <circle cx="1" cy="1" r="0.9" fill="#3b3f5c"/>
+                    <pattern id="infra-dots" width="9" height="9" patternUnits="userSpaceOnUse">
+                        <circle cx="1.4" cy="1.4" r="1.25" fill="#5a5f7a"/>
                     </pattern>
+                    <radialGradient id="glow-us" cx="0.5" cy="0.5" r="0.5"><stop offset="0%" stop-color="#8b7cf8" stop-opacity="0.45"/><stop offset="100%" stop-color="#8b7cf8" stop-opacity="0"/></radialGradient>
+                    <radialGradient id="glow-eu" cx="0.5" cy="0.5" r="0.5"><stop offset="0%" stop-color="#8b7cf8" stop-opacity="0.45"/><stop offset="100%" stop-color="#8b7cf8" stop-opacity="0"/></radialGradient>
+                    <radialGradient id="glow-sg" cx="0.5" cy="0.5" r="0.5"><stop offset="0%" stop-color="#22c55e" stop-opacity="0.5"/><stop offset="100%" stop-color="#22c55e" stop-opacity="0"/></radialGradient>
                 </defs>
-                <rect width="560" height="320" fill="url(#infra-dots)"/>
-                {{-- Connection arcs --}}
-                <path d="M145 145 C220 90, 300 85, 400 130" stroke="#6d5dfc" stroke-width="1.5" fill="none" opacity="0.7"/>
-                <path d="M145 145 C200 180, 280 210, 380 195" stroke="#6d5dfc" stroke-width="1.5" fill="none" opacity="0.55"/>
-                <path d="M400 130 C430 160, 450 185, 470 210" stroke="#6d5dfc" stroke-width="1.5" fill="none" opacity="0.5"/>
-                {{-- Region pins --}}
-                {{-- US East --}}
-                <circle cx="145" cy="145" r="5" fill="#6d5dfc"/>
-                <circle cx="145" cy="145" r="10" fill="#6d5dfc" opacity="0.25"/>
-                {{-- Europe --}}
-                <circle cx="280" cy="115" r="5" fill="#6d5dfc"/>
-                <circle cx="280" cy="115" r="10" fill="#6d5dfc" opacity="0.25"/>
-                {{-- Singapore --}}
-                <circle cx="400" cy="195" r="5" fill="#22c55e"/>
-                <circle cx="400" cy="195" r="10" fill="#22c55e" opacity="0.3"/>
-                {{-- US West --}}
-                <circle cx="95" cy="155" r="4" fill="#6d5dfc" opacity="0.8"/>
-                {{-- Japan --}}
-                <circle cx="470" cy="140" r="4" fill="#6d5dfc" opacity="0.8"/>
+                <rect width="520" height="400" fill="url(#infra-dots)" opacity="0.65"/>
+                {{-- denser continent areas --}}
+                <ellipse cx="125" cy="170" rx="78" ry="60" fill="url(#infra-dots)"/>
+                <ellipse cx="255" cy="125" rx="48" ry="38" fill="url(#infra-dots)"/>
+                <ellipse cx="385" cy="205" rx="55" ry="42" fill="url(#infra-dots)"/>
+                <ellipse cx="435" cy="140" rx="28" ry="22" fill="url(#infra-dots)"/>
+                {{-- arcs --}}
+                <path d="M125 170 C200 95, 280 85, 255 125" stroke="#9b8cff" stroke-width="1.8" fill="none" opacity="0.75" stroke-dasharray="6 5"/>
+                <path d="M125 170 C210 205, 305 230, 385 205" stroke="#9b8cff" stroke-width="1.8" fill="none" opacity="0.65" stroke-dasharray="6 5"/>
+                <path d="M255 125 C320 145, 360 175, 385 205" stroke="#9b8cff" stroke-width="1.5" fill="none" opacity="0.55" stroke-dasharray="6 5"/>
+                <path d="M385 205 C415 170, 430 155, 435 140" stroke="#9b8cff" stroke-width="1.4" fill="none" opacity="0.5" stroke-dasharray="6 5"/>
+                <circle cx="125" cy="170" r="32" fill="url(#glow-us)"/>
+                <circle cx="255" cy="125" r="28" fill="url(#glow-eu)"/>
+                <circle cx="385" cy="205" r="30" fill="url(#glow-sg)"/>
+                <circle cx="125" cy="170" r="7" fill="#a78bfa"/>
+                <circle cx="125" cy="170" r="13" stroke="#a78bfa" stroke-width="2" fill="none" opacity="0.55"/>
+                <circle cx="255" cy="125" r="7" fill="#a78bfa"/>
+                <circle cx="255" cy="125" r="13" stroke="#a78bfa" stroke-width="2" fill="none" opacity="0.55"/>
+                <circle cx="385" cy="205" r="7" fill="#22c55e"/>
+                <circle cx="385" cy="205" r="13" stroke="#22c55e" stroke-width="2" fill="none" opacity="0.6"/>
+                <circle cx="90" cy="180" r="4.5" fill="#a78bfa" opacity="0.75"/>
+                <circle cx="435" cy="140" r="4.5" fill="#a78bfa" opacity="0.75"/>
             </svg>
 
-            {{-- Region cards --}}
-            <div class="absolute left-[8%] top-[28%] rounded-xl border border-white/10 bg-[#16182a]/95 px-3 py-2 shadow-lg backdrop-blur">
+            <div class="absolute left-[4%] top-[24%] z-10 rounded-xl border border-white/20 bg-[#12141f] px-3 py-2 shadow-xl">
                 <div class="flex items-center gap-2">
-                    <span class="size-2 rounded-full bg-brand-400"></span>
+                    <span class="size-2.5 shrink-0 rounded-full bg-[#a78bfa]"></span>
                     <div>
-                        <div class="text-xs font-semibold text-white">United States</div>
-                        <div class="text-[10px] text-white/50">Latency 28ms</div>
+                        <div class="text-xs font-semibold text-white whitespace-nowrap">United States</div>
+                        <div class="text-[10px] text-white/60">Latency 28ms</div>
                     </div>
                 </div>
             </div>
-            <div class="absolute left-[42%] top-[12%] rounded-xl border border-white/10 bg-[#16182a]/95 px-3 py-2 shadow-lg backdrop-blur">
+            <div class="absolute left-[40%] top-[6%] z-10 rounded-xl border border-white/20 bg-[#12141f] px-3 py-2 shadow-xl">
                 <div class="flex items-center gap-2">
-                    <span class="size-2 rounded-full bg-brand-400"></span>
+                    <span class="size-2.5 shrink-0 rounded-full bg-[#a78bfa]"></span>
                     <div>
-                        <div class="text-xs font-semibold text-white">Europe</div>
-                        <div class="text-[10px] text-white/50">Latency 24ms</div>
+                        <div class="text-xs font-semibold text-white whitespace-nowrap">Europe</div>
+                        <div class="text-[10px] text-white/60">Latency 24ms</div>
                     </div>
                 </div>
             </div>
-            <div class="absolute right-[10%] top-[52%] rounded-xl border border-white/10 bg-[#16182a]/95 px-3 py-2 shadow-lg backdrop-blur">
+            <div class="absolute right-[2%] top-[46%] z-10 rounded-xl border border-white/20 bg-[#12141f] px-3 py-2 shadow-xl">
                 <div class="flex items-center gap-2">
-                    <span class="size-2 rounded-full bg-emerald-400"></span>
+                    <span class="size-2.5 shrink-0 rounded-full bg-emerald-400"></span>
                     <div>
-                        <div class="text-xs font-semibold text-white">Singapore</div>
-                        <div class="text-[10px] text-white/50">Latency 32ms</div>
+                        <div class="text-xs font-semibold text-white whitespace-nowrap">Singapore</div>
+                        <div class="text-[10px] text-white/60">Latency 32ms</div>
+                    </div>
+                </div>
+            </div>
+            <div class="absolute left-[52%] top-[68%] z-10 rounded-xl border border-white/20 bg-[#12141f] px-3 py-2 shadow-xl hidden sm:block">
+                <div class="flex items-center gap-2">
+                    <span class="size-2.5 shrink-0 rounded-full bg-[#a78bfa]"></span>
+                    <div>
+                        <div class="text-xs font-semibold text-white whitespace-nowrap">Japan</div>
+                        <div class="text-[10px] text-white/60">Latency 35ms</div>
                     </div>
                 </div>
             </div>
 
-            {{-- Status bar --}}
-            <div class="absolute bottom-2 left-0 right-0 mx-auto flex max-w-sm items-center justify-between rounded-xl border border-white/10 bg-[#16182a]/95 px-4 py-3 shadow-lg backdrop-blur">
-                <div class="flex items-center gap-2">
-                    <span class="size-2 rounded-full bg-emerald-400"></span>
-                    <div>
+            <div class="absolute bottom-3 left-1/2 z-10 flex w-[min(92%,20rem)] -translate-x-1/2 items-center justify-between gap-3 rounded-2xl border border-white/20 bg-[#12141f] px-4 py-3 shadow-xl">
+                <div class="flex items-center gap-2.5 min-w-0">
+                    <span class="size-2.5 shrink-0 rounded-full bg-emerald-400 shadow-[0_0_10px_#22c55e]"></span>
+                    <div class="min-w-0">
                         <div class="text-xs font-semibold text-white">Infrastructure status</div>
-                        <div class="text-[10px] text-white/50">All systems operational</div>
+                        <div class="text-[10px] text-white/60 truncate">All systems operational</div>
                     </div>
                 </div>
-                <a href="/docs" class="text-[11px] font-semibold text-brand-300 hover:text-white">View status →</a>
+                <a href="/docs" class="shrink-0 text-[11px] font-semibold text-[#c4b5fd] hover:text-white transition">View status →</a>
             </div>
         </div>
 

@@ -11,7 +11,7 @@
   <header class="overflow-hidden rounded-3xl bg-ink text-white">
     <div class="grid items-center gap-10 p-8 sm:p-12 lg:grid-cols-2 lg:p-16">
       <div>
-        <h1 class="text-4xl font-extrabold leading-[1.05] tracking-tight sm:text-6xl">
+        <h1 class="text-4xl font-extrabold leading-[1.05] tracking-tight text-white sm:text-6xl" style="color:#fff">
           Five layers between an attacker and your money
         </h1>
         <p class="mt-6 max-w-md text-lg leading-relaxed text-white/70">
@@ -158,17 +158,17 @@
         ['Contact support', 'Include your merchant ID, rough timestamps, and request IDs from the <code class="font-mono text-xs">X-Request-Id</code> header.'],
       ];
     @endphp
-    <ol class="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+    <ul class="mt-8 grid list-none gap-4 sm:grid-cols-2 lg:grid-cols-5" style="list-style:none;padding:0">
       @foreach ($steps as $i => $step)
-        <li class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-line">
+        <li class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-line" style="list-style:none">
           <span class="flex h-8 w-8 items-center justify-center rounded-full bg-brand-600 text-sm font-bold text-white">{{ $i + 1 }}</span>
           <p class="mt-4 font-semibold leading-snug text-ink">{{ $step[0] }}</p>
           <p class="mt-1 text-sm leading-relaxed text-muted">{!! $step[1] !!}</p>
         </li>
       @endforeach
-    </ol>
+    </ul>
 
-    <a href="/support" class="mt-8 inline-flex rounded-lg bg-ink px-5 py-3 text-sm font-semibold text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2">Contact support</a>
+    <a href="/support" class="mt-8 inline-flex rounded-lg bg-ink px-5 py-3 text-sm font-semibold text-white no-underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2" style="color:#fff;text-decoration:none">Contact support</a>
   </section>
 
   <nav class="mt-12 flex flex-wrap justify-between gap-4 text-sm" aria-label="Page navigation">
