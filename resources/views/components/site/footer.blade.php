@@ -17,8 +17,8 @@
 <footer class="border-t border-line bg-white">
     <div class="mx-auto grid max-w-7xl grid-cols-1 gap-10 px-5 py-14 text-sm sm:px-8 md:grid-cols-2 lg:grid-cols-[1.6fr_repeat(3,1fr)]">
 
-        {{-- Logo and description: stay together --}}
-        <div class="order-1 md:order-none">
+        {{-- Brand: logo and description --}}
+        <div class="order-1 md:order-none md:col-start-1 md:row-start-1">
             <a href="/" class="flex items-center gap-2.5 font-semibold tracking-tight text-ink hover:text-ink">
                 @include('partials.logo', ['size' => 28])
                 LuvuPay
@@ -28,7 +28,7 @@
                 Ethical subscription infrastructure. One API for Second Chance, resale and audit-ready money movement
             </p>
 
-            {{-- Social media and status: last on mobile --}}
+            {{-- Social media and status: desktop/tablet --}}
             <div class="hidden md:block">
                 <div class="mt-5 flex items-center gap-2.5">
                     @foreach($socials as $s)
@@ -64,7 +64,7 @@
             </div>
         @endforeach
 
-        {{-- Mobile-only social media and status --}}
+        {{-- Social media and status: mobile --}}
         <div class="order-last md:hidden">
             <div class="flex items-center gap-2.5">
                 @foreach($socials as $s)
