@@ -1,31 +1,10 @@
 # LuvuPay API
 
-**Ethical subscription management & resale infrastructure for B2B merchants — with an AI negotiation layer (Nebius Token Factory) and PayPal-powered money movement.**
+**Ethical subscription management & resale infrastructure for B2B merchants.**
 
 > Prevent subscription traps. Enable a circular economy for unused access. Never take custody of the merchant’s user database.
 
----
 
-## 🏆 Built for two hackathons (same codebase, different hero feature)
-
-| Event | Hero feature | What to highlight |
-|-------|-------------|-------------------|
-| [**Nebius Global AI Hackathon**](https://nebiusglobalaihackathon.devpost.com/) | **AI Smart-Convert** + Nebius intelligence layer | `App\Services\Nebius\*` (churn prediction, dynamic pricing, ecosystem hub), `SmartConvertEngine` negotiating refund splits via Nebius Token Factory LLMs, live model/tokens/latency evidence strip, graceful fallback when keys are absent |
-| [**PayPal AI Hackathon**](https://paypalaihackathon.devpost.com/) | **Smart-Convert + real PayPal Sandbox flows** | PayPal REST Subscriptions/Orders/Refunds/**Payouts API** (charity split), sandbox checkout in the demo simulator, webhook delivery center with retries, idempotent ledger |
-
-Quick env for both (see `.env.example`):
-
-```env
-LUVUPAY_DEMO_SIMULATOR=true          # enables the dashboard demo buttons
-NEBIUS_ENABLED=true
-NEBIUS_API_KEY=nk-...                # Nebius Token Factory key
-NEBIUS_MODEL=meta-llama/Llama-3.1-70b-instruct   # or your Nemotron id
-LUVUPAY_PAYMENT_DRIVER=paypal
-PAYPAL_MODE=sandbox
-PAYPAL_CLIENT_ID=... PAYPAL_SECRET=... PAYPAL_WEBHOOK_ID=...
-```
-
-Without either set of keys the app still runs fully on `mock` payments and deterministic AI fallbacks — nothing breaks on demo day. Judge scripts: `DEMO.md` (90s / 3min) and `DEMO_FLOW.md` (two-sided demo).
 
 ---
 
@@ -36,11 +15,10 @@ Recurring billing is powerful — and easy to abuse by accident. Customers forge
 LuvuPay sits between the payment provider and the merchant to:
 
 1. **Second Chance (48h)** — intercept a forgotten renewal, offer a fair split (user / charity / merchant), auto-cancel.
-2. **AI Smart-Convert (Nebius)** — an LLM negotiates a non-cash settlement (store credit / charity / fee split) for unused subscription time, then PayPal Payouts settles the charity share. Churn-risk scoring and dynamic resale pricing also run on Nebius Token Factory.
-3. **Resale Marketplace** — sell remaining days instead of wasting them.
-4. **Zero-Trust Entitlement Bridge** — transfer access via signed webhooks; no shared DB.
-5. **Adaptive Nudge** — pause serial forgetters 72h before billing.
-6. **Invisible UX** — no end-user LuvuPay accounts; map `merchant_user_id` + email.
+2. **Resale Marketplace** — sell remaining days instead of wasting them.
+3. **Zero-Trust Entitlement Bridge** — transfer access via signed webhooks; no shared DB.
+4. **Adaptive Nudge** — pause serial forgetters 72h before billing.
+5. **Invisible UX** — no end-user LuvuPay accounts; map `merchant_user_id` + email.
 
 Built for international judges, auditors, and external developers — with Stripe-grade docs, idempotency, and hash-chained audit logs.
 
@@ -53,8 +31,7 @@ Built for international judges, auditors, and external developers — with Strip
 | Runtime | PHP 8.2+, Laravel 12 |
 | Database | **PostgreSQL** (CI + Docker) · SQLite for quick local runs · MySQL/MariaDB works but is not covered by CI |
 | Queue / Cache | `sync`/`file` locally · Redis + Horizon in production |
-| AI | **Nebius Token Factory** (OpenAI-compatible, e.g. `meta-llama/Llama-3.1-70b-instruct` / Nemotron) via `App\Services\Nebius\*`, response cache + deterministic fallback |
-| Payments | Abstracted provider (Mock / PayPal REST: Subscriptions, Orders, Refunds, Payouts — sandbox or live) |
+| Payments | Abstracted provider (Mock / PayPal) |
 | Observability | JSON Monolog, `/api/v1/health`, Telescope (dev), Horizon (prod) |
 | Dashboard | Blade · Tailwind · Chart.js · AG Grid |
 
@@ -170,14 +147,13 @@ Built with **Laravel 12 · PHP 8.2+ · PostgreSQL / SQLite** · abstracted payme
 9. [The Luvi Engine (Second Chance)](#9-the-luvi-engine-second-chance)
 10. [Resale Marketplace & Entitlement Bridge](#10-resale-marketplace--entitlement-bridge)
 11. [Adaptive Nudge](#11-adaptive-nudge)
-12. [Nebius AI Layer](#12-nebius-ai-layer)
-13. [Security Layer](#13-security-layer)
-14. [HTTP API & Routes](#14-http-api--routes)
-15. [Jobs & Scheduler](#15-jobs--scheduler)
-16. [Merchant Dashboard](#16-merchant-dashboard)
-17. [Seamless Integration (Badge / Snippet)](#17-seamless-integration-badge--snippet)
-18. [Local Development Notes](#18-local-development-notes)
-19. [Glossary](#19-glossary)
+12. [Security Layer](#12-security-layer)
+13. [HTTP API & Routes](#13-http-api--routes)
+14. [Jobs & Scheduler](#14-jobs--scheduler)
+15. [Merchant Dashboard](#15-merchant-dashboard)
+16. [Seamless Integration (Badge / Snippet)](#16-seamless-integration-badge--snippet)
+17. [Local Development Notes](#17-local-development-notes)
+18. [Glossary](#18-glossary)
 
 ---
 
@@ -268,8 +244,7 @@ If a user is a “serial forgetter” (forgotten cancel count ≥ threshold, def
 | ORM | Eloquent |
 | Queue | `sync` (local) or Redis/database |
 | Cache | `file` (local) or Redis |
-| Payments | `PaymentProviderInterface` → Mock / PayPal (REST Subscriptions, Orders, Refunds, Payouts) |
-| AI | `NebiusAIContract` → **Nebius Token Factory** (`NebiusClient`) with cache + deterministic fallback |
+| Payments | `PaymentProviderInterface` → Mock / PayPal |
 | Frontend (dashboard) | Blade + Tailwind CDN + AG Grid + Alpine |
 
 ---
@@ -287,18 +262,16 @@ app/
 ├── Http/
 │   ├── Controllers/           # API + public signed pages + dashboard
 │   └── Middleware/            # Auth, idempotency, audit context, signatures
-├── Jobs/                      # Delayed / async work (48h, entitlement, AI jobs, etc.)
+├── Jobs/                      # Delayed / async work (48h, entitlement, etc.)
 ├── Listeners/                 # React to PaymentCaptured, payout outcomes, …
 ├── Models/                    # Merchant, Subscription, Transaction, …
 ├── Observers/                 # AuditObserver (model → audit_logs)
-├── Providers/                 # Luvi, Payment, Security, Nebius, App
+├── Providers/                 # Luvi, Payment, Security, App
 ├── Services/
 │   ├── Luvi/                  # SecondChanceService, LedgerService
 │   ├── Resale/                # ResaleService, EntitlementBridge
 │   ├── Payment/               # Mock + PayPal implementations
 │   ├── PayPal/                # Low-level client & webhook parser
-│   ├── Nebius/                # NebiusClient, ChurnPrediction, DynamicPricing, EcosystemHub, AiResponseCache
-│   ├── SmartConvert/          # SmartConvertEngine (AI-negotiated non-cash settlement)
 │   └── Security/              # AuditLogger, WebhookSigner, UrlGuard
 ├── Support/                   # Money, AuditContext, HtmlPage
 └── Traits/Auditable.php       # Auto-observe models into audit chain
@@ -537,26 +510,7 @@ Then:
 
 ---
 
-## 12. Nebius AI Layer
-
-**Package:** `app/Services/Nebius/` · contract `App\Contracts\NebiusAIContract` · bound in `NebiusServiceProvider` when `NEBIUS_ENABLED=true`.
-
-| Component | Role |
-|-----------|------|
-| `NebiusClient` | OpenAI-compatible HTTP client for **Nebius Token Factory** (`NEBIUS_BASE_URL=https://api.nebius.com/v1`). Retries with backoff, 30s timeout, logs every call to `ai_request_logs` (model, tokens, latency) — the evidence trail judges see on the dashboard. |
-| `ChurnPredictionService` | Scores subscription cancellation risk (`POST /api/v1/ai/churn-prediction`, job `AnalyzeChurnRiskJob`). |
-| `DynamicPricingService` | Suggests optimal resale prices (`POST /api/v1/ai/resale-price-suggestion`, job `CalculateOptimalPriceJob`). |
-| `EcosystemHubService` | Generates subscription health reports (`GET /api/v1/ai/subscription-health-report`, job `GenerateSubscriptionReportJob`). |
-| `AiResponseCache` | Deterministic hash-keyed cache (`NEBIUS_CACHE_TTL`) to cut token spend and keep demo runs repeatable. |
-| `SmartConvertEngine` (`app/Services/SmartConvert/`) | **Hero feature:** asks the LLM to negotiate a non-cash settlement split (store credit / charity / platform fee) for unused subscription time, then executes the charity share through **PayPal Payouts (Sandbox)**. Returns `ai.live/model/tokens/latency_ms` + `paypal.batch_id` so the UI can show LIVE vs fallback. |
-
-All AI routes are merchant-authenticated, scope-gated (`scope:ai:read`) and throttled (100/min). If Nebius is unreachable or unconfigured, every service falls back to deterministic heuristics — the product (and the demo) never hard-fails because of an LLM.
-
-Docs page: `/docs/ai` · Demo button: **🧪 Run AI Smart-Convert Protocol** on the dashboard.
-
----
-
-## 13. Security Layer
+## 12. Security Layer
 
 ### Merchant authentication
 
@@ -604,7 +558,7 @@ Reject if timestamp outside tolerance or nonce reused.
 
 ---
 
-## 14. HTTP API & Routes
+## 13. HTTP API & Routes
 
 Registered in `bootstrap/app.php` (`then:` callback).
 
@@ -618,10 +572,6 @@ Registered in `bootstrap/app.php` (`then:` callback).
 | POST | `/v1/transactions/{id}/second-chance` | merchant.auth, idempotent | Trigger Second Chance |
 | GET/POST/DELETE | `/v1/resale-listings…` | merchant.auth (+ idempotent on writes) | Marketplace |
 | POST | `/v1/entitlements/ack` | merchant.auth + signature | Merchant ACK |
-| POST | `/v1/ai/churn-prediction` | merchant.auth, `scope:ai:read`, throttle | Nebius churn risk score |
-| POST | `/v1/ai/resale-price-suggestion` | merchant.auth, `scope:ai:read`, throttle | Nebius dynamic resale pricing |
-| GET | `/v1/ai/subscription-health-report` | merchant.auth, `scope:ai:read`, throttle | Nebius ecosystem health report |
-| GET | `/v1/ai/job-result` | merchant.auth, `scope:ai:read`, throttle | Async AI job status/result |
 
 Auth: `Authorization: Bearer lp_live_...`
 
@@ -648,7 +598,7 @@ Auth: `Authorization: Bearer lp_live_...`
 
 ---
 
-## 15. Jobs & Scheduler
+## 14. Jobs & Scheduler
 
 ### Jobs (`app/Jobs/`)
 
@@ -659,9 +609,6 @@ Auth: `Authorization: Bearer lp_live_...`
 | `DeliverEntitlementTransferJob` | Signed webhook to merchant |
 | `SettleResaleSaleJob` | Finalize resale money movement |
 | `ApplyAdaptiveNudgeJob` | Pause + notify serial forgetters |
-| `AnalyzeChurnRiskJob` | Nebius churn-risk scoring (async) |
-| `CalculateOptimalPriceJob` | Nebius dynamic resale pricing (async) |
-| `GenerateSubscriptionReportJob` | Nebius subscription health report (async) |
 
 ### Commands (`routes/console.php` schedule)
 
@@ -684,7 +631,7 @@ With `QUEUE_CONNECTION=sync`, jobs run inline (no worker needed).
 
 ---
 
-## 16. Merchant Dashboard
+## 15. Merchant Dashboard
 
 - View: `resources/views/dashboard/index.blade.php`  
 - Stack: Tailwind (CDN), AG Grid, Alpine.js  
@@ -695,7 +642,7 @@ Open: **http://localhost:8000/dashboard**
 
 ---
 
-## 17. Seamless Integration (Badge / Snippet)
+## 16. Seamless Integration (Badge / Snippet)
 
 **Controller:** `SnippetController`
 
@@ -706,7 +653,7 @@ End-users never register with LuvuPay; the merchant passes `merchant_user_id` + 
 
 ---
 
-## 18. Local Development Notes
+## 17. Local Development Notes
 
 ### Databases
 
@@ -747,7 +694,7 @@ php artisan schedule:work
 
 ---
 
-## 19. Glossary
+## 18. Glossary
 
 | Term | Meaning |
 |------|---------|
@@ -759,8 +706,6 @@ php artisan schedule:work
 | **amount_minor** | Integer cents (or equivalent); never float |
 | **merchant_user_id** | Merchant’s own user id (LuvuPay has no end-user accounts) |
 | **Idempotency-Key** | Client-generated key so retries never double-charge |
-| **Smart-Convert** | Nebius-negotiated non-cash settlement (store credit / charity / fee) for unused subscription time, settled via PayPal Payouts |
-| **Token Factory** | Nebius' managed LLM inference endpoint (`api.nebius.com/v1`, OpenAI-compatible) powering the AI layer |
 
 ---
 

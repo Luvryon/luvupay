@@ -62,10 +62,10 @@
   .toc a[aria-current="true"] { opacity: 1; font-weight: 600; border-left-color: currentColor; }
 </style>
 
-<div class="sbdoc mx-auto max-w-7xl px-5 py-12 sm:px-8 sm:py-16">
-  <div class="xl:grid xl:grid-cols-[minmax(0,48rem)_13rem] xl:gap-12 xl:justify-center">
+<div class="sbdoc w-full px-5 py-12 sm:px-8 sm:py-16">
+  <div class="flex w-full">
 
-    <article class="min-w-0 w-full max-w-3xl mx-auto">
+    <article class="min-w-0 w-full">
       <h1>Sandbox &amp; environments</h1>
       <p class="lead text-muted">Use mock for product UI and webhook shape, the PayPal sandbox to validate money paths, and live only after a formal sandbox sign-off</p>
 
@@ -172,18 +172,6 @@ APP_URL=https://your-public-host</code></pre>
         </nav>
       </section>
     </article>
-
-    <aside class="hidden xl:block">
-      <nav class="toc not-prose sticky top-24" aria-label="On this page">
-        <a href="#drivers">Payment drivers</a>
-        <a href="#env">Environment variables</a>
-        <a href="#verify">Verify configuration</a>
-        <a href="#order">Rollout order</a>
-        <a href="#local-product">Local integration</a>
-        <a href="#observability">Observability</a>
-        <a href="#checklist">Go-live checklist</a>
-      </nav>
-    </aside>
   </div>
 </div>
 

@@ -71,10 +71,10 @@
   .toc a[aria-current="true"] { opacity: 1; font-weight: 600; border-left-color: currentColor; }
 </style>
 
-<div class="whdoc mx-auto max-w-7xl px-5 py-12 sm:px-8 sm:py-16">
-  <div class="xl:grid xl:grid-cols-[minmax(0,48rem)_13rem] xl:gap-12 xl:justify-center">
+<div class="whdoc w-full px-5 py-12 sm:px-8 sm:py-16">
+  <div class="flex w-full">
 
-    <article class="min-w-0 w-full max-w-3xl mx-auto">
+    <article class="min-w-0 w-full">
       <h1>Webhooks</h1>
       <p class="lead text-muted">LuvuPay sends signed HTTPS callbacks to your application. You own user access, and we never write to your database. Every delivery can be verified, is protected against replay, and expires quickly</p>
 
@@ -202,17 +202,6 @@ if (! hash_equals($expected, $signature)) {
         </nav>
       </section>
     </article>
-
-    <aside class="hidden xl:block">
-      <nav class="toc not-prose sticky top-24" aria-label="On this page">
-        <a href="#verify">Verify every request</a>
-        <a href="#events">Event types</a>
-        <a href="#entitlement">Entitlement Bridge</a>
-        <a href="#url-change">Changing the URL</a>
-        <a href="#local">Local development</a>
-        <a href="#security">Security checklist</a>
-      </nav>
-    </aside>
   </div>
 </div>
 

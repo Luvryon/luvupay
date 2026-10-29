@@ -48,23 +48,12 @@
         </nav>
     </aside>
 
-    {{-- Right column: content row + footer (footer does NOT span under sidebar) --}}
+    {{-- Content column (full remaining width) --}}
     <div class="docs-right">
         <div class="docs-body-row">
             <main class="docs-content">
                 @yield('content')
             </main>
-            <aside class="docs-toc" aria-label="On this page" id="docs-toc-panel">
-                <div class="docs-toc-inner">
-                    <div class="docs-toc-title">On this page</div>
-                    <nav id="docs-toc-links">
-                        @hasSection('toc')
-                            @yield('toc')
-                        @endif
-                    </nav>
-                    <button type="button" class="toc-back" id="docs-back-top" hidden>↑ Back to top</button>
-                </div>
-            </aside>
         </div>
     </div>
 </div>

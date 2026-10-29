@@ -63,10 +63,10 @@
   .toc .grp { font-size: .8125rem; font-weight: 600; margin: 1rem 0 .3rem; }
 </style>
 
-<div class="apiref mx-auto max-w-7xl px-5 py-12 sm:px-8 sm:py-16">
-  <div class="xl:grid xl:grid-cols-[minmax(0,48rem)_13rem] xl:gap-12 xl:justify-center">
+<div class="apiref w-full px-5 py-12 sm:px-8 sm:py-16">
+  <div class="flex w-full">
 
-    <article class="min-w-0 w-full max-w-3xl mx-auto">
+    <article class="min-w-0 w-full">
       <h1>API reference</h1>
       <p class="lead text-muted">Everything a merchant server can call. Use a secret API key, send an <code>Idempotency-Key</code> on every request that moves money, and quote the <code>X-Request-Id</code> from any response when you contact support</p>
 
@@ -327,28 +327,6 @@
         </p>
       </section>
     </article>
-
-    {{-- On this page --}}
-    <aside class="hidden xl:block">
-      <nav class="toc not-prose sticky top-24" aria-label="On this page">
-        <div class="grp" style="margin-top:0">Basics</div>
-        <a href="#auth">Authentication</a>
-        <a href="#scopes">Scopes</a>
-        <a href="#environments">Environments</a>
-        <a href="#rate-limits">Rate limits</a>
-        <div class="grp">Endpoints</div>
-        <a href="#subscriptions">Subscriptions</a>
-        <a href="#second-chance">Second Chance</a>
-        <a href="#resale">Resale listings</a>
-        <a href="#export">Export</a>
-        <a href="#ai">AI endpoints</a>
-        <a href="#paypal-ingress">PayPal webhooks</a>
-        <a href="#badge">Public badge</a>
-        <div class="grp">Reference</div>
-        <a href="#errors">Errors</a>
-        <a href="#versioning">Versioning</a>
-      </nav>
-    </aside>
   </div>
 </div>
 
