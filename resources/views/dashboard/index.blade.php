@@ -275,5 +275,6 @@
     @endphp
     <script type="application/json" id="lp-config">@json($lpConfig)</script>
     <script src="/assets/ag-grid-32.3.3/ag-grid-community.min.noStyle.js" defer></script>
+    <script src="/js/campaign-studio.js?v={{ @filemtime(public_path('js/campaign-studio.js')) }}" defer></script>
     <script src="/js/dashboard.js?v={{ @filemtime(public_path('js/dashboard.js')) }}" defer></script>
 @endpush
