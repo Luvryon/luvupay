@@ -15,73 +15,52 @@
 @endphp
 
 <footer class="border-t border-line bg-white">
-    <div class="mx-auto grid max-w-7xl grid-cols-1 gap-10 px-5 py-14 text-sm sm:px-8 md:grid-cols-2 lg:grid-cols-[1.6fr_repeat(3,1fr)]">
+    <div class="mx-auto grid max-w-7xl gap-10 px-5 py-14 text-sm sm:px-8 md:grid-cols-2 lg:grid-cols-[1.6fr_repeat(3,1fr)]">
 
         {{-- Brand --}}
-        <div class="contents md:block md:col-start-1 md:row-start-1">
-
-            {{-- Logo and description --}}
-            <div class="order-1 md:order-none md:col-start-1">
-                <a href="/" class="flex items-center gap-2.5 font-semibold tracking-tight text-ink hover:text-ink">
-                    @include('partials.logo', ['size' => 28])
-                    LuvuPay
-                </a>
-
-                <p class="mt-4 max-w-xs leading-relaxed text-muted">
-                    Ethical subscription infrastructure. One API for Second Chance, resale and audit-ready money movement
-                </p>
-            </div>
-
-            {{-- Social media --}}
-            <div class="order-5 mt-5 md:order-none">
-                <div class="flex items-center gap-2.5">
-                    @foreach($socials as $s)
-                        <a href="{{ $s['href'] }}"
-                           aria-label="{{ $s['label'] }}"
-                           class="grid size-9 place-items-center rounded-full border border-line text-muted transition hover:border-brand-200 hover:bg-brand-50 hover:text-brand-700">
-                            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
-                                <path d="{{ $s['path'] }}"/>
-                            </svg>
-                        </a>
-                    @endforeach
-                </div>
-            </div>
-
-            {{-- Status --}}
-            <p class="order-6 mt-5 inline-flex items-center gap-2 text-xs text-muted md:order-none">
-                <span class="size-2 rounded-full bg-emerald-500"></span>
-                All systems normal
-                <a href="/status" class="text-muted underline underline-offset-2 hover:text-ink">Status</a>
-            </p>
+        <div class="order-1">
+            <a href="/" class="flex items-center gap-2.5 font-semibold tracking-tight text-ink hover:text-ink">
+                @include('partials.logo', ['size' => 28])
+                LuvuPay
+            </a>
+            <p class="mt-4 max-w-xs leading-relaxed text-muted">Ethical subscription infrastructure. One API for Second Chance, resale and audit-ready money movement</p>
         </div>
 
-        {{-- Product, Developers, Company --}}
+        {{-- Kolom link --}}
         @foreach($columns as $title => $links)
-            <div class="order-2 md:order-none">
+            <div class="order-2">
                 <div class="mb-3 font-semibold text-ink">{{ $title }}</div>
                 <ul class="space-y-2.5">
                     @foreach($links as [$href, $label])
-                        <li>
-                            <a href="{{ $href }}" class="text-muted hover:text-ink">{{ $label }}</a>
-                        </li>
+                        <li><a href="{{ $href }}" class="text-muted hover:text-ink">{{ $label }}</a></li>
                     @endforeach
                 </ul>
             </div>
         @endforeach
 
+        {{-- Sosmed --}}
+        <div class="order-3 flex items-center gap-2.5 md:col-span-2 lg:order-1 lg:col-span-1 lg:col-start-1 lg:row-start-2 lg:self-start">
+            @foreach($socials as $s)
+                <a href="{{ $s['href'] }}"
+                   aria-label="{{ $s['label'] }}"
+                   class="grid size-9 place-items-center rounded-full border border-line text-muted transition hover:border-brand-200 hover:bg-brand-50 hover:text-brand-700">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="{{ $s['path'] }}"/></svg>
+                </a>
+            @endforeach
+        </div>
+
+        {{-- Status --}}
+        <p class="order-4 inline-flex items-center gap-2 text-xs text-muted md:col-span-2 lg:order-1 lg:col-span-1 lg:col-start-1 lg:row-start-3 lg:self-start">
+            <span class="size-2 rounded-full bg-emerald-500"></span>
+            All systems normal
+            <a href="/status" class="text-muted underline underline-offset-2 hover:text-ink">Status</a>
+        </p>
     </div>
 
-    {{-- Copyright --}}
     <div class="border-t border-line">
         <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-5 py-6 text-xs text-muted sm:px-8">
             <span>© {{ date('Y') }} LuvuPay Sandbox environment, no real money moves</span>
-            <span class="flex gap-5">
-                <a href="/privacy" class="text-muted hover:text-ink">Privacy</a>
-                <a href="/terms" class="text-muted hover:text-ink">Terms</a>
-                <a href="/docs/security" class="text-muted hover:text-ink">Security</a>
-            </span>
+            <span class="flex gap-5"><a href="/privacy" class="text-muted hover:text-ink">Privacy</a><a href="/terms" class="text-muted hover:text-ink">Terms</a><a href="/docs/security" class="text-muted hover:text-ink">Security</a></span>
         </div>
     </div>
 </footer>
-
-
