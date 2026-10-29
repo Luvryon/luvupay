@@ -1,6 +1,6 @@
 /**
  * AI Retention Campaign Studio — Alpine factory (no inline x-data JS).
- * Images are compressed client-side so image_data_url stays under the API limit.
+ * Images compressed client-side; backend embeds them as CID in the email.
  */
 (function (global) {
   'use strict';
@@ -68,7 +68,7 @@
       generating: false,
       subject: 'We miss you. Keep your access active',
       bodyLead: 'You have been with us for a long time. Your last payment failed, but your access can still be saved. We held a recovery path open so you do not lose the benefits you already earned - renew in one step when you are ready.',
-      previewName: 'there',
+      previewName: 'Mario Chen',
       brand: 'your plan',
       tone: 'Empathetic (loyal user)',
 
@@ -77,10 +77,6 @@
         if (!f) return;
         if (!/^image\//.test(f.type || '')) {
           if (global.LuvuToast) global.LuvuToast.error('Invalid file', 'Please choose a PNG, JPEG, or WebP image');
-          return;
-        }
-        if (f.size > 8 * 1024 * 1024) {
-          if (global.LuvuToast) global.LuvuToast.error('Image too large', 'Use an image under 8 MB');
           return;
         }
         var self = this;
@@ -94,6 +90,7 @@
           }
           self.customImage = compressed;
           self.selectedImage = -1;
+          if (global.LuvuToast) global.LuvuToast.success('Image ready', 'Compressed and will be embedded in the email');
         };
         reader.readAsDataURL(f);
       },
@@ -124,7 +121,7 @@
       approveAndSend: async function () {
         if (this.sending || this.sent) return;
         if (this.customImage && this.customImage.length > MAX_DATA_URL) {
-          if (global.LuvuToast) global.LuvuToast.error('Image too large', 'Re-upload a smaller image (auto-compress failed)');
+          if (global.LuvuToast) global.LuvuToast.error('Image too large', 'Re-upload a smaller image');
           return;
         }
         this.sending = true;
@@ -159,8 +156,9 @@
             return;
           }
           this.sent = true;
+          var extra = data.has_image ? ' Image embedded.' : ' (no image attached)';
           if (global.LuvuToast) {
-            global.LuvuToast.success('Campaign sent', data.message || ('Sent to ' + (data.sent || 0) + ' users'));
+            global.LuvuToast.success('Campaign sent', (data.message || ('Sent to ' + (data.sent || 0) + ' users')) + extra);
           }
         } catch (e) {
           this.sending = false;

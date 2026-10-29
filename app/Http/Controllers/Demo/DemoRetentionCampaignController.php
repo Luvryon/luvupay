@@ -52,7 +52,10 @@ final class DemoRetentionCampaignController
 
         $merchantName = (string) (DB::table('merchants')->where('id', $merchantId)->value('name') ?: 'Your subscription');
         $ctaUrl = rtrim((string) config('app.url'), '/').'/m/'.$merchantId;
-        $imagePublicUrl = $this->persistCampaignImage($data['image_data_url'] ?? null, $merchantId);
+
+        $decoded = $this->decodeImage($data['image_data_url'] ?? null);
+        // Also store on public disk for preview/debug; email uses CID embed (works offline / localhost APP_URL)
+        $publicUrl = $this->persistDecodedImage($decoded, $merchantId);
 
         foreach ($rows as $row) {
             $email = trim((string) $row->email);
@@ -65,23 +68,37 @@ final class DemoRetentionCampaignController
             $subject = str_replace(['—', '–'], ['-', '-'], $data['subject']);
             $bodyText = str_replace(['—', '–'], ['-', '-'], $data['body']);
             $product = e((string) ($meta['product'] ?? 'your plan'));
+
+            $imgSrc = $decoded ? 'cid:campaign-hero.jpg' : null;
             $html = $this->buildHtml(
                 $name,
                 e($bodyText),
                 (int) $data['discount'],
-                $imagePublicUrl,
+                $imgSrc,
                 e($merchantName),
                 $product,
                 $ctaUrl,
             );
 
+            $inline = [];
+            if ($decoded) {
+                $inline[] = [
+                    'cid' => 'campaign-hero',
+                    'data' => $decoded['data'],
+                    'mime' => $decoded['mime'],
+                    'name' => 'campaign-hero.jpg',
+                ];
+            }
+
             try {
-                Mail::to($email)->send(new PlainHtmlMail($subject, $html));
+                Mail::to($email)->send(new PlainHtmlMail($subject, $html, files: [], inline: $inline));
                 $sent++;
                 $this->logWebhookEvent('luvupay', 'retention.campaign_sent', [
                     'transaction_id' => $row->id,
                     'email' => $email,
                     'discount' => $data['discount'],
+                    'has_image' => $decoded !== null,
+                    'image_public_url' => $publicUrl,
                 ]);
             } catch (\Throwable $e) {
                 $errors[] = ['email' => $email, 'error' => Str::limit($e->getMessage(), 120)];
@@ -94,13 +111,18 @@ final class DemoRetentionCampaignController
             'skipped' => $skipped,
             'candidates' => $rows->count(),
             'errors' => $errors,
+            'has_image' => $decoded !== null,
+            'image_url' => $publicUrl,
             'message' => $sent > 0
-                ? "Campaign sent to {$sent} recipient(s)."
+                ? "Campaign sent to {$sent} recipient(s)".($decoded ? ' (with image).' : '.')
                 : 'No emails sent. Check MAIL_* config and cohort filters.',
         ]);
     }
 
-    private function persistCampaignImage(?string $imageDataUrl, string $merchantId): ?string
+    /**
+     * @return array{data:string,mime:string,ext:string}|null
+     */
+    private function decodeImage(?string $imageDataUrl): ?array
     {
         if (! $imageDataUrl || ! str_starts_with($imageDataUrl, 'data:image/')) {
             return null;
@@ -108,7 +130,7 @@ final class DemoRetentionCampaignController
         if (! preg_match('#^data:(image/(?:jpeg|jpg|png|webp));base64,(.+)$#s', $imageDataUrl, $m)) {
             return null;
         }
-        $mime = strtolower($m[1]);
+        $mime = strtolower($m[1]) === 'image/jpg' ? 'image/jpeg' : strtolower($m[1]);
         $ext = match ($mime) {
             'image/png' => 'png',
             'image/webp' => 'webp',
@@ -118,10 +140,20 @@ final class DemoRetentionCampaignController
         if ($binary === false || strlen($binary) < 32 || strlen($binary) > 2_500_000) {
             return null;
         }
+
+        return ['data' => $binary, 'mime' => $mime, 'ext' => $ext];
+    }
+
+    /** @param  array{data:string,mime:string,ext:string}|null  $decoded */
+    private function persistDecodedImage(?array $decoded, string $merchantId): ?string
+    {
+        if (! $decoded) {
+            return null;
+        }
         try {
             $dir = 'campaign-images/'.$merchantId;
-            $name = Str::uuid()->toString().'.'.$ext;
-            Storage::disk('public')->put($dir.'/'.$name, $binary);
+            $name = Str::uuid()->toString().'.'.$decoded['ext'];
+            Storage::disk('public')->put($dir.'/'.$name, $decoded['data']);
 
             return url('/storage/'.$dir.'/'.$name);
         } catch (\Throwable $e) {
@@ -135,7 +167,7 @@ final class DemoRetentionCampaignController
         string $name,
         string $body,
         int $discount,
-        ?string $imageUrl,
+        ?string $imgSrc,
         string $merchantName,
         string $product,
         string $ctaUrl,
@@ -143,9 +175,9 @@ final class DemoRetentionCampaignController
         $discountLabel = $discount > 0 ? $discount.'% off' : 'special recovery offer';
         $safeCta = e($ctaUrl);
         $imgBlock = '';
-        if ($imageUrl && preg_match('#^https?://#i', $imageUrl)) {
+        if ($imgSrc) {
             $imgBlock = '<tr><td style="padding:0 0 20px 0">'
-                .'<img src="'.e($imageUrl).'" alt="" width="520" style="display:block;width:100%;max-width:520px;height:auto;border:0;border-radius:12px">'
+                .'<img src="'.e($imgSrc).'" alt="Campaign" width="520" style="display:block;width:100%;max-width:520px;height:auto;border:0;border-radius:12px">'
                 .'</td></tr>';
         }
 
@@ -164,7 +196,7 @@ final class DemoRetentionCampaignController
 <tr><td align="center">
 <table role="presentation" width="560" cellspacing="0" cellpadding="0" style="width:100%;max-width:560px;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e2e8f0">
   <tr>
-    <td style="padding:22px 28px;background:linear-gradient(135deg,#4f46e5,#6366f1);color:#fff">
+    <td style="padding:22px 28px;background:#4f46e5;color:#fff">
       <div style="font-size:13px;opacity:.9;letter-spacing:.04em;text-transform:uppercase">{$merchantName}</div>
       <div style="font-size:22px;font-weight:800;margin-top:6px;line-height:1.25">Your {$product} access can still be saved</div>
     </td>
@@ -194,18 +226,10 @@ final class DemoRetentionCampaignController
           </table>
         </td></tr>
         <tr><td align="center" style="padding:8px 0 22px 0">
-          <!--[if mso]>
-          <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" href="{$safeCta}" style="height:48px;v-text-anchor:middle;width:260px" arcsize="14%" stroke="f" fillcolor="#4f46e5">
-            <w:anchorlock/>
-            <center style="color:#ffffff;font-family:Segoe UI,sans-serif;font-size:16px;font-weight:700">Renew with {$discountLabel}</center>
-          </v:roundrect>
-          <![endif]-->
-          <!--[if !mso]><!-- -->
           <a href="{$safeCta}"
-             style="display:inline-block;background:#4f46e5;color:#ffffff !important;text-decoration:none;padding:14px 28px;border-radius:10px;font-size:16px;font-weight:700;line-height:1.2;mso-hide:all">
+             style="display:inline-block;background:#4f46e5;color:#ffffff !important;text-decoration:none;padding:14px 28px;border-radius:999px;font-size:16px;font-weight:700;line-height:1.2">
             Renew with {$discountLabel}
           </a>
-          <!--<![endif]-->
         </td></tr>
         <tr><td style="font-size:14px;line-height:1.6;color:#64748b;padding-bottom:8px">
           Prefer another option? Reply to this email and we can help with a split payment, a temporary pause, or a safe partial refund where policy allows.

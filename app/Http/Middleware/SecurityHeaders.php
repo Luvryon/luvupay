@@ -8,10 +8,7 @@ use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Hardened security headers for the merchant console + public pages.
- *
- * Alpine 3 currently requires script-src 'unsafe-eval'. Scripts remain external
- * (no 'unsafe-inline'). Prefer removing Alpine or switching to a CSP-compatible
- * evaluator when feasible.
+ * Alpine 3 needs script-src 'unsafe-eval'; keep scripts external (no unsafe-inline).
  */
 class SecurityHeaders
 {
@@ -39,8 +36,7 @@ class SecurityHeaders
             $response->headers->set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
         }
 
-        // CSP — no unsafe-inline scripts; styles allowed inline for AG Grid / console theme.
-        // 'unsafe-eval' is required by Alpine 3; track removal as a hardening goal.
+        // CSP: no unsafe-inline scripts; styles allowed inline for AG Grid / console theme
         $csp = implode('; ', [
             "default-src 'self'",
             "base-uri 'self'",
@@ -58,6 +54,7 @@ class SecurityHeaders
             "upgrade-insecure-requests",
         ]);
 
+        // Report-only can be enabled later via env; enforce by default
         $response->headers->set('Content-Security-Policy', $csp);
 
         return $response;

@@ -417,32 +417,34 @@
 </section>
 
 {{-- Call to action --}}
-<section class="py-20" style="background:radial-gradient(60% 90% at 8% 100%,#efeeff 0%,rgba(239,238,255,0) 60%),#fff">
+<section class="py-20">
     <div class="mx-auto grid max-w-7xl items-center gap-10 overflow-hidden px-5 sm:px-8 lg:grid-cols-2">
         <div>
             <p class="lp-eyebrow">Ready to start</p>
             <h2 class="lp-h2">Start in the sandbox, go live when you are ready</h2>
-            <p class="mt-4 max-w-md text-muted">No real money moves until you decide it should</p>
+            <p class="mt-4 max-w-md text-muted">No real money moves until you decide it should, so your team can test every payment flow and webhook in the sandbox and switch to live in one click when you are ready</p>
             <div class="mt-8 flex flex-wrap gap-3">
                 <a href="{{ route('register') }}" class="lp-btn lp-btn-dark lp-btn-lg">Create merchant account <span aria-hidden="true">→</span></a>
                 <a href="/docs/sandbox" class="lp-btn lp-btn-outline lp-btn-lg">Sandbox guide</a>
             </div>
         </div>
-        <div class="lp-cta-visual cs relative mx-auto w-full max-w-xl lg:max-w-none" aria-hidden="true">
+        <div class="lp-cta-visual cs" aria-hidden="true">
             <style>
-                .cs-rose{position:absolute;left:calc(50% + 3rem);top:11rem;width:30rem;height:30rem;transform:translate(-50%,-50%);pointer-events:none;z-index:0}
-                .cs-rose svg{width:100%;height:100%;display:block}
-                @media (min-width:640px){.cs-rose{left:14rem;top:50%;width:36rem;height:36rem}}
+                .cs{position:relative;display:flex;flex-direction:column;align-items:center;width:100%;max-width:34rem;margin:0 auto;overflow:hidden;border-radius:2rem;background:#eef0ff}
+                @media (min-width:1024px){.cs{max-width:none}}
+                .cs-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+                .cs-phone{position:relative;z-index:1;display:block;width:78%;margin:1.25rem auto 0}
+                .cs-card{position:relative;z-index:1;align-self:stretch;margin:.25rem 1.1rem 1.1rem;padding:1rem 1.15rem;border-radius:1.15rem;background:rgba(255,255,255,.72);border:1px solid rgba(255,255,255,.8);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);box-shadow:0 18px 40px -22px rgba(9,2,123,.35)}
                 /* semua animasi 12s, tiga langkah x 4s, selalu sinkron */
                 .cs-a{opacity:0;animation:csFade 12s ease-in-out infinite}
                 .cs-s2{animation-delay:4s}
                 .cs-s3{animation-delay:8s}
-                .cs-slides{position:relative;height:6.3rem}
-                .cs-slides p{position:absolute;inset:0;margin:0;font-size:1.25rem;line-height:1.24;font-weight:600;letter-spacing:-.02em;color:#0f172a;opacity:0;animation:csSlide 12s ease-in-out infinite}
+                .cs-slides{position:relative;height:4.4rem}
+                .cs-slides p{position:absolute;inset:0;margin:0;font-size:1.2rem;line-height:1.28;font-weight:600;letter-spacing:-.02em;color:#0f172a;opacity:0;animation:csSlide 12s ease-in-out infinite}
                 .cs-slides p:nth-child(2){animation-delay:4s}
                 .cs-slides p:nth-child(3){animation-delay:8s}
-                .cs-bars{display:flex;gap:6px;max-width:11rem;margin-top:.9rem}
-                .cs-bars span{flex:1;height:3px;border-radius:99px;background:rgba(9,2,123,.12);overflow:hidden}
+                .cs-bars{display:flex;gap:6px;margin-top:.75rem}
+                .cs-bars span{flex:1;height:3px;border-radius:99px;background:rgba(9,2,123,.14);overflow:hidden}
                 .cs-bars i{display:block;height:100%;width:0;border-radius:99px;background:#09027b;animation:csSeg 12s linear infinite}
                 .cs-bars span:nth-child(2) i{animation-delay:4s}
                 .cs-bars span:nth-child(3) i{animation-delay:8s}
@@ -456,159 +458,160 @@
                 }
             </style>
 
-            <div class="cs-rose">{!! $rosette('c') !!}</div>
+            <img src="{{ asset('images/ready-start.webp') }}" alt="" width="640" height="640" class="cs-img" loading="lazy">
 
-            <div class="relative grid items-center gap-4 sm:grid-cols-[auto_minmax(0,1fr)] sm:gap-6" style="z-index:1">
-                <svg viewBox="0 20 390 470" class="mx-auto block w-[19rem] sm:w-[21rem]" fill="none" font-family="inherit">
-                    <defs>
-                        <filter id="cta-sh" x="-30%" y="-30%" width="160%" height="170%">
-                            <feDropShadow dx="0" dy="14" stdDeviation="16" flood-color="#09027b" flood-opacity=".22"/>
-                        </filter>
-                        <filter id="cta-sh2" x="-30%" y="-40%" width="160%" height="190%">
-                            <feDropShadow dx="0" dy="8" stdDeviation="9" flood-color="#0f172a" flood-opacity=".16"/>
-                        </filter>
-                    </defs>
+            <svg viewBox="0 20 520 470" class="cs-phone" fill="none" font-family="inherit">
+                <defs>
+                    <linearGradient id="cta-fr" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3b3e5e"/><stop offset=".5" stop-color="#14172b"/><stop offset="1" stop-color="#0b0f1e"/></linearGradient>
+                    <linearGradient id="cta-cd" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2b23c6"/><stop offset=".55" stop-color="#09027b"/><stop offset="1" stop-color="#050245"/></linearGradient>
+                    <clipPath id="cta-cc"><rect x="172" y="100" width="176" height="150" rx="18"/></clipPath>
+                    <filter id="cta-sh" x="-30%" y="-30%" width="160%" height="170%"><feDropShadow dx="0" dy="16" stdDeviation="18" flood-color="#09027b" flood-opacity=".28"/></filter>
+                    <filter id="cta-sh2" x="-30%" y="-40%" width="160%" height="190%"><feDropShadow dx="0" dy="10" stdDeviation="10" flood-color="#0f172a" flood-opacity=".18"/></filter>
+                    <filter id="cta-sh3" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="8" stdDeviation="7" flood-color="#09027b" flood-opacity=".32"/></filter>
+                    <g id="cta-card">
+                        <rect x="172" y="100" width="176" height="150" rx="18" fill="url(#cta-cd)"/>
+                        <g clip-path="url(#cta-cc)" stroke="#fff" stroke-opacity=".10" fill="none">
+                            <circle cx="338" cy="110" r="40"/><circle cx="338" cy="110" r="70"/><circle cx="338" cy="110" r="100"/><circle cx="338" cy="110" r="130"/>
+                        </g>
+                        <rect x="172.5" y="100.5" width="175" height="149" rx="17.5" stroke="#fff" stroke-opacity=".16"/>
+                    </g>
+                </defs>
 
-                    {{-- ponsel: bingkai dan elemen yang tetap --}}
-                <g filter="url(#cta-sh)">
-                    <rect x="150" y="30" width="220" height="450" rx="38" fill="#0b0f1e"/>
-                </g>
-                <rect x="158" y="38" width="204" height="434" rx="31" fill="#fff"/>
+                {{-- ponsel: bingkai titanium dan elemen yang tetap --}}
+                <rect x="147" y="112" width="3" height="26" rx="1.5" fill="#1a1d33"/>
+                <rect x="370" y="142" width="3" height="46" rx="1.5" fill="#1a1d33"/>
+                <g filter="url(#cta-sh)"><rect x="150" y="30" width="220" height="450" rx="38" fill="url(#cta-fr)"/></g>
+                <rect x="150.5" y="30.5" width="219" height="449" rx="37.5" stroke="#fff" stroke-opacity=".22"/>
+                <rect x="158" y="38" width="204" height="434" rx="31" fill="#f7f8fc"/>
                 <rect x="228" y="46" width="64" height="16" rx="8" fill="#0b0f1e"/>
-                <text x="176" y="92" font-size="13" font-weight="700" fill="#0f172a">Subscriptions</text>
-                <path d="M158 424H362" stroke="#eef0f6"/>
-                <circle cx="196" cy="448" r="5" fill="#cbd5e1"/>
-                <circle cx="260" cy="448" r="5" fill="#09027b"/>
-                <circle cx="324" cy="448" r="5" fill="#cbd5e1"/>
+                <text x="176" y="90" font-size="13" font-weight="700" fill="#0f172a">Subscriptions</text>
+                <circle cx="340" cy="85" r="9" fill="#e7e5ff"/>
+                <text x="340" y="88.5" font-size="9" font-weight="700" fill="#09027b" text-anchor="middle">A</text>
+                <path d="M158 424H362" stroke="#e8eaf3"/>
+                <circle cx="196" cy="448" r="4.5" fill="#cbd5e1"/>
+                <rect x="249" y="444" width="22" height="8" rx="4" fill="#09027b"/>
+                <circle cx="324" cy="448" r="4.5" fill="#cbd5e1"/>
 
                 {{-- LAYAR 1: pengingat sebelum perpanjangan --}}
                 <g class="cs-a cs-s1">
-                    <rect x="176" y="106" width="168" height="152" rx="16" fill="#f6f7fb" stroke="#e8eaf3"/>
-                    <circle cx="198" cy="130" r="11" fill="#0f172a"/>
-                    <text x="198" y="134" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">S</text>
-                    <text x="216" y="129" font-size="11" font-weight="600" fill="#0f172a">Streamly Pro</text>
-                    <text x="216" y="142" font-size="9.5" fill="#64748b">$12.00 / month</text>
-                    <text x="192" y="172" font-size="9" fill="#64748b">Renews in 3 days</text>
-                    <text x="192" y="196" font-size="22" font-weight="700" fill="#0f172a" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" letter-spacing="-.5">Nov 2</text>
-                    <rect x="192" y="206" width="136" height="4" rx="2" fill="#e2e5f0"/>
-                    <rect x="192" y="206" width="122" height="4" rx="2" fill="#09027b"/>
-                    <rect x="192" y="220" width="136" height="26" rx="13" fill="#09027b"/>
-                    <text x="260" y="237" font-size="10.5" font-weight="600" fill="#fff" text-anchor="middle">Keep plan</text>
-
-                    <rect x="176" y="270" width="168" height="48" rx="12" fill="#fffbeb" stroke="#fde68a"/>
-                    <circle cx="195" cy="294" r="8" fill="#fef3c7"/>
-                    <path d="M195 289.5V294l2.8 1.7" stroke="#b45309" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                    <text x="209" y="291" font-size="9.5" font-weight="600" fill="#92400e">Reminder sent 72h ahead</text>
-                    <text x="209" y="304" font-size="9" fill="#a16207">Trust score: High</text>
-
-                    <text x="176" y="346" font-size="10" fill="#0f172a">Cloudbox</text>
-                    <text x="344" y="346" font-size="9.5" fill="#64748b" text-anchor="end" font-family="ui-monospace,SFMono-Regular,Menlo,monospace">$4.99 · Nov 9</text>
-                    <path d="M176 358H344M176 388H344" stroke="#eef0f6"/>
-                    <text x="176" y="376" font-size="10" fill="#0f172a">Readly</text>
-                    <text x="344" y="376" font-size="9.5" fill="#64748b" text-anchor="end" font-family="ui-monospace,SFMono-Regular,Menlo,monospace">$8.00 · Nov 14</text>
+                    <g filter="url(#cta-sh3)"><use href="#cta-card"/></g>
+                    <circle cx="192" cy="124" r="10" fill="#fff" fill-opacity=".16"/>
+                    <text x="192" y="127.5" font-size="10" font-weight="700" fill="#fff" text-anchor="middle">S</text>
+                    <text x="208" y="123" font-size="10.5" font-weight="600" fill="#fff">Streamly Pro</text>
+                    <text x="208" y="136" font-size="9" fill="#fff" fill-opacity=".62">$12.00 / month</text>
+                    <text x="190" y="170" font-size="9" fill="#fff" fill-opacity=".62">Renews in 3 days</text>
+                    <text x="190" y="197" font-size="25" font-weight="700" fill="#fff" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" letter-spacing="-.5">Nov 2</text>
+                    <rect x="190" y="206" width="140" height="3.5" rx="1.75" fill="#fff" fill-opacity=".2"/>
+                    <rect x="190" y="206" width="122" height="3.5" rx="1.75" fill="#fff"/>
+                    <rect x="190" y="220" width="140" height="24" rx="12" fill="#fff"/>
+                    <text x="260" y="236" font-size="10.5" font-weight="700" fill="#09027b" text-anchor="middle">Keep plan</text>
+                    <text x="176" y="280" font-size="11" font-weight="600" fill="#0f172a">Upcoming</text>
+                    <circle cx="186" cy="303" r="8" fill="#dbeafe"/><text x="186" y="306" font-size="8.5" font-weight="700" fill="#1d4ed8" text-anchor="middle">C</text>
+                    <text x="202" y="302" font-size="10" font-weight="600" fill="#0f172a">Cloudbox</text>
+                    <text x="202" y="314" font-size="9" fill="#64748b">Nov 9</text>
+                    <text x="344" y="306" font-size="10" font-weight="600" fill="#0f172a" text-anchor="end" font-family="ui-monospace,SFMono-Regular,Menlo,monospace">$4.99</text>
+                    <path d="M176 322H344" stroke="#e8eaf3"/>
+                    <circle cx="186" cy="339" r="8" fill="#fce7f3"/><text x="186" y="342" font-size="8.5" font-weight="700" fill="#be185d" text-anchor="middle">R</text>
+                    <text x="202" y="338" font-size="10" font-weight="600" fill="#0f172a">Readly</text>
+                    <text x="202" y="350" font-size="9" fill="#64748b">Nov 14</text>
+                    <text x="344" y="342" font-size="10" font-weight="600" fill="#0f172a" text-anchor="end" font-family="ui-monospace,SFMono-Regular,Menlo,monospace">$8.00</text>
+                    <rect x="176" y="366" width="168" height="40" rx="12" fill="#fffbeb" stroke="#fde68a"/>
+                    <circle cx="195" cy="386" r="8" fill="#fef3c7"/>
+                    <path d="M195 381.5V386l2.8 1.7" stroke="#b45309" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    <text x="209" y="383" font-size="9.5" font-weight="600" fill="#92400e">Reminder sent 72h ahead</text>
+                    <text x="209" y="396" font-size="9" fill="#a16207">Trust score · High</text>
                 </g>
 
                 {{-- LAYAR 2: Second Chance dan pembagian dana --}}
                 <g class="cs-a cs-s2">
-                    <rect x="176" y="106" width="168" height="152" rx="16" fill="#f6f7fb" stroke="#e8eaf3"/>
-                    <circle cx="198" cy="130" r="11" fill="#0f172a"/>
-                    <text x="198" y="134" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">S</text>
-                    <text x="216" y="129" font-size="11" font-weight="600" fill="#0f172a">Streamly Pro</text>
-                    <text x="216" y="142" font-size="9.5" fill="#64748b">$12.00 / month</text>
-                    <text x="192" y="172" font-size="9" fill="#64748b">Charge held for</text>
-                    <text x="192" y="196" font-size="22" font-weight="700" fill="#0f172a" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" letter-spacing="-.5">47:52:10</text>
-                    <rect x="192" y="206" width="136" height="4" rx="2" fill="#e2e5f0"/>
-                    <rect x="192" y="206" width="128" height="4" rx="2" fill="#09027b"/>
-                    <rect x="192" y="220" width="136" height="26" rx="13" fill="#09027b"/>
-                    <text x="260" y="237" font-size="10.5" font-weight="600" fill="#fff" text-anchor="middle">Second Chance</text>
-
-                    <text x="176" y="284" font-size="11" font-weight="600" fill="#0f172a">Where your money goes</text>
-                    <g font-size="10" fill="#64748b">
-                        <text x="192" y="310">Customer</text>
-                        <text x="192" y="334">Charity</text>
-                        <text x="192" y="358">Merchant</text>
-                    </g>
-                    <circle cx="182" cy="307" r="4" fill="#09027b"/>
-                    <circle cx="182" cy="331" r="4" fill="#f59e0b"/>
-                    <circle cx="182" cy="355" r="4" fill="#10b981"/>
-                    <path d="M176 319H344M176 343H344" stroke="#eef0f6"/>
-                    <g font-size="10" font-weight="600" fill="#0f172a" text-anchor="end" font-family="ui-monospace,SFMono-Regular,Menlo,monospace">
-                        <text x="344" y="310">$7.20</text>
-                        <text x="344" y="334">$1.20</text>
-                        <text x="344" y="358">$3.60</text>
-                    </g>
-                    <rect x="176" y="374" width="168" height="30" rx="10" fill="#ecfdf5"/>
-                    <text x="190" y="393" font-size="9.5" font-weight="600" fill="#047857">Recorded in ledger, balanced</text>
+                    <g filter="url(#cta-sh3)"><use href="#cta-card"/></g>
+                    <circle cx="192" cy="124" r="10" fill="#fff" fill-opacity=".16"/>
+                    <text x="192" y="127.5" font-size="10" font-weight="700" fill="#fff" text-anchor="middle">S</text>
+                    <text x="208" y="123" font-size="10.5" font-weight="600" fill="#fff">Streamly Pro</text>
+                    <text x="208" y="136" font-size="9" fill="#fff" fill-opacity=".62">$12.00 / month</text>
+                    <text x="190" y="170" font-size="9" fill="#fff" fill-opacity=".62">Charge held for</text>
+                    <text x="190" y="197" font-size="25" font-weight="700" fill="#fff" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" letter-spacing="-.5">47:52:10</text>
+                    <rect x="190" y="206" width="140" height="3.5" rx="1.75" fill="#fff" fill-opacity=".2"/>
+                    <rect x="190" y="206" width="132" height="3.5" rx="1.75" fill="#fff"/>
+                    <rect x="190" y="220" width="140" height="24" rx="12" fill="#fff"/>
+                    <text x="260" y="236" font-size="10.5" font-weight="700" fill="#09027b" text-anchor="middle">Second Chance</text>
+                    <text x="176" y="280" font-size="11" font-weight="600" fill="#0f172a">Where your money goes</text>
+                    <rect x="176" y="290" width="99" height="8" rx="4" fill="#09027b"/>
+                    <rect x="278" y="290" width="15" height="8" rx="4" fill="#f59e0b"/>
+                    <rect x="296" y="290" width="48" height="8" rx="4" fill="#10b981"/>
+                    <circle cx="182" cy="318" r="3.5" fill="#09027b"/><text x="192" y="321" font-size="10" fill="#64748b">Customer</text><text x="344" y="321" font-size="10" font-weight="600" fill="#0f172a" text-anchor="end" font-family="ui-monospace,SFMono-Regular,Menlo,monospace">$7.20</text>
+                    <path d="M176 330H344" stroke="#e8eaf3"/>
+                    <circle cx="182" cy="343" r="3.5" fill="#f59e0b"/><text x="192" y="346" font-size="10" fill="#64748b">Charity</text><text x="344" y="346" font-size="10" font-weight="600" fill="#0f172a" text-anchor="end" font-family="ui-monospace,SFMono-Regular,Menlo,monospace">$1.20</text>
+                    <path d="M176 355H344" stroke="#e8eaf3"/>
+                    <circle cx="182" cy="368" r="3.5" fill="#10b981"/><text x="192" y="371" font-size="10" fill="#64748b">Merchant</text><text x="344" y="371" font-size="10" font-weight="600" fill="#0f172a" text-anchor="end" font-family="ui-monospace,SFMono-Regular,Menlo,monospace">$3.60</text>
+                    <rect x="176" y="382" width="168" height="26" rx="10" fill="#ecfdf5"/>
+                    <circle cx="190" cy="395" r="5.5" fill="#10b981"/><path d="M187.6 395l1.8 1.8 3.2-3.6" stroke="#fff" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+                    <text x="201" y="398" font-size="9.5" font-weight="600" fill="#047857">Recorded in ledger, balanced</text>
                 </g>
 
                 {{-- LAYAR 3: jual sisa akses --}}
                 <g class="cs-a cs-s3">
-                    <rect x="176" y="106" width="168" height="152" rx="16" fill="#f6f7fb" stroke="#e8eaf3"/>
-                    <circle cx="198" cy="130" r="11" fill="#0f172a"/>
-                    <text x="198" y="134" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">S</text>
-                    <text x="216" y="129" font-size="11" font-weight="600" fill="#0f172a">Streamly Pro</text>
-                    <text x="216" y="142" font-size="9.5" fill="#64748b">18 days left</text>
-                    <text x="192" y="172" font-size="9" fill="#64748b">You receive</text>
-                    <text x="192" y="196" font-size="22" font-weight="700" fill="#0f172a" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" letter-spacing="-.5">$5.40</text>
-                    <rect x="192" y="206" width="136" height="4" rx="2" fill="#e2e5f0"/>
-                    <rect x="192" y="206" width="82" height="4" rx="2" fill="#10b981"/>
-                    <rect x="192" y="220" width="136" height="26" rx="13" fill="#09027b"/>
-                    <text x="260" y="237" font-size="10.5" font-weight="600" fill="#fff" text-anchor="middle">Sell remaining days</text>
-
-                    <text x="176" y="284" font-size="11" font-weight="600" fill="#0f172a">Sale status</text>
-                    <g font-size="10" fill="#64748b">
-                        <text x="192" y="310">Listed</text>
-                        <text x="192" y="334">Buyer matched</text>
-                        <text x="192" y="358">Access moved</text>
-                    </g>
-                    <circle cx="182" cy="307" r="5.5" fill="#10b981"/><path d="M179.6 307l1.8 1.8 3.2-3.6" stroke="#fff" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="182" cy="331" r="5.5" fill="#10b981"/><path d="M179.6 331l1.8 1.8 3.2-3.6" stroke="#fff" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="182" cy="355" r="5.5" fill="#10b981"/><path d="M179.6 355l1.8 1.8 3.2-3.6" stroke="#fff" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
-                    <path d="M176 319H344M176 343H344" stroke="#eef0f6"/>
-                    <g font-size="10" font-weight="600" fill="#0f172a" text-anchor="end" font-family="ui-monospace,SFMono-Regular,Menlo,monospace">
-                        <text x="344" y="310">0:01</text>
-                        <text x="344" y="334">0:09</text>
-                        <text x="344" y="358">0:10</text>
-                    </g>
-                    <rect x="176" y="374" width="168" height="30" rx="10" fill="#ecfdf5"/>
-                    <text x="190" y="393" font-size="9.5" font-weight="600" fill="#047857">No fake refund, ledger posted</text>
+                    <g filter="url(#cta-sh3)"><use href="#cta-card"/></g>
+                    <circle cx="192" cy="124" r="10" fill="#fff" fill-opacity=".16"/>
+                    <text x="192" y="127.5" font-size="10" font-weight="700" fill="#fff" text-anchor="middle">S</text>
+                    <text x="208" y="123" font-size="10.5" font-weight="600" fill="#fff">Streamly Pro</text>
+                    <text x="208" y="136" font-size="9" fill="#fff" fill-opacity=".62">18 days left</text>
+                    <text x="190" y="170" font-size="9" fill="#fff" fill-opacity=".62">You receive</text>
+                    <text x="190" y="197" font-size="25" font-weight="700" fill="#fff" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" letter-spacing="-.5">$5.40</text>
+                    <rect x="190" y="206" width="140" height="3.5" rx="1.75" fill="#fff" fill-opacity=".2"/>
+                    <rect x="190" y="206" width="84" height="3.5" rx="1.75" fill="#fff"/>
+                    <rect x="190" y="220" width="140" height="24" rx="12" fill="#fff"/>
+                    <text x="260" y="236" font-size="10.5" font-weight="700" fill="#09027b" text-anchor="middle">Sell remaining days</text>
+                    <text x="176" y="280" font-size="11" font-weight="600" fill="#0f172a">Sale status</text>
+                    <path d="M186 310V318M186 334V342" stroke="#a7f3d0" stroke-width="2"/>
+                    <circle cx="186" cy="303" r="6.5" fill="#10b981"/><path d="M183.2 303l2 2 3.6-4" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    <circle cx="186" cy="326" r="6.5" fill="#10b981"/><path d="M183.2 326l2 2 3.6-4" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    <circle cx="186" cy="349" r="6.5" fill="#10b981"/><path d="M183.2 349l2 2 3.6-4" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    <text x="202" y="306" font-size="10" font-weight="600" fill="#0f172a">Listed</text><text x="344" y="306" font-size="10" font-weight="600" fill="#0f172a" text-anchor="end" font-family="ui-monospace,SFMono-Regular,Menlo,monospace">0:01</text>
+                    <text x="202" y="329" font-size="10" font-weight="600" fill="#0f172a">Buyer matched</text><text x="344" y="329" font-size="10" font-weight="600" fill="#0f172a" text-anchor="end" font-family="ui-monospace,SFMono-Regular,Menlo,monospace">0:09</text>
+                    <text x="202" y="352" font-size="10" font-weight="600" fill="#0f172a">Access moved</text><text x="344" y="352" font-size="10" font-weight="600" fill="#0f172a" text-anchor="end" font-family="ui-monospace,SFMono-Regular,Menlo,monospace">0:10</text>
+                    <rect x="176" y="372" width="168" height="34" rx="10" fill="#ecfdf5"/>
+                    <text x="190" y="387" font-size="9.5" font-weight="600" fill="#047857">No fake refund</text>
+                    <text x="190" y="399" font-size="9" fill="#059669">Ledger entry posted</text>
                 </g>
 
-                {{-- melayang kiri, muncul bersama layar 1 --}}
+                {{-- modal kiri: muncul bersama layar 1 --}}
                 <g class="cs-a cs-s1">
-                    <g filter="url(#cta-sh2)"><rect x="14" y="150" width="184" height="58" rx="16" fill="#fff"/></g>
-                    <circle cx="42" cy="179" r="13" fill="#fef3c7"/>
-                    <path d="M42 171.5V179l4.5 2.8" stroke="#b45309" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-                    <text x="64" y="175" font-size="10.5" font-weight="600" fill="#0f172a">Renews in 3 days</text>
-                    <text x="64" y="190" font-size="9" fill="#64748b">Keep it or undo in one tap</text>
+                    <g filter="url(#cta-sh2)"><rect x="10" y="150" width="190" height="56" rx="16" fill="#fff" fill-opacity=".96"/></g>
+                    <rect x="22" y="165" width="26" height="26" rx="8" fill="#fef3c7"/>
+                    <path d="M35 171.5V178l4 2.5" stroke="#b45309" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                    <text x="58" y="176" font-size="10.5" font-weight="600" fill="#0f172a">Renews in 3 days</text>
+                    <text x="58" y="191" font-size="9" fill="#64748b">Reminder sent, keep or undo</text>
+                    <text x="188" y="176" font-size="8.5" fill="#94a3b8" text-anchor="end">now</text>
                 </g>
 
-                {{-- melayang kiri, muncul bersama layar 2 --}}
+                {{-- modal kanan: muncul bersama layar 2 --}}
                 <g class="cs-a cs-s2">
-                    <g filter="url(#cta-sh2)"><rect x="14" y="312" width="172" height="48" rx="16" fill="#fff"/></g>
-                    <circle cx="39" cy="336" r="13" fill="#fff1f2"/>
-                    <path d="M39 343L32.5 336.5A3.6 3.6 0 0 1 39 332.2A3.6 3.6 0 0 1 45.5 336.5Z" fill="#f43f5e"/>
-                    <text x="60" y="333" font-size="10" font-weight="600" fill="#0f172a">Charity received</text>
-                    <text x="60" y="348" font-size="10" font-weight="700" fill="#059669" font-family="ui-monospace,SFMono-Regular,Menlo,monospace">+$1.20</text>
+                    <g filter="url(#cta-sh2)"><rect x="330" y="300" width="180" height="52" rx="16" fill="#fff" fill-opacity=".96"/></g>
+                    <rect x="342" y="313" width="26" height="26" rx="8" fill="#fff1f2"/>
+                    <path d="M355 333L348.5 326.5A3.6 3.6 0 0 1 355 322.2A3.6 3.6 0 0 1 361.5 326.5Z" fill="#f43f5e"/>
+                    <text x="378" y="322" font-size="10" font-weight="600" fill="#0f172a">Charity received</text>
+                    <text x="378" y="337" font-size="9" fill="#64748b">+$1.20 · Split settled</text>
                 </g>
 
-                {{-- melayang kiri, muncul bersama layar 3 --}}
+                {{-- modal kanan: muncul bersama layar 3 --}}
                 <g class="cs-a cs-s3">
-                    <g filter="url(#cta-sh2)"><rect x="14" y="312" width="172" height="48" rx="16" fill="#fff"/></g>
-                    <circle cx="39" cy="336" r="13" fill="#ecfdf5"/>
-                    <path d="M33 336.5l4 4 7-8" stroke="#059669" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                    <text x="60" y="333" font-size="10" font-weight="600" fill="#0f172a">Access sold</text>
-                    <text x="60" y="348" font-size="10" font-weight="700" fill="#059669" font-family="ui-monospace,SFMono-Regular,Menlo,monospace">+$5.40</text>
+                    <g filter="url(#cta-sh2)"><rect x="330" y="300" width="180" height="52" rx="16" fill="#fff" fill-opacity=".96"/></g>
+                    <rect x="342" y="313" width="26" height="26" rx="8" fill="#ecfdf5"/>
+                    <path d="M349 326.5l4 4 7-8" stroke="#059669" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <text x="378" y="322" font-size="10" font-weight="600" fill="#0f172a">Access sold</text>
+                    <text x="378" y="337" font-size="9" fill="#64748b">+$5.40 · Ledger posted</text>
                 </g>
-</svg>
+            </svg>
 
-                {{-- teks auto slide, sinkron dengan layar ponsel --}}
-                <div class="px-2 sm:px-0">
-                    <div class="cs-slides">
-                        <p>Get a nudge<br>before every<br>renewal.</p>
-                        <p>Changed your mind?<br>Second Chance<br>lasts 48 hours.</p>
-                        <p>Sell unused access,<br>no fake refund.</p>
-                    </div>
-                    <div class="cs-bars"><span><i></i></span><span><i></i></span><span><i></i></span></div>
+            {{-- teks auto slide, menyatu dengan gambar --}}
+            <div class="cs-card">
+                <div class="cs-slides">
+                    <p>Get a nudge<br>before every<br>renewal.</p>
+                    <p>Changed your mind?<br>Second Chance<br>lasts 48 hours.</p>
+                    <p>Sell unused access,<br>no fake refund.</p>
                 </div>
+                <div class="cs-bars"><span><i></i></span><span><i></i></span><span><i></i></span></div>
             </div>
         </div>
     </div>
