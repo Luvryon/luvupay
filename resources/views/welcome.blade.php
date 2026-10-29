@@ -70,7 +70,7 @@
 @endphp
 
 {{-- Hero --}}
-<section class="lp-hero relative overflow-hidden">
+<section class="lp-hero" style="position:relative;overflow:hidden">
     <div class="mx-auto grid max-w-7xl items-center gap-12 px-5 pb-20 pt-14 sm:px-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] lg:pb-28 lg:pt-20">
         <div>
             <h1 class="text-[2.7rem] font-bold leading-[1.04] tracking-[-0.035em] text-ink sm:text-[3.5rem]">
@@ -86,7 +86,7 @@
         {{-- Product preview --}}
         <div class="lp-stage relative" aria-hidden="true">
             {{-- background: kisi kotak-kotak, kotak miring, cahaya ungu --}}
-            <div class="pointer-events-none absolute -inset-x-8 -inset-y-14 lg:-right-32" style="z-index:0">
+            <div class="hx-decor" style="position:absolute;left:-2rem;right:-2rem;top:-3.5rem;bottom:-3.5rem;z-index:0;pointer-events:none"><style>@media (min-width:1024px){.hx-decor{right:-8rem!important}}</style>
                 <svg class="h-full w-full" viewBox="0 0 700 600" preserveAspectRatio="xMidYMid slice" fill="none">
                     <defs>
                         <pattern id="hx-grid" width="36" height="36" patternUnits="userSpaceOnUse">
@@ -227,163 +227,195 @@
 </section>
 
 {{-- Ecosystem --}}
-<section class="eco relative overflow-hidden border-t border-line py-20 sm:py-24" style="background:linear-gradient(180deg,#fbfcff 0%,#f4f2ff 100%)">
+<section class="eco" style="position:relative;overflow:hidden;border-top:1px solid #e8eaf3;padding:4.5rem 0;background:linear-gradient(180deg,#fbfcff 0%,#f4f2ff 100%)">
     <style>
-        .eco-node{position:absolute;display:grid;place-items:center;border-radius:18px;background:#fff;border:1px solid rgba(15,23,42,.06);box-shadow:0 14px 34px rgba(91,61,245,.14),0 1px 0 rgba(255,255,255,.9) inset;animation:ecoFloat 6s ease-in-out infinite}
-        .eco-node.lg{width:64px;height:64px}
-        .eco-node.sm{width:56px;height:56px;border-radius:16px}
-        @keyframes ecoFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
-        .eco-tile{border-radius:16px;background:#fff;border:1px solid rgba(15,23,42,.07);padding:16px;box-shadow:0 1px 2px rgba(15,23,42,.04);transition:box-shadow .2s,border-color .2s}
-        .eco-tile:hover{border-color:#c4b5fd;box-shadow:0 10px 28px rgba(91,61,245,.12)}
+        .eco *{box-sizing:border-box}
+        .eco-bg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+        .eco-inner{position:relative;max-width:72rem;margin:0 auto;padding:0 1.25rem}
+        .eco-top{display:grid;gap:2rem;align-items:center}
+        .eco-title{margin:.6rem 0 0;max-width:26rem;font-size:1.9rem;line-height:1.18;font-weight:700;letter-spacing:-.02em;color:#0f172a}
+        .eco-desc{margin:1rem 0 0;max-width:26rem;font-size:.95rem;line-height:1.65;color:#64748b}
+        .eco-float{display:none;position:relative;height:230px;width:100%;max-width:500px;margin-left:auto}
+        .eco-float svg.eco-lines{position:absolute;inset:0;width:100%;height:100%}
+        .eco-node{position:absolute;display:flex;align-items:center;justify-content:center;width:54px;height:54px;border-radius:16px;background:#fff;border:1px solid rgba(15,23,42,.06);box-shadow:0 10px 26px rgba(91,61,245,.13);animation:ecoFloat 6s ease-in-out infinite}
+        .eco-node.sm{width:46px;height:46px;border-radius:14px;color:#8b8fb0;font-weight:700;letter-spacing:.12em;font-size:14px}
+        .eco-node svg{width:26px;height:26px;display:block}
+        @keyframes ecoFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+        .eco-tiles{display:grid;gap:10px;grid-template-columns:repeat(2,minmax(0,1fr));margin-top:2.25rem}
+        .eco-tile,.eco-more{display:block;border-radius:14px;padding:14px;text-decoration:none}
+        .eco-tile{background:#fff;border:1px solid rgba(15,23,42,.07);box-shadow:0 1px 2px rgba(15,23,42,.04);transition:border-color .2s,box-shadow .2s}
+        .eco-tile:hover{border-color:#c4b5fd;box-shadow:0 8px 22px rgba(91,61,245,.12)}
+        .eco-tile svg{width:24px;height:24px;display:block}
+        .eco-tile b{display:block;margin-top:12px;font-size:.85rem;font-weight:600;color:#0f172a}
+        .eco-tile span{display:block;font-size:.72rem;color:#64748b}
+        .eco-more{display:flex;flex-direction:column;justify-content:center;gap:6px;border:1.5px dashed #c4b5fd;background:rgba(91,61,245,.04);color:#5b3df5;font-size:.82rem;font-weight:600}
+        .eco-more svg{width:18px;height:18px}
+        @media (min-width:640px){.eco-tiles{grid-template-columns:repeat(3,minmax(0,1fr))}}
+        @media (min-width:1024px){
+            .eco-inner{padding:0 2rem}
+            .eco-top{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+            .eco-float{display:block}
+            .eco-tiles{grid-template-columns:repeat(6,minmax(0,1fr))}
+        }
         @media (prefers-reduced-motion:reduce){.eco-node{animation:none}}
     </style>
 
-    {{-- background: kisi kotak-kotak + garis gelombang --}}
-    <svg class="pointer-events-none absolute inset-0 h-full w-full" aria-hidden="true" preserveAspectRatio="xMidYMid slice" viewBox="0 0 1440 600" fill="none">
+    <svg class="eco-bg" aria-hidden="true" preserveAspectRatio="xMidYMid slice" viewBox="0 0 1440 600" fill="none">
         <defs>
             <pattern id="eco-grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" stroke="#5b3df5" stroke-opacity=".07"/></pattern>
             <radialGradient id="eco-fade" cx="75%" cy="35%" r="55%"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
             <mask id="eco-mask"><rect width="1440" height="600" fill="url(#eco-fade)"/></mask>
-            <linearGradient id="eco-wave" x1="0" x2="1"><stop offset="0" stop-color="#c4b5fd" stop-opacity="0"/><stop offset=".5" stop-color="#a78bfa" stop-opacity=".55"/><stop offset="1" stop-color="#c4b5fd" stop-opacity="0"/></linearGradient>
+            <linearGradient id="eco-wave" x1="0" x2="1"><stop offset="0" stop-color="#c4b5fd" stop-opacity="0"/><stop offset=".5" stop-color="#a78bfa" stop-opacity=".5"/><stop offset="1" stop-color="#c4b5fd" stop-opacity="0"/></linearGradient>
         </defs>
         <rect width="1440" height="600" fill="url(#eco-grid)" mask="url(#eco-mask)"/>
-        <path d="M640 420 C 820 360, 900 120, 1100 190 S 1340 330, 1460 120" stroke="url(#eco-wave)" stroke-width="1.6"/>
-        <path d="M700 520 C 880 470, 980 300, 1160 330 S 1380 450, 1460 300" stroke="url(#eco-wave)" stroke-width="1.2" opacity=".7"/>
-        <rect x="1180" y="60"  width="90" height="90" rx="18" stroke="#c4b5fd" stroke-opacity=".5" transform="rotate(14 1225 105)"/>
-        <rect x="1290" y="400" width="64" height="64" rx="14" fill="#a78bfa" fill-opacity=".10" stroke="#c4b5fd" stroke-opacity=".5" transform="rotate(-10 1322 432)"/>
+        <path d="M640 420 C 820 360, 900 120, 1100 190 S 1340 330, 1460 120" stroke="url(#eco-wave)" stroke-width="1.4"/>
+        <rect x="1180" y="60" width="70" height="70" rx="14" stroke="#c4b5fd" stroke-opacity=".5" transform="rotate(14 1215 95)"/>
+        <rect x="1300" y="420" width="50" height="50" rx="12" fill="#a78bfa" fill-opacity=".10" stroke="#c4b5fd" stroke-opacity=".5" transform="rotate(-10 1325 445)"/>
     </svg>
 
-    <div class="relative mx-auto max-w-7xl px-5 sm:px-8">
-        <div class="grid items-center gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
-            <div class="max-w-md">
+    <div class="eco-inner">
+        <div class="eco-top">
+            <div>
                 <p class="lp-eyebrow">Ecosystem</p>
-                <h2 class="mt-3 text-3xl font-bold tracking-tight text-ink sm:text-[2.5rem]" style="line-height:1.12">Integrated with the tools you already know and trust</h2>
-                <p class="mt-4 leading-relaxed text-muted">Use LuvuPay with the tools and platforms you already run. Our integrations keep growing to support your business stack.</p>
+                <h2 class="eco-title">Integrated with the tools you already know and trust</h2>
+                <p class="eco-desc">Use LuvuPay with the tools and platforms you already run. Our integrations keep growing to support your business stack.</p>
             </div>
 
-            {{-- logo mengambang --}}
-            <div class="relative hidden lg:block" style="height:300px" aria-hidden="true">
-                <svg class="absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none" fill="none">
-                    <path d="M14 41 C 26 41, 28 63, 40 63 S 62 73, 73 73" stroke="#a78bfa" stroke-opacity=".6" stroke-width="1.4" stroke-dasharray="3 5" vector-effect="non-scaling-stroke"/>
-                    <path d="M14 41 C 34 41, 46 13, 62 13 S 84 43, 90 43" stroke="#a78bfa" stroke-opacity=".6" stroke-width="1.4" stroke-dasharray="3 5" vector-effect="non-scaling-stroke"/>
-                    <path d="M40 63 C 50 40, 55 30, 62 13" stroke="#c4b5fd" stroke-opacity=".55" stroke-width="1.2" vector-effect="non-scaling-stroke"/>
+            <div class="eco-float" aria-hidden="true">
+                <svg class="eco-lines" viewBox="0 0 100 100" preserveAspectRatio="none" fill="none">
+                    <path d="M11 44 C 22 44, 26 66, 37 66 S 58 72, 69 72" stroke="#a78bfa" stroke-opacity=".6" stroke-width="1.2" stroke-dasharray="3 5" vector-effect="non-scaling-stroke"/>
+                    <path d="M11 44 C 30 44, 44 14, 59 14 S 82 41, 91 41" stroke="#a78bfa" stroke-opacity=".6" stroke-width="1.2" stroke-dasharray="3 5" vector-effect="non-scaling-stroke"/>
+                    <path d="M37 66 C 47 42, 52 30, 59 14" stroke="#c4b5fd" stroke-opacity=".5" stroke-width="1" vector-effect="non-scaling-stroke"/>
                 </svg>
-                <div class="eco-node lg" style="left:8%;top:30%;animation-delay:-1s"><svg viewBox="0 0 24 24" width="32" height="32">{!! $ecosystem[0]['svg'] !!}</svg></div>
-                <div class="eco-node lg" style="left:56%;top:2%;animation-delay:-3s"><svg viewBox="0 0 24 24" width="32" height="32">{!! $ecosystem[1]['svg'] !!}</svg></div>
-                <div class="eco-node lg" style="left:34%;top:52%;animation-delay:-2s"><svg viewBox="0 0 24 24" width="32" height="32">{!! $ecosystem[3]['svg'] !!}</svg></div>
-                <div class="eco-node lg" style="left:67%;top:62%;animation-delay:-4s"><svg viewBox="0 0 24 24" width="32" height="32">{!! $ecosystem[2]['svg'] !!}</svg></div>
-                <div class="eco-node sm" style="left:84%;top:31%;animation-delay:-5s;color:#8b8fb0;font-weight:700;letter-spacing:.14em">···</div>
+                <div class="eco-node" style="left:6%;top:32%;animation-delay:-1s"><svg viewBox="0 0 24 24">{!! $ecosystem[0]['svg'] !!}</svg></div>
+                <div class="eco-node" style="left:54%;top:2%;animation-delay:-3s"><svg viewBox="0 0 24 24">{!! $ecosystem[1]['svg'] !!}</svg></div>
+                <div class="eco-node" style="left:32%;top:54%;animation-delay:-2s"><svg viewBox="0 0 24 24">{!! $ecosystem[3]['svg'] !!}</svg></div>
+                <div class="eco-node" style="left:64%;top:60%;animation-delay:-4s"><svg viewBox="0 0 24 24">{!! $ecosystem[2]['svg'] !!}</svg></div>
+                <div class="eco-node sm" style="left:86%;top:30%;animation-delay:-5s">···</div>
             </div>
         </div>
 
-        {{-- kartu bawah --}}
-        <div class="mt-12 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <div class="eco-tiles">
             @foreach(array_slice($ecosystem, 0, 5) as $item)
                 <div class="eco-tile">
-                    <svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true">{!! $item['svg'] !!}</svg>
-                    <div class="mt-4 text-sm font-semibold text-ink">{{ $item['name'] }}</div>
-                    <div class="text-xs text-muted">{{ $item['kind'] }}</div>
+                    <svg viewBox="0 0 24 24" aria-hidden="true">{!! $item['svg'] !!}</svg>
+                    <b>{{ $item['name'] }}</b>
+                    <span>{{ $item['kind'] }}</span>
                 </div>
             @endforeach
-            <a href="/docs" class="flex flex-col justify-center gap-2 rounded-2xl p-4 no-underline transition hover:bg-brand-50/60" style="border:1.5px dashed #c4b5fd;background:rgba(91,61,245,.04);color:#5b3df5">
-                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M8 7h9v9"/></svg>
-                <span class="text-sm font-semibold">See all integrations →</span>
+            <a href="/docs" class="eco-more">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M8 7h9v9"/></svg>
+                See all integrations →
             </a>
         </div>
     </div>
 </section>
 
 {{-- Infrastructure --}}
-<section class="lp-dark infra relative overflow-hidden py-24" style="background:#090b15">
+<section class="infra" style="position:relative;overflow:hidden;padding:4.5rem 0;background:#090b15">
     <style>
+        .infra *{box-sizing:border-box}
+        .infra-bg{position:absolute;inset:0;pointer-events:none}
+        .infra-inner{position:relative;max-width:72rem;margin:0 auto;padding:0 1.25rem;display:grid;gap:2.5rem;align-items:center}
+        .infra-badge{display:inline-block;padding:4px 10px;border-radius:6px;font-size:10px;font-weight:600;letter-spacing:.14em;color:#c4b5fd;background:rgba(139,124,248,.14);border:1px solid rgba(139,124,248,.25)}
+        .infra-title{margin:1rem 0 0;max-width:24rem;font-size:1.9rem;line-height:1.18;font-weight:700;letter-spacing:-.02em;color:#fff}
+        .infra-desc{margin:.9rem 0 0;max-width:26rem;font-size:.92rem;line-height:1.65;color:rgba(255,255,255,.62)}
+        .infra-list{list-style:none;margin:1.75rem 0 0;padding:0;display:flex;flex-direction:column;gap:1.1rem}
+        .infra-list li{display:flex;align-items:center;gap:.9rem}
+        .infra-ico{flex:none;width:40px;height:40px;border-radius:999px;display:flex;align-items:center;justify-content:center;color:#c4b5fd;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);box-shadow:0 0 0 4px rgba(139,124,248,.06)}
+        .infra-ico svg{width:18px;height:18px}
+        .infra-list b{display:block;font-size:.88rem;font-weight:600;color:#fff}
+        .infra-list span{display:block;font-size:.78rem;color:rgba(255,255,255,.55)}
+        .infra-mapcol{width:100%;max-width:540px;margin-left:auto}
+        .infra-map{position:relative;width:100%;aspect-ratio:2/1}
+        .infra-map>img,.infra-map>svg{position:absolute;inset:0;width:100%;height:100%}
+        .infra-card{background:rgba(16,19,34,.9);border:1px solid rgba(255,255,255,.10);border-radius:12px;box-shadow:0 10px 28px rgba(0,0,0,.45)}
+        .infra-chip{position:absolute;display:none;align-items:center;gap:6px;padding:4px 9px;border-radius:999px;white-space:nowrap;font-size:10px;font-weight:600;color:#fff;transform:translate(-50%,-190%)}
+        .infra-chip i{width:6px;height:6px;border-radius:99px;background:#a78bfa}
+        .infra-chip small{font-size:9px;font-weight:500;color:rgba(255,255,255,.5)}
+        .infra-sg{position:absolute;left:78.8%;top:58.4%;transform:translate(-108%,24%);display:flex;align-items:center;gap:9px;padding:8px 12px}
+        .infra-sg b{display:block;font-size:11px;font-weight:600;color:#fff}
+        .infra-sg span{display:block;font-size:10px;color:rgba(255,255,255,.55)}
+        .dot-ok{flex:none;width:8px;height:8px;border-radius:99px;background:#22c55e;box-shadow:0 0 9px #22c55e}
+        .infra-status{margin-top:1rem;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px}
+        .infra-status div{display:flex;align-items:center;gap:10px;min-width:0}
+        .infra-status b{display:block;font-size:11.5px;font-weight:600;color:#fff}
+        .infra-status small{display:block;font-size:10.5px;color:rgba(255,255,255,.55)}
+        .infra-status a{flex:none;font-size:10.5px;font-weight:600;color:#c4b5fd;text-decoration:none}
+        .infra-status a:hover{color:#fff}
         .infra-pin-ring{transform-box:fill-box;transform-origin:center;animation:infraPulse 2.8s ease-out infinite}
         @keyframes infraPulse{from{transform:scale(.5);opacity:.7}to{transform:scale(2.4);opacity:0}}
         .infra-arc{stroke-dasharray:5 7;animation:infraFlow 3s linear infinite}
         @keyframes infraFlow{to{stroke-dashoffset:-96}}
-        .infra-card{background:rgba(16,19,34,.88);border:1px solid rgba(255,255,255,.10);border-radius:14px;box-shadow:0 12px 32px rgba(0,0,0,.45);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
-        .infra-chip{display:flex;align-items:center;gap:7px;padding:5px 10px;border-radius:999px;white-space:nowrap;font-size:11px;font-weight:600;color:#fff}
-        .infra-chip small{font-weight:500;color:rgba(255,255,255,.5);font-size:10px}
+        @media (min-width:640px){.infra-chip{display:flex}}
+        @media (min-width:1024px){
+            .infra-inner{padding:0 2rem;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr)}
+            .infra-title{font-size:2.2rem}
+        }
         @media (prefers-reduced-motion:reduce){.infra-pin-ring,.infra-arc{animation:none}}
     </style>
 
-    {{-- background: kisi kotak-kotak + cahaya ungu --}}
-    <div class="pointer-events-none absolute inset-0" aria-hidden="true">
-        <div class="absolute inset-0" style="background-image:linear-gradient(rgba(139,124,248,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(139,124,248,.07) 1px,transparent 1px);background-size:44px 44px;-webkit-mask-image:radial-gradient(ellipse 70% 80% at 72% 45%,#000 20%,transparent 75%);mask-image:radial-gradient(ellipse 70% 80% at 72% 45%,#000 20%,transparent 75%)"></div>
-        <div class="absolute" style="right:-8%;top:-20%;width:640px;height:640px;border-radius:50%;background:radial-gradient(circle,rgba(91,61,245,.28),transparent 68%)"></div>
-        <div class="absolute" style="left:-10%;bottom:-30%;width:520px;height:520px;border-radius:50%;background:radial-gradient(circle,rgba(91,61,245,.14),transparent 70%)"></div>
-        <svg class="absolute right-6 top-8 hidden lg:block" width="120" height="120" viewBox="0 0 120 120" fill="none"><rect x="20" y="20" width="70" height="70" rx="14" stroke="#8b7cf8" stroke-opacity=".28" transform="rotate(12 55 55)"/><rect x="44" y="40" width="46" height="46" rx="10" stroke="#8b7cf8" stroke-opacity=".18" transform="rotate(-8 67 63)"/></svg>
+    <div class="infra-bg" aria-hidden="true">
+        <div style="position:absolute;inset:0;background-image:linear-gradient(rgba(139,124,248,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(139,124,248,.07) 1px,transparent 1px);background-size:40px 40px;-webkit-mask-image:radial-gradient(ellipse 70% 80% at 72% 45%,#000 20%,transparent 75%);mask-image:radial-gradient(ellipse 70% 80% at 72% 45%,#000 20%,transparent 75%)"></div>
+        <div style="position:absolute;right:-6%;top:-25%;width:520px;height:520px;border-radius:50%;background:radial-gradient(circle,rgba(91,61,245,.26),transparent 68%)"></div>
+        <div style="position:absolute;left:-8%;bottom:-35%;width:420px;height:420px;border-radius:50%;background:radial-gradient(circle,rgba(91,61,245,.13),transparent 70%)"></div>
     </div>
 
-    <div class="relative mx-auto grid max-w-7xl items-center gap-14 px-5 sm:px-8 lg:grid-cols-[minmax(0,.9fr)_minmax(0,1.25fr)]">
+    <div class="infra-inner">
         <div>
-            <span class="inline-block rounded-md px-2.5 py-1 text-[11px] font-semibold tracking-[.14em] text-brand-300" style="background:rgba(139,124,248,.14);border:1px solid rgba(139,124,248,.25)">INFRASTRUCTURE</span>
-            <h2 class="lp-h2 mt-5 text-white">Built for subscription apps at scale</h2>
-            <p class="mt-4 max-w-md leading-relaxed text-white/65">LuvuPay runs on stable cloud infrastructure, a microservice architecture and layered security, so you can focus on shipping product.</p>
+            <span class="infra-badge">INFRASTRUCTURE</span>
+            <h2 class="infra-title">Built for subscription apps at scale</h2>
+            <p class="infra-desc">LuvuPay runs on stable cloud infrastructure, a microservice architecture and layered security, so you can focus on shipping product.</p>
 
-            <ul class="mt-9 space-y-6">
+            <ul class="infra-list">
                 @foreach([
                     ['High availability', '99.9% uptime, always online.', '<path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z"/>'],
                     ['Auto scaling', 'Scales with demand automatically.', '<path stroke-linecap="round" stroke-linejoin="round" d="m3.75 13.5 10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z"/>'],
                     ['Global CDN', 'Fast access worldwide: US, Europe, APAC.', '<path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm0 0c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3M3.6 9h16.8M3.6 15h16.8"/>'],
                 ] as [$t, $d, $icon])
-                    <li class="flex items-center gap-4">
-                        <span class="grid h-12 w-12 shrink-0 place-items-center rounded-full text-brand-300" style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);box-shadow:0 0 0 5px rgba(139,124,248,.06)">
-                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6">{!! $icon !!}</svg>
-                        </span>
-                        <div>
-                            <div class="text-[0.95rem] font-semibold text-white">{{ $t }}</div>
-                            <div class="text-sm text-white/55">{{ $d }}</div>
-                        </div>
+                    <li>
+                        <span class="infra-ico"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6">{!! $icon !!}</svg></span>
+                        <div><b>{{ $t }}</b><span>{{ $d }}</span></div>
                     </li>
                 @endforeach
             </ul>
         </div>
 
-        {{-- peta dunia titik-titik (butuh public/images/world-dots.svg) --}}
-        <div>
-            <div class="relative w-full" style="aspect-ratio:2/1" aria-hidden="true">
-                <img src="{{ asset('images/world-dots.svg') }}" alt="" class="absolute inset-0 h-full w-full" style="opacity:.55" loading="lazy">
-
-                <svg class="absolute inset-0 h-full w-full" viewBox="0 0 1000 500" fill="none">
+        <div class="infra-mapcol">
+            <div class="infra-map" aria-hidden="true">
+                <img src="{{ asset('images/world-dots.svg') }}" alt="" style="opacity:.55" loading="lazy">
+                <svg viewBox="0 0 1000 500" fill="none">
                     <defs>
                         <linearGradient id="infra-arc" x1="0" x2="1000" y1="0" y2="0" gradientUnits="userSpaceOnUse">
                             <stop offset="0" stop-color="#6d5cf6"/><stop offset=".6" stop-color="#a78bfa"/><stop offset="1" stop-color="#c4b5fd"/>
                         </linearGradient>
                     </defs>
-                    <path class="infra-arc" d="M228 157 Q 376 30 525 118" stroke="url(#infra-arc)" stroke-width="2" opacity=".9"/>
-                    <path class="infra-arc" d="M525 118 Q 720 120 788 292" stroke="url(#infra-arc)" stroke-width="2" opacity=".85"/>
-                    <path class="infra-arc" d="M228 157 Q 500 400 788 292" stroke="url(#infra-arc)" stroke-width="1.6" opacity=".5"/>
-                    <path class="infra-arc" d="M788 292 Q 880 250 888 168" stroke="url(#infra-arc)" stroke-width="1.8" opacity=".75"/>
-
+                    <path class="infra-arc" d="M228 157 Q 376 30 525 118" stroke="url(#infra-arc)" stroke-width="2.5" opacity=".9"/>
+                    <path class="infra-arc" d="M525 118 Q 720 120 788 292" stroke="url(#infra-arc)" stroke-width="2.5" opacity=".85"/>
+                    <path class="infra-arc" d="M228 157 Q 500 400 788 292" stroke="url(#infra-arc)" stroke-width="2" opacity=".5"/>
+                    <path class="infra-arc" d="M788 292 Q 880 250 888 168" stroke="url(#infra-arc)" stroke-width="2.2" opacity=".75"/>
                     @foreach([[228,157,'#a78bfa'],[525,118,'#a78bfa'],[788,292,'#22c55e'],[888,168,'#a78bfa']] as [$x, $y, $c])
                         <circle class="infra-pin-ring" cx="{{ $x }}" cy="{{ $y }}" r="9" fill="{{ $c }}" fill-opacity=".35"/>
-                        <circle cx="{{ $x }}" cy="{{ $y }}" r="9" fill="{{ $c }}" fill-opacity=".25"/>
-                        <circle cx="{{ $x }}" cy="{{ $y }}" r="4.5" fill="{{ $c }}"/>
+                        <circle cx="{{ $x }}" cy="{{ $y }}" r="5" fill="{{ $c }}"/>
                     @endforeach
                 </svg>
 
-                <div class="infra-card infra-chip absolute hidden sm:flex" style="left:22.8%;top:31.4%;transform:translate(-50%,-190%)"><i class="h-2 w-2 rounded-full bg-violet-400"></i>United States <small>28ms</small></div>
-                <div class="infra-card infra-chip absolute hidden sm:flex" style="left:52.5%;top:23.6%;transform:translate(-50%,-190%)"><i class="h-2 w-2 rounded-full bg-violet-400"></i>Europe <small>24ms</small></div>
-                <div class="infra-card infra-chip absolute hidden sm:flex" style="left:88.8%;top:33.6%;transform:translate(-50%,-190%)"><i class="h-2 w-2 rounded-full bg-violet-400"></i>Japan <small>35ms</small></div>
+                <div class="infra-card infra-chip" style="left:22.8%;top:31.4%"><i></i>United States <small>28ms</small></div>
+                <div class="infra-card infra-chip" style="left:52.5%;top:23.6%"><i></i>Europe <small>24ms</small></div>
+                <div class="infra-card infra-chip" style="left:88.8%;top:33.6%"><i></i>Japan <small>35ms</small></div>
 
-                <div class="infra-card absolute flex items-center gap-3 px-4 py-3" style="left:78.8%;top:58.4%;transform:translate(-108%,26%)">
-                    <span class="h-2.5 w-2.5 shrink-0 rounded-full bg-emerald-400" style="box-shadow:0 0 10px #22c55e"></span>
-                    <div>
-                        <div class="text-[13px] font-semibold text-white">Singapore</div>
-                        <div class="text-[11px] text-white/55">Latency 32ms</div>
-                    </div>
+                <div class="infra-card infra-sg">
+                    <span class="dot-ok"></span>
+                    <div><b>Singapore</b><span>Latency 32ms</span></div>
                 </div>
             </div>
 
-            <div class="infra-card mt-5 flex items-center justify-between gap-4 px-5 py-4">
-                <div class="flex min-w-0 items-center gap-3">
-                    <span class="h-2.5 w-2.5 shrink-0 rounded-full bg-emerald-400" style="box-shadow:0 0 12px #22c55e"></span>
-                    <div class="min-w-0">
-                        <div class="text-[13px] font-semibold text-white">Infrastructure status</div>
-                        <div class="text-xs text-white/55">All systems operational.</div>
-                    </div>
+            <div class="infra-card infra-status">
+                <div>
+                    <span class="dot-ok"></span>
+                    <div><b>Infrastructure status</b><small>All systems operational.</small></div>
                 </div>
-                <a href="/status" class="shrink-0 text-xs font-semibold text-brand-300 no-underline hover:text-white">View status →</a>
+                <a href="/status">View status →</a>
             </div>
         </div>
     </div>
