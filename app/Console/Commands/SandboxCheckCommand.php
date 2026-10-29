@@ -11,12 +11,12 @@ class SandboxCheckCommand extends Command
 {
     protected $signature = 'luvupay:sandbox-check';
 
-    protected $description = 'Verify local/sandbox readiness (DB, mail, payment driver, optional PayPal OAuth)';
+    protected $description = 'Verify PayPal sandbox readiness and money-flow rules (subscribe, grace, resale, wallet)';
 
     public function handle(): int
     {
         $ok = true;
-        $driver = config('luvupay.payment.driver', env('LUVUPAY_PAYMENT_DRIVER'));
+        $driver = (string) config('luvupay.payment.driver', env('LUVUPAY_PAYMENT_DRIVER', 'mock'));
         $this->info('Payment driver: '.$driver);
         $this->info('APP_ENV: '.app()->environment());
         $this->info('APP_URL: '.config('app.url'));
@@ -29,9 +29,9 @@ class SandboxCheckCommand extends Command
             $ok = false;
         }
 
-        foreach (['merchants', 'merchant_users', 'webhook_endpoints', 'transactions'] as $table) {
+        foreach (['merchants', 'merchant_users', 'webhook_endpoints', 'transactions', 'subscriptions'] as $table) {
             if (! Schema::hasTable($table)) {
-                $this->error("[FAIL] Missing table: {$table} — run php artisan migrate");
+                $this->error("[FAIL] Missing table: {$table} - run php artisan migrate");
                 $ok = false;
             }
         }
@@ -39,22 +39,23 @@ class SandboxCheckCommand extends Command
         $mailer = config('mail.default');
         $this->line('[INFO] Mailer: '.$mailer);
         if ($mailer === 'log') {
-            $this->warn('[WARN] MAIL_MAILER=log — verification codes go to storage/logs, not inbox');
+            $this->warn('[WARN] MAIL_MAILER=log - verification codes go to storage/logs, not inbox');
         }
 
         if ($driver === 'mock') {
-            $this->line('[OK] Mock driver — no PayPal credentials required');
+            $this->line('[OK] Mock driver - offline demo works without PayPal');
+            $this->warn('[WARN] For real sandbox E2E set LUVUPAY_PAYMENT_DRIVER=paypal and fill sandbox credentials');
         } elseif ($driver === 'paypal') {
-            $mode = config('services.paypal.mode');
-            $id = config('services.paypal.client_id');
-            $secret = config('services.paypal.secret');
-            $wh = config('services.paypal.webhook_id');
+            $mode = (string) config('services.paypal.mode', 'sandbox');
+            $id = (string) config('services.paypal.client_id', '');
+            $secret = (string) config('services.paypal.secret', '');
+            $wh = (string) config('services.paypal.webhook_id', '');
             $this->line('[INFO] PayPal mode: '.$mode);
             if ($mode !== 'sandbox') {
-                $this->warn('[WARN] PAYPAL_MODE is not sandbox — use sandbox until go-live');
+                $this->warn('[WARN] PAYPAL_MODE is not sandbox - keep sandbox until go-live');
             }
-            if (! $id || ! $secret) {
-                $this->error('[FAIL] Set PAYPAL_CLIENT_ID and PAYPAL_SECRET');
+            if ($id === '' || $secret === '') {
+                $this->error('[FAIL] Set PAYPAL_CLIENT_ID and PAYPAL_SECRET (or SANDBOX aliases)');
                 $ok = false;
             } else {
                 try {
@@ -65,19 +66,38 @@ class SandboxCheckCommand extends Command
                     $ok = false;
                 }
             }
-            if (! $wh) {
-                $this->warn('[WARN] PAYPAL_WEBHOOK_ID empty — ingress webhook verification will refuse events');
+            if ($wh === '') {
+                $this->warn('[WARN] PAYPAL_WEBHOOK_ID empty - register '.rtrim((string) config('app.url'), '/').'/api/v1/webhooks/paypal');
+            } else {
+                $this->line('[OK] PAYPAL_WEBHOOK_ID is set');
+            }
+
+            $buyer = (string) config('services.paypal.sandbox_buyer_email', env('PAYPAL_SANDBOX_BUYER_EMAIL', ''));
+            $biz = (string) config('services.paypal.sandbox_business_email', env('PAYPAL_SANDBOX_BUSINESS_EMAIL', ''));
+            if ($buyer !== '') {
+                $this->line('[OK] Sandbox buyer login email configured (browser popup tests)');
+            } else {
+                $this->warn('[WARN] Set PAYPAL_SANDBOX_BUYER_EMAIL / PASSWORD for popup login tests');
+            }
+            if ($biz !== '') {
+                $this->line('[OK] Sandbox business login email configured');
+            } else {
+                $this->warn('[WARN] Set PAYPAL_SANDBOX_BUSINESS_EMAIL for receiving sandbox funds');
             }
         } else {
             $this->warn('[WARN] Unknown payment driver: '.$driver);
         }
 
-        if (! config('luvupay.webhooks.allow_insecure_targets') && app()->environment('local')) {
-            $this->warn('[WARN] LUVUPAY_ALLOW_INSECURE_WEBHOOK_TARGETS=false — local http webhooks may be blocked');
-        }
+        $this->newLine();
+        $this->info('Money-flow rules (sandbox E2E)');
+        $this->line('  1) Subscribe (PayPal approve) -> charge completed -> merchant wallet +amount');
+        $this->line('  2) Grace period -> charge held (not in wallet yet)');
+        $this->line('  3) Resale list -> charge still held; no fee taken from merchant charge');
+        $this->line('  4) Resale sold -> charge completed (merchant keeps original); buyer pays seller+platform fee');
+        $this->line('  5) Wallet = completed charges - refunds - charity - withdrawals (resale does not cut merchant)');
 
         $this->newLine();
-        $this->info($ok ? 'Sandbox check passed (with possible warnings).' : 'Sandbox check failed — fix items above.');
+        $this->info($ok ? 'Sandbox check passed (see warnings).' : 'Sandbox check failed - fix items above.');
 
         return $ok ? self::SUCCESS : self::FAILURE;
     }

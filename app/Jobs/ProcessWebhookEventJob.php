@@ -81,5 +81,6 @@ class ProcessWebhookEventJob implements ShouldQueue
             'status' => WebhookEvent::DEAD, 'last_error' => Str::limit($e->getMessage(), 1000), 'next_retry_at' => null,
         ]);
         Log::critical('luvi.webhook.dead_letter', ['webhook_event_id' => $this->webhookEventId, 'error' => $e->getMessage()]);
+        // Do not hide failures: operators must replay via `php artisan webhooks:replay`.
     }
 }

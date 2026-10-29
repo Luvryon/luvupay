@@ -3,7 +3,7 @@
   --cm-bg: #ffffff; --cm-raised: #f7f7fb; --cm-field: #ffffff;
   --cm-edge: #e6e7ee; --cm-edge-strong: #d3d6e0;
   --cm-ink: #16171d; --cm-muted: #5d6272; --cm-faint: #8e93a3;
-  --cm-brand: #5b3df5; --cm-brand-700: #4a2ed6; --cm-brand-50: #f0edff;
+  --cm-brand: #09027b; --cm-brand-700: #07015f; --cm-brand-50: #f0edff;
   --cm-ok: #0f8f5f; --cm-warn: #b45309; --cm-bad: #c0262d; --cm-info: #0369a1;
   position: fixed; inset: 0; z-index: 9000; display: flex; align-items: center; justify-content: center; padding: 16px;
   font-family: Inter, "Segoe UI", system-ui, sans-serif; color: var(--cm-ink);

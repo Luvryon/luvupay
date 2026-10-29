@@ -5,7 +5,7 @@
   width: min(calc(100vw - 36px), 360px); pointer-events: none;
 }
 .lt-toast {
-  --lt-accent: #5b3df5; --lt-tint: #f0edff;
+  --lt-accent: #09027b; --lt-tint: #f0edff;
   position: relative; display: grid; grid-template-columns: 32px 1fr auto; gap: 12px; align-items: start;
   padding: 13px 12px 15px 13px; overflow: hidden; pointer-events: auto;
   background: #fff; border: 1px solid #e6e7ee; border-radius: 14px;

@@ -17,7 +17,7 @@ final class DemoResaleController
 {
     use DemoSupport;
 
-    /** POST /api/v1/dashboard/demo/resale — Trigger Test: Execute Resale Logic */
+    /** POST /api/v1/dashboard/demo/resale - Trigger Test: Execute Resale Logic */
     public function simulateResale(Request $request): JsonResponse
     {
         $merchantId = $this->merchantId($request);
@@ -60,9 +60,8 @@ final class DemoResaleController
                 ? Carbon::parse($sub->current_period_end)
                 : $now->copy()->addDays(15);
 
-            // Charity leg from original Second Chance split (if present)
-            $split = json_decode($tx->split_snapshot ?? 'null', true) ?: [];
-            $charityMinor = (int) ($split['charity_minor'] ?? round(((int) $tx->amount_minor) * 0.2));
+            // Resale is not Second Chance: never invent a charity cut from the merchant charge.
+            $charityMinor = 0;
             $charityName = DB::table('charity_wallets')->where('is_active', true)->value('name') ?: 'Ocean Cleanup Alliance';
 
             DB::table('resale_listings')->insert([
@@ -105,7 +104,13 @@ final class DemoResaleController
                 'processed_at' => $now,
                 'trust_score' => 88,
                 'churn_risk' => 'low',
-                'metadata' => json_encode(['demo' => true, 'lifecycle' => 'RESOLD', 'listing_id' => $listingId]),
+                'metadata' => json_encode([
+                    'demo' => true,
+                    'lifecycle' => 'Resale captured',
+                    'listing_id' => $listingId,
+                    'parent_charge_id' => $tx->id,
+                    'note' => 'Buyer payment funds seller payout + platform fee only',
+                ]),
                 'created_at' => $now,
                 'updated_at' => $now,
             ]);
@@ -130,7 +135,40 @@ final class DemoResaleController
                 'updated_at' => $now,
             ]);
 
+            // Platform fee comes from buyer resale payment only (not merchant original charge).
+            if ($platformFee > 0) {
+                DB::table('transactions')->insert([
+                    'id' => (string) Str::uuid(),
+                    'merchant_id' => $merchantId,
+                    'subscription_id' => $sub->id,
+                    'parent_transaction_id' => $resaleSaleId,
+                    'type' => 'resale_fee',
+                    'status' => 'completed',
+                    'idempotency_key' => 'sandbox-resale-fee-'.$resaleSaleId,
+                    'merchant_user_id' => $sub->merchant_user_id,
+                    'email' => $sub->email,
+                    'amount_minor' => $platformFee,
+                    'currency' => $tx->currency,
+                    'provider' => 'luvupay',
+                    'provider_reference' => 'RESALE-FEE-'.$listingId,
+                    'processed_at' => $now,
+                    'luvi_fee_amount' => $platformFee,
+                    'fee_type' => 'resale_marketplace',
+                    'metadata' => json_encode([
+                        'demo' => true,
+                        'lifecycle' => 'Platform resale fee',
+                        'listing_id' => $listingId,
+                        'funded_by' => 'buyer_resale_payment',
+                    ]),
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
+            }
+
+            // Charity is Second Chance only - never auto-created on marketplace resale.
+            if ($charityMinor > 0) {
             $paypalCharityRef = 'PAYPAL-CHARITY-'.strtoupper(Str::random(8));
+
             DB::table('transactions')->insert([
                 'id' => $charityPayoutId,
                 'merchant_id' => $merchantId,
@@ -150,7 +188,6 @@ final class DemoResaleController
                 'updated_at' => $now,
             ]);
 
-            if (true) {
                 try {
                     DB::table('charity_receipts')->insert([
                         'id' => $receiptId,
@@ -171,7 +208,7 @@ final class DemoResaleController
                 }
             }
 
-            $meta['lifecycle'] = 'RESOLD';
+            $meta['lifecycle'] = 'Resold (original charge kept)';
             $meta['buyer_email'] = $buyerEmail;
             $meta['listing_id'] = $listingId;
             $meta['receipt_id'] = $receiptId;
@@ -224,11 +261,9 @@ final class DemoResaleController
         return response()->json([
             'ok' => true,
             'message' => sprintf(
-                'Resale complete — seller $%.2f · platform $%.2f · charity $%.2f to %s',
+                'Resale complete - seller $%.2f - platform fee $%.2f. Original merchant charge unchanged.',
                 $result['seller_payout'] / 100,
                 $result['platform_fee'] / 100,
-                $result['charity_minor'] / 100,
-                $result['charity_name']
             ),
             'row' => $this->formatRow($result['tx_id']),
             'preview' => [

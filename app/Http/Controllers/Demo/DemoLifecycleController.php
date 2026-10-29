@@ -132,7 +132,7 @@ final class DemoLifecycleController
 
         return response()->json([
             'ok' => true,
-            'message' => 'Missed cancellation — 48h GRACE PERIOD opened. Partial refund offered. Default if no response: expire (churn)',
+            'message' => 'Missed cancellation - 48h GRACE PERIOD opened. Partial refund offered. Default if no response: expire (churn)',
             'grace' => $result,
             'row' => $this->formatRow($result['transaction_id']),
             'project_features' => [
@@ -205,7 +205,7 @@ final class DemoLifecycleController
                     'transaction_id' => $tx->id,
                     'event' => 'payment_retry_success',
                 ]);
-                $msg = 'Payment retry successful — ACTIVE';
+                $msg = 'Payment retry successful - ACTIVE';
             } elseif ($choice === 'partial_refund') {
                 $meta['lifecycle'] = 'AI-RETAINED';
                 $meta['decision'] = 'partial_refund_accepted';
@@ -233,24 +233,22 @@ final class DemoLifecycleController
                     'transaction_id' => $tx->id,
                     'refund_minor' => $refundMinor,
                 ]);
-                $msg = 'Partial refund accepted — AI-RETAINED (chargeback avoided)';
+                $msg = 'Partial refund accepted - AI-RETAINED (chargeback avoided)';
             } elseif ($choice === 'resale') {
-                $meta['lifecycle'] = 'PENDING RESALE';
+                // List remaining access. Merchant original charge stays held until sale completes
+                // (DemoResaleController settles it as completed - full amount still merchant's).
+                // Platform fee is taken from the BUYER resale payment later, never from this charge.
+                $asking = max(100, (int) round($amount * 0.5));
+                $meta['lifecycle'] = 'Resale listed (awaiting buyer)';
                 $meta['decision'] = 'marketplace_resale';
                 $meta['resale'] = [
                     'listed_at' => $now->toIso8601String(),
-                    'remaining_value_minor' => $amount,
+                    'asking_price_minor' => $asking,
+                    'path' => 'marketplace_resale',
+                    'note' => 'Original charge remains with merchant after sale; seller payout funded by buyer',
                 ];
                 DB::table('transactions')->where('id', $tx->id)->update([
                     'status' => 'held',
-                    'metadata' => json_encode($meta),
-                    'updated_at' => $now,
-                ]);
-                // Platform/merchant fee on residual (vision: ~10% of remaining value)
-                $feeMinor = max(100, (int) round($amount * 0.10));
-                $meta['resale']['fee_minor'] = $feeMinor;
-                $meta['resale']['path'] = 'marketplace_resale';
-                DB::table('transactions')->where('id', $tx->id)->update([
                     'metadata' => json_encode($meta),
                     'updated_at' => $now,
                 ]);
@@ -264,12 +262,16 @@ final class DemoLifecycleController
                             'seller_email' => $tx->email ?? 'seller@example.com',
                             'status' => 'active',
                             'entitlement_status' => 'pending',
-                            'asking_price_minor' => max(100, (int) round($amount * 0.6)),
+                            'asking_price_minor' => $asking,
                             'currency' => $tx->currency ?? 'USD',
                             'access_expires_at' => $now->copy()->addDays(15),
                             'listed_at' => $now,
                             'redeem_token' => \App\Services\Hosted\HostedPurchase::token((string) ($meta['display_name'] ?? $tx->email ?? 'user'), 15),
-                            'metadata' => json_encode(['seller_name' => $meta['display_name'] ?? null, 'source' => 'decision']),
+                            'metadata' => json_encode([
+                                'seller_name' => $meta['display_name'] ?? null,
+                                'source' => 'decision',
+                                'parent_charge_id' => $tx->id,
+                            ]),
                             'created_at' => $now,
                             'updated_at' => $now,
                         ]);
@@ -277,33 +279,11 @@ final class DemoLifecycleController
                 } catch (\Throwable $e) {
                     \Illuminate\Support\Facades\Log::warning('demo.resale_listing_failed', ['err' => $e->getMessage()]);
                 }
-                DB::table('transactions')->insert([
-                    'id' => (string) Str::uuid(),
-                    'merchant_id' => $merchantId,
-                    'subscription_id' => $tx->subscription_id,
-                    'type' => 'resale_fee',
-                    'status' => 'completed',
-                    'idempotency_key' => 'resale-fee-'.$tx->id,
-                    'merchant_user_id' => $tx->merchant_user_id,
-                    'email' => $tx->email,
-                    'amount_minor' => $feeMinor,
-                    'currency' => $tx->currency,
-                    'provider' => 'luvupay',
-                    'provider_reference' => 'RESALE-FEE-'.$tx->id,
-                    'processed_at' => $now,
-                    'metadata' => json_encode([
-                        'lifecycle' => 'PENDING RESALE',
-                        'parent_transaction_id' => $tx->id,
-                        'path' => 'resale_fee',
-                    ]),
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ]);
                 $this->logWebhookEvent('luvupay', 'marketplace.listing_created', [
                     'transaction_id' => $tx->id,
-                    'fee_minor' => $feeMinor,
+                    'asking_price_minor' => $asking,
                 ]);
-                $msg = 'Remaining access listed on Marketplace — PENDING RESALE';
+                $msg = 'Remaining access listed on marketplace. Merchant charge unchanged until sale settles.';
             } elseif ($choice === 'donate') {
                 $meta['lifecycle'] = 'AI-RETAINED';
                 $meta['decision'] = 'charity_donate';
@@ -343,7 +323,7 @@ final class DemoLifecycleController
                     'transaction_id' => $tx->id,
                     'amount_minor' => $amount,
                 ]);
-                $msg = 'Remaining value donated — AI-RETAINED (charity split)';
+                $msg = 'Remaining value donated - AI-RETAINED (charity split)';
             } else {
                 $meta['lifecycle'] = 'CHURNED';
                 $meta['decision'] = 'expired_no_response';
@@ -364,7 +344,7 @@ final class DemoLifecycleController
                 $this->logWebhookEvent('paypal', 'BILLING.SUBSCRIPTION.EXPIRED', [
                     'transaction_id' => $tx->id,
                 ]);
-                $msg = 'No response in grace window — subscription EXPIRED (churn). No force.';
+                $msg = 'No response in grace window - subscription EXPIRED (churn). No force.';
             }
         });
 
@@ -442,9 +422,9 @@ final class DemoLifecycleController
     ): array {
         $pct = (int) round($refundBps / 100);
         $templates = [
-            "Hi {$name}, your {$product} renewal is pending. Within 48 hours you can retry payment, or cancel with a {$pct}% partial refund — your call.",
+            "Hi {$name}, your {$product} renewal is pending. Within 48 hours you can retry payment, or cancel with a {$pct}% partial refund - your call.",
             "{$name}, we noticed {$usage} on {$product}. Before the grace window ends, you can keep access or take a {$pct}% refund if you cancel now.",
-            "Hey {$name} — {$product} is in a 48h grace period. Stay active, take a {$pct}% refund, or simply let it expire. No pressure.",
+            "Hey {$name} - {$product} is in a 48h grace period. Stay active, take a {$pct}% refund, or simply let it expire. No pressure.",
         ];
         $fallback = $templates[array_rand($templates)];
 

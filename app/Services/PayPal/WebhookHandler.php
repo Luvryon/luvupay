@@ -20,7 +20,7 @@ use UnexpectedValueException;
  *
  * Nothing is parsed or acted on before the signature is verified. Once the row is committed the event can
  * never be lost: processing retries with backoff, ends in `dead` (dead-letter) and can be replayed with
- * `php artisan luvi:webhooks:replay`. Listeners must still be idempotent (the DB unique index on
+ * `php artisan webhooks:replay`. Listeners must still be idempotent (the DB unique index on
  * transactions(provider, provider_event_id) is the final guard).
  */
 class WebhookHandler
@@ -91,6 +91,11 @@ class WebhookHandler
         }
 
         ProcessWebhookEventJob::dispatch($id);
+        Log::info('paypal.webhook.accepted', [
+            'webhook_event_id' => $id,
+            'event_type' => $event->type,
+            'event_id' => $event->eventId,
+        ]);
 
         return WebhookOutcome::Processed;            // "accepted"; the job does the work
     }

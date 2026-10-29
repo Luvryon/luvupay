@@ -269,6 +269,6 @@
   .snav { position: sticky; top: 80px; align-self: start; }
   .snav a { display: block; padding: 8px 12px; margin-bottom: 2px; border-radius: 8px; color: var(--muted); text-decoration: none; font-size: .875rem; font-weight: 500; }
   .snav a:hover { color: var(--ink); background: var(--bg); }
-  .snav a.is-active { color: #5b3df5 !important; font-weight: 700; background: rgba(91,61,245,.08); }
+  .snav a.is-active { color: #09027b !important; font-weight: 700; background: rgba(91,61,245,.08); }
 </style>
 @endpush

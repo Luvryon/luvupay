@@ -101,8 +101,8 @@ final class DemoCheckoutController
         $subId = (string) Str::uuid();
         $txId = (string) Str::uuid();
         $ref = ($live ? 'PENDING-' : 'MOCK-').strtoupper(Str::random(10));
-        $trust = random_int(72, 96);
-        $churn = $trust >= 80 ? 'low' : ($trust >= 50 ? 'medium' : 'high');
+        $trust = 100; // new subscribers start at full trust
+        $churn = 'low';
 
         $meta = [
             'demo' => true,

@@ -26,24 +26,32 @@
     <x-ui.project-context :project="$project" />
 
     <div class="row">
-        <div><h1 class="page-title">Overview</h1><p class="page-sub">Ledger and money movement for {{ $project->name ?? 'your project' }}</p></div>
+        <div><h1 class="page-title">Overview</h1><p class="page-sub">Wallet, ledger, and retention tools for {{ $project->name ?? 'your project' }}</p></div>
         <div style="display:flex;align-items:center;gap:24px">
             <div class="usage" title="Monthly API quota"><div class="t"><span>API usage</span><span x-text="(usage.used || 0) + ' / ' + (usage.limit || 1000)"></span></div><div class="bar"><i x-bind:style="'width:' + usagePct + '%'"></i></div></div>
-            <button type="button" class="c-btn" x-bind:class="loading ? 'is-busy' : ''" x-on:click="load()">Refresh</button>
+            <button type="button" class="c-btn" x-bind:class="(loading || bgLoading) ? 'is-busy' : ''" x-bind:disabled="false" x-on:click="load()" title="Refresh in background">
+                <span x-show="!(loading || bgLoading)">Refresh</span>
+                <span x-show="loading || bgLoading" x-cloak>Updating…</span>
+            </button>
         </div>
+    </div>
+
+    {{-- Soft background indicator (never blocks the page) --}}
+    <div x-show="bgLoading" x-cloak class="c-alert" style="padding:8px 14px;font-size:12px;opacity:.9" role="status">
+        Syncing latest data in the background…
     </div>
 
     {{-- Empty state --}}
     <x-ui.dashboard-empty-state />
 
-    <div x-show="hasData" x-cloak style="display:none" class="stack">
+    <div x-show="hasData" x-cloak style="display:none" class="stack" x-bind:class="bgLoading ? 'lp-loading' : ''">
 
         <section class="cols cols-wallet">
             <div class="c-wallet">
                 <div>
                     <p class="dim">Merchant wallet</p>
                     <p class="amt" x-text="walletBalance">$0.00</p>
-                    <p class="dim" style="max-width:460px">Funded by resale fees and retention splits. Withdrawals go out as PayPal Payouts to recipients on your allow-list (Settings)</p>
+                    <p class="dim" style="max-width:460px">Balance from settled charges (minus refunds, charity, withdrawals). </p>
                 </div>
                 <div class="act">
                     <button type="button" class="c-btn c-btn-light" x-show="paypalConnected" x-on:click="withdrawToPayPal()" x-bind:disabled="walletWithdrawing || walletBalanceMinor <= 0"><span x-text="walletWithdrawing ? 'Sending…' : 'Withdraw to PayPal'"></span></button>
@@ -55,14 +63,21 @@
             </div>
             <div class="c-card" aria-label="Insights">
                 <div class="c-head"><div><h2 class="c-title">Insights</h2><p class="c-sub">From your ledger rows</p></div></div>
-                <template x-for="(insight, idx) in aiInsights" :key="idx"><div class="c-item"><span x-text="insight.icon"></span><p style="margin:0" x-text="insight.text"></p></div></template>
-                <p x-show="!aiInsights.length" class="c-empty">No insights yet. They appear once traffic comes in</p>
+                <template x-for="(insight, idx) in aiInsights" :key="idx">
+                    <div class="c-item" style="display:flex;gap:10px;align-items:flex-start">
+                        <span class="grid place-items-center rounded-lg bg-brand-50 text-brand-600" style="width:32px;height:32px;flex-shrink:0" aria-hidden="true">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" x-html="insightIcon(insight.icon)"></svg>
+                        </span>
+                        <p style="margin:0" x-text="insight.text"></p>
+                    </div>
+                </template>
+                <p x-show="!aiInsights.length" class="c-empty">No insights yet. They appear after your first settled charges.</p>
             </div>
         </section>
 
         <section class="c-card" aria-label="Key metrics"><div class="c-kpis">
             @foreach([['Revenue saved','revenueSaved','Retained via ledger'],['Chargebacks prevented','chargebacks','AI-retained rows'],['Active subscribers','subscriptions','From charges'],['Charity donated','charity','Real payouts'],['Resale volume','resaleVolume','Ledger sum']] as [$l,$k,$n])
-            <div class="c-kpi"><p class="l" style="margin:0">{{ $l }}</p><p class="v" x-text="kpi.{{ $k }}">—</p><p class="n" style="margin:0">{{ $n }}</p></div>
+            <div class="c-kpi"><p class="l" style="margin:0">{{ $l }}</p><p class="v" x-text="kpi.{{ $k }}">-</p><p class="n" style="margin:0">{{ $n }}</p></div>
             @endforeach
         </div></section>
 
@@ -74,7 +89,7 @@
 
         <section x-show="tab === 'overview'" class="cols cols-ledger">
             <div class="c-card">
-                <div class="c-head"><div><h2 class="c-title">Live ledger</h2><p class="c-sub">Select a row to run lifecycle tests</p></div></div>
+                <div class="c-head"><div><h2 class="c-title">Live ledger</h2><p class="c-sub">Select a row to run sandbox lifecycle actions</p></div></div>
                 <div id="grid-tx" class="ag-theme-quartz h-tx" style="width:100%"></div>
             </div>
             <div class="stack-sm" style="align-content:start">
@@ -89,7 +104,7 @@
                     <div class="box" x-show="preview.trust_score != null" x-cloak>
                         <span style="color:var(--muted);font-size:.78rem">Trust score</span>
                         <meter min="0" max="100" style="width:100%;margin-top:6px" x-bind:value="preview.trust_score || 0"></meter>
-                        <span style="font-size:.82rem;color:var(--muted)">Churn risk: <b style="color:var(--ink)" x-text="preview.churn_risk ? preview.churn_risk.toUpperCase() : '—'"></b></span>
+                        <span style="font-size:.82rem;color:var(--muted)">Churn risk: <b style="color:var(--ink)" x-text="preview.churn_risk ? preview.churn_risk.toUpperCase() : '-'"></b></span>
                     </div>
                 </div>
                 <div class="c-card c-pad">
@@ -114,7 +129,7 @@
                 <tbody>
                 <template x-for="d in deliveries" :key="d.id"><tr>
                     <td class="mono" style="white-space:nowrap;color:var(--muted)" x-text="(d.created_at || '').replace('T', ' ').slice(0, 19)"></td>
-                    <td x-text="d.event_type || d.event"></td><td class="mono" x-text="d.response_code || '—'"></td><td x-text="d.attempts ?? '—'"></td><td x-text="d.status"></td>
+                    <td x-text="d.event_type || d.event"></td><td class="mono" x-text="d.response_code || '-'"></td><td x-text="d.attempts ?? '-'"></td><td x-text="d.status"></td>
                     <td style="text-align:right"><button type="button" class="c-btn c-btn-sm" x-show="d.status === 'failed'" x-on:click="retryDelivery(d.id)">Retry</button></td>
                 </tr></template>
                 <tr x-show="!deliveriesLoaded"><td colspan="6" style="padding:0"><x-ui.loading show="true" title="Loading deliveries" compact /></td></tr>
@@ -124,10 +139,10 @@
         </div>
 
 @if(config('luvupay.demo_simulator'))
-    {{-- Sandbox Controls — professional SaaS workflow triggers --}}
+    {{-- Sandbox Controls - professional SaaS workflow triggers --}}
     <section class="bg-amber-50 border border-amber-200 rounded-xl p-6" x-show="demoEnabled" x-cloak>
         <p class="text-amber-800 text-sm font-medium mb-4">
-            ⚠️ Sandbox controls. These run real backend logic against PayPal Sandbox and are disabled in production
+            Sandbox controls. These run real backend logic against PayPal Sandbox and are disabled in production
         </p>
 
         <div class="mb-4">
@@ -139,7 +154,7 @@
             </p>
             <p class="mt-1 text-xs font-mono text-slate-500" x-show="selectedId" x-cloak>
                 Selected <span class="font-semibold" x-text="String(selectedId).slice(0, 8) + '…'"></span>
-                · <span class="text-emerald-600 font-semibold" x-text="selectedLifecycle || '—'"></span>
+                · <span class="text-emerald-600 font-semibold" x-text="selectedLifecycle || '-'"></span>
             </p>
         </div>
 
@@ -201,6 +216,8 @@
 
     @include('dashboard.partials.campaign-studio-modal')
 
+    @include('dashboard.partials.negotiator-modal')
+
     @include('dashboard.partials.evidence-modal')
 
     @include('dashboard.partials.withdrawal-receipt-modal')
@@ -230,7 +247,7 @@
                         <td class="max-w-xs truncate px-4 py-2.5 font-mono text-xs text-muted" x-text="w.payload_preview"></td>
                     </tr>
                 </template>
-                <tr x-show="!webhookLogs.length"><td colspan="4" class="px-4 py-10 text-center text-muted">No events yet — run a sandbox test</td></tr>
+                <tr x-show="!webhookLogs.length"><td colspan="4" class="px-4 py-10 text-center text-muted">No events yet - run a sandbox test</td></tr>
             </x-ui.table>
         </div>
     </x-ui.modal>

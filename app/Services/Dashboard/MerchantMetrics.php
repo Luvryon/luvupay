@@ -65,10 +65,10 @@ final class MerchantMetrics
         }
 
         $subs = $this->subscribers($merchantId);
-        $wallet = max(0, $all['charge_volume'] - $all['refunded'] - $all['charity'] + $this->resaleFees($all) - $all['withdrawn']);
+        $wallet = max(0, $all['charge_volume'] - $all['refunded'] - $all['charity'] - $all['withdrawn']);
         $k = $rng;
         $resaleFees = $this->resaleFees($k);
-        $saved = $k['saved_partial'] + $k['saved_charity'] + $k['saved_smart'] + $resaleFees;
+        $saved = $k['saved_partial'] + $k['saved_charity'] + $k['saved_smart'];
 
         $totalSubs = max(1, $subs['total']);
         $out = [
@@ -246,29 +246,29 @@ final class MerchantMetrics
             return $out;
         }
         if ($m['revenue_saved_minor'] > 0) {
-            $out[] = ['icon' => '🛟', 'text' => 'LuvuPay retained '.$fmt($m['revenue_saved_minor']).' that would otherwise have been lost to churn or chargebacks.'];
+            $out[] = ['icon' => 'shield', 'text' => 'LuvuPay retained '.$fmt($m['revenue_saved_minor']).' that would otherwise have been lost to churn or chargebacks.'];
         }
         if ($m['subscribers']['at_risk'] > 0) {
-            $out[] = ['icon' => '⏳', 'text' => $m['subscribers']['at_risk'].' subscriber(s) are in the grace period ('.$fmt($m['at_risk_minor']).' at stake). Pick a retention path before the window closes.'];
+            $out[] = ['icon' => 'clock', 'text' => $m['subscribers']['at_risk'].' subscriber(s) are in the grace period ('.$fmt($m['at_risk_minor']).' at stake). Pick a retention path before the window closes.'];
         }
         if ($m['churn_rate'] >= 25) {
-            $out[] = ['icon' => '⚠️', 'text' => 'Churn is '.$m['churn_rate'].'%. Consider a higher partial-refund offer or enabling Marketplace Resale.'];
+            $out[] = ['icon' => 'alert', 'text' => 'Churn is '.$m['churn_rate'].'%. Consider a higher partial-refund offer or enabling Marketplace Resale.'];
         } elseif ($m['subscribers']['total'] > 0) {
-            $out[] = ['icon' => '✅', 'text' => 'Churn is healthy at '.$m['churn_rate'].'% across '.$m['subscribers']['total'].' subscribers.'];
+            $out[] = ['icon' => 'check', 'text' => 'Churn is healthy at '.$m['churn_rate'].'% across '.$m['subscribers']['total'].' subscribers.'];
         }
         if ($m['charity_minor'] > 0) {
-            $out[] = ['icon' => '💚', 'text' => 'Subscribers donated '.$fmt($m['charity_minor']).' to charity through your project.'];
+            $out[] = ['icon' => 'heart', 'text' => 'Subscribers donated '.$fmt($m['charity_minor']).' to charity through your project.'];
         }
         if ($m['resale_volume_minor'] > 0) {
-            $out[] = ['icon' => '🔁', 'text' => 'Marketplace resale moved '.$fmt($m['resale_volume_minor']).'; your share was '.$fmt($m['resale_fees_minor']).'.'];
+            $out[] = ['icon' => 'refresh', 'text' => 'Marketplace resale moved '.$fmt($m['resale_volume_minor']).'. Original cycle charges stay with you; platform fee was '.$fmt($m['resale_fees_minor']).'.'];
         }
         $p = MerchantProject::current();
         if ($p->isSet()) {
             if (! $p->marketplaceResale) {
-                $out[] = ['icon' => '💡', 'text' => 'Marketplace Resale is off for '.$p->name.'. Turn it on in Settings to recover value from forgotten subscriptions.'];
+                $out[] = ['icon' => 'lightbulb', 'text' => 'Marketplace Resale is off for '.$p->name.'. Turn it on in Settings to recover value from forgotten subscriptions.'];
             }
             if (! $p->charitySplit) {
-                $out[] = ['icon' => '💡', 'text' => 'Charity Split is off for '.$p->name.'. Turn it on in Settings to let users donate unused value.'];
+                $out[] = ['icon' => 'lightbulb', 'text' => 'Charity Split is off for '.$p->name.'. Turn it on in Settings to let users donate unused value.'];
             }
         }
 

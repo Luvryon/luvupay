@@ -221,11 +221,7 @@ final class DashboardApiController
 
         return response()->json(['data' => $rows->map(function ($r) use ($invoiceMap) {
             $meta = json_decode($r->metadata ?? '{}', true) ?: [];
-            $lifecycle = $meta['lifecycle'] ?? match ($r->status) {
-                'held' => 'GRACE_PERIOD',
-                'completed', 'settled' => 'ACTIVE',
-                default => strtoupper((string) $r->status),
-            };
+            $lifecycle = self::humanStatus($r->type, $r->status, $meta);
             $inv = $invoiceMap[$r->id] ?? null;
 
             return [
@@ -365,5 +361,80 @@ final class DashboardApiController
         abort_unless($id, 401, 'No merchant context.');
 
         return (string) $id;
+    }
+
+    /** Human-readable ledger status for the console table. */
+    private static function humanStatus(string $type, string $status, array $meta): string
+    {
+        $life = strtoupper(str_replace('_', ' ', (string) ($meta['lifecycle'] ?? '')));
+        $decision = (string) ($meta['decision'] ?? '');
+
+        if ($type === 'charge') {
+            if ($status === 'held' || $life === 'GRACE PERIOD') {
+                return 'Grace period (48h hold)';
+            }
+            if ($status === 'pending' || $life === 'PENDING PAYMENT' || $life === 'PENDING BUYER APPROVAL') {
+                return 'Awaiting buyer approval';
+            }
+            if ($life === 'RESOLD' || $decision === 'marketplace_resale') {
+                return 'Resold (original charge kept)';
+            }
+            if ($decision === 'partial_refund_accepted') {
+                return 'Settled (partial refund)';
+            }
+            if ($decision === 'charity_donate') {
+                return 'Settled (charity path)';
+            }
+            if ($life === 'SMART-CONVERTED') {
+                return 'Settled (smart convert)';
+            }
+            if (in_array($status, ['completed', 'settled'], true)) {
+                return 'Settled';
+            }
+            if (in_array($status, ['cancelled', 'failed', 'expired'], true)) {
+                return ucfirst($status);
+            }
+        }
+
+        if ($type === 'resale_sale') {
+            return match ($status) {
+                'completed', 'settled' => 'Resale captured',
+                'pending' => 'Resale pending capture',
+                default => 'Resale '.str_replace('_', ' ', $status),
+            };
+        }
+        if ($type === 'resale_payout') {
+            return match ($status) {
+                'completed', 'settled' => 'Seller payout sent',
+                'pending' => 'Seller payout pending',
+                default => 'Seller payout '.str_replace('_', ' ', $status),
+            };
+        }
+        if ($type === 'resale_fee') {
+            return match ($status) {
+                'completed', 'settled' => 'Platform resale fee',
+                default => 'Resale fee '.str_replace('_', ' ', $status),
+            };
+        }
+        if (in_array($type, ['payout', 'merchant_withdrawal', 'charity_payout', 'user_payout'], true)) {
+            $label = match ($type) {
+                'charity_payout' => 'Charity payout',
+                'user_payout' => 'User payout',
+                'merchant_withdrawal' => 'Merchant withdrawal',
+                default => 'Payout',
+            };
+            return match ($status) {
+                'completed', 'settled' => $label.' completed',
+                'pending' => $label.' pending',
+                'failed' => $label.' failed',
+                default => $label.' '.str_replace('_', ' ', $status),
+            };
+        }
+
+        if ($life !== '') {
+            return $life;
+        }
+
+        return strtoupper(str_replace('_', ' ', (string) $status));
     }
 }

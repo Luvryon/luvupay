@@ -1,5 +1,5 @@
 /* Documentation layout: sidebar + content (flex, full width) */
-:root { --docs-edge: #e6e7ed; --docs-ink: #16171d; --docs-muted: #5d6272; --docs-faint: #8e93a3; --docs-brand: #5b3df5; --docs-brand-50: #f0edff; }
+:root { --docs-edge: #e6e7ed; --docs-ink: #16171d; --docs-muted: #5d6272; --docs-faint: #8e93a3; --docs-brand: #09027b; --docs-brand-50: #f0edff; }
 
 .docs-shell {
   display: flex;

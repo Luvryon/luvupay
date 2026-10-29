@@ -303,6 +303,23 @@ class PayPalClient
             }
         }
 
+        // Fail closed: cert URL must be a PayPal-hosted certificate (prevents SSRF / forged certs).
+        $certUrl = $h['paypal-cert-url'];
+        $certHost = strtolower((string) (parse_url($certUrl, PHP_URL_HOST) ?? ''));
+        $allowedCertHosts = [
+            'api.paypal.com',
+            'api.sandbox.paypal.com',
+            'api-m.paypal.com',
+            'api-m.sandbox.paypal.com',
+        ];
+        $certHostOk = in_array($certHost, $allowedCertHosts, true)
+            || str_ends_with($certHost, '.paypal.com')
+            || str_ends_with($certHost, '.paypalobjects.com');
+        if (! $certHostOk || ! str_starts_with(strtolower($certUrl), 'https://')) {
+            $this->log()->warning('paypal.webhook.invalid_cert_url', ['host' => $certHost]);
+            return false;
+        }
+
         // The raw body is spliced into the request (re-encoding could change bytes and break verification).
         // SECURITY: it must decode to exactly ONE JSON object, otherwise a crafted body like
         //   {"a":1}, "webhook_id":"attacker-id"

@@ -20,7 +20,7 @@
         <pre><code>postman/LuvuPay.postman_collection.json</code></pre>
         <p>
             <a class="c-btn c-btn-brand" href="{{ asset('postman/LuvuPay.postman_collection.json') }}" download
-               style="display:inline-block;padding:10px 16px;border-radius:10px;background:#5b3df5;color:#fff;text-decoration:none;font-weight:600">
+               style="display:inline-block;padding:10px 16px;border-radius:10px;background:#09027b;color:#fff;text-decoration:none;font-weight:600">
                 Download JSON
             </a>
         </p>

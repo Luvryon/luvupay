@@ -53,20 +53,20 @@
                 <svg class="h-full w-full" viewBox="0 0 700 600" preserveAspectRatio="xMidYMid slice" fill="none">
                     <defs>
                         <pattern id="hx-grid" width="36" height="36" patternUnits="userSpaceOnUse">
-                            <path d="M36 0H0V36" stroke="#5b3df5" stroke-opacity=".11" stroke-width="1"/>
+                            <path d="M36 0H0V36" stroke="#09027b" stroke-opacity=".11" stroke-width="1"/>
                         </pattern>
                         <radialGradient id="hx-fade" cx="62%" cy="48%" r="60%">
                             <stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#fff" stop-opacity="0"/>
                         </radialGradient>
                         <mask id="hx-mask"><rect width="700" height="600" fill="url(#hx-fade)"/></mask>
                         <linearGradient id="hx-sq1" x1="0" y1="0" x2="1" y2="1">
-                            <stop offset="0" stop-color="#a78bfa" stop-opacity=".30"/><stop offset="1" stop-color="#5b3df5" stop-opacity=".06"/>
+                            <stop offset="0" stop-color="#a78bfa" stop-opacity=".30"/><stop offset="1" stop-color="#09027b" stop-opacity=".06"/>
                         </linearGradient>
                         <linearGradient id="hx-sq2" x1="0" y1="1" x2="1" y2="0">
                             <stop offset="0" stop-color="#c4b5fd" stop-opacity=".35"/><stop offset="1" stop-color="#ede9fe" stop-opacity=".05"/>
                         </linearGradient>
                         <radialGradient id="hx-glow" cx="50%" cy="50%" r="50%">
-                            <stop offset="0" stop-color="#7456fa" stop-opacity=".22"/><stop offset="1" stop-color="#7456fa" stop-opacity="0"/>
+                            <stop offset="0" stop-color="#2a24a3" stop-opacity=".22"/><stop offset="1" stop-color="#2a24a3" stop-opacity="0"/>
                         </radialGradient>
                     </defs>
 
@@ -78,13 +78,13 @@
                     <rect x="20"  y="420" width="150" height="150" rx="26" fill="url(#hx-sq2)" stroke="#c4b5fd" stroke-opacity=".40" transform="rotate(-10 95 495)"/>
                     <rect x="430" y="440" width="110" height="110" rx="20" fill="url(#hx-sq1)" stroke="#a78bfa" stroke-opacity=".30" transform="rotate(16 485 495)"/>
 
-                    <rect x="610" y="300" width="22" height="22" rx="5" fill="#5b3df5" fill-opacity=".55" transform="rotate(14 621 311)"/>
+                    <rect x="610" y="300" width="22" height="22" rx="5" fill="#09027b" fill-opacity=".55" transform="rotate(14 621 311)"/>
                     <rect x="64"  y="78"  width="16" height="16" rx="4" fill="#a78bfa" fill-opacity=".6"  transform="rotate(-12 72 86)"/>
-                    <rect x="590" y="500" width="14" height="14" rx="3" fill="#7456fa" fill-opacity=".45"/>
-                    <rect x="360" y="20"  width="18" height="18" rx="4" stroke="#7456fa" stroke-opacity=".5" transform="rotate(20 369 29)"/>
+                    <rect x="590" y="500" width="14" height="14" rx="3" fill="#2a24a3" fill-opacity=".45"/>
+                    <rect x="360" y="20"  width="18" height="18" rx="4" stroke="#2a24a3" stroke-opacity=".5" transform="rotate(20 369 29)"/>
                     <rect x="30"  y="300" width="26" height="26" rx="6" stroke="#a78bfa" stroke-opacity=".5" transform="rotate(-18 43 313)"/>
 
-                    <g fill="#5b3df5" fill-opacity=".35">
+                    <g fill="#09027b" fill-opacity=".35">
                         <circle cx="288" cy="72"  r="2.5"/><circle cx="324" cy="72"  r="2.5"/><circle cx="360" cy="108" r="2.5"/>
                         <circle cx="648" cy="396" r="2.5"/><circle cx="612" cy="432" r="2.5"/><circle cx="648" cy="432" r="2.5"/>
                     </g>
@@ -107,9 +107,9 @@
                         <div class="text-[11px] text-muted">Payment volume</div>
                         <div class="mt-1 flex items-baseline gap-2"><span class="text-2xl font-bold tracking-tight">$124,530</span><span class="text-[11px] font-semibold text-emerald-600">▲ 12.5% vs last period</span></div>
                         <svg viewBox="0 0 400 90" class="mt-3 w-full" preserveAspectRatio="none">
-                            <defs><linearGradient id="lpg" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#7456fa" stop-opacity=".28"/><stop offset="1" stop-color="#7456fa" stop-opacity="0"/></linearGradient></defs>
+                            <defs><linearGradient id="lpg" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#2a24a3" stop-opacity=".28"/><stop offset="1" stop-color="#2a24a3" stop-opacity="0"/></linearGradient></defs>
                             <path d="M0 70 C40 62 60 72 100 56 S170 50 210 42 S290 38 330 22 S380 14 400 8 L400 90 L0 90Z" fill="url(#lpg)"/>
-                            <path d="M0 70 C40 62 60 72 100 56 S170 50 210 42 S290 38 330 22 S380 14 400 8" fill="none" stroke="#5b3df5" stroke-width="2.2" stroke-linecap="round"/>
+                            <path d="M0 70 C40 62 60 72 100 56 S170 50 210 42 S290 38 330 22 S380 14 400 8" fill="none" stroke="#09027b" stroke-width="2.2" stroke-linecap="round"/>
                         </svg>
                     </div>
                     <div class="mt-3 grid grid-cols-3 gap-3">
@@ -211,7 +211,7 @@
         .eco-tile svg{width:24px;height:24px;display:block}
         .eco-tile b{display:block;margin-top:12px;font-size:.85rem;font-weight:600;color:#0f172a}
         .eco-tile span{display:block;font-size:.72rem;color:#64748b}
-        .eco-more{display:flex;flex-direction:column;justify-content:center;gap:6px;border:1.5px dashed #c4b5fd;background:rgba(91,61,245,.04);color:#5b3df5;font-size:.82rem;font-weight:600}
+        .eco-more{display:flex;flex-direction:column;justify-content:center;gap:6px;border:1.5px dashed #c4b5fd;background:rgba(91,61,245,.04);color:#09027b;font-size:.82rem;font-weight:600}
         .eco-more svg{width:18px;height:18px}
         @media (min-width:640px){.eco-tiles{grid-template-columns:repeat(3,minmax(0,1fr))}}
         @media (min-width:1024px){
@@ -225,7 +225,7 @@
 
     <svg class="eco-bg" aria-hidden="true" preserveAspectRatio="xMidYMid slice" viewBox="0 0 1440 600" fill="none">
         <defs>
-            <pattern id="eco-grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" stroke="#5b3df5" stroke-opacity=".07"/></pattern>
+            <pattern id="eco-grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" stroke="#09027b" stroke-opacity=".07"/></pattern>
             <radialGradient id="eco-fade" cx="75%" cy="35%" r="55%"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
             <mask id="eco-mask"><rect width="1440" height="600" fill="url(#eco-fade)"/></mask>
             <linearGradient id="eco-wave" x1="0" x2="1"><stop offset="0" stop-color="#c4b5fd" stop-opacity="0"/><stop offset=".5" stop-color="#a78bfa" stop-opacity=".5"/><stop offset="1" stop-color="#c4b5fd" stop-opacity="0"/></linearGradient>

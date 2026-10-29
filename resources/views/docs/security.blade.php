@@ -19,7 +19,7 @@
           do what they were scoped to, and every action is written to a log that can’t be quietly edited
         </p>
         <div class="mt-8 flex flex-wrap gap-3">
-          <a href="#scenarios" class="rounded-lg bg-brand-600 px-5 py-3 text-sm font-semibold text-white no-underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2 focus-visible:ring-offset-ink" style="color:#fff;text-decoration:none;background:#5b3df5">See how each attack is stopped</a>
+          <a href="#scenarios" class="rounded-lg bg-brand-600 px-5 py-3 text-sm font-semibold text-white no-underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2 focus-visible:ring-offset-ink" style="color:#fff;text-decoration:none;background:#09027b">See how each attack is stopped</a>
           <a href="#incident" class="rounded-lg border border-white/30 px-5 py-3 text-sm font-semibold text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white">I think I’ve been compromised</a>
         </div>
       </div>

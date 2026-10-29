@@ -37,7 +37,12 @@ trait DemoSupport
 
     private function formatRow(string $txId): array
     {
-        $r = DB::table('transactions')->where('id', $txId)->first();
+        $q = DB::table('transactions')->where('id', $txId);
+        if ($this->scopedMerchant) {
+            $q->where('merchant_id', $this->scopedMerchant);
+        }
+        $r = $q->first();
+        abort_unless($r, 404, 'Transaction not found.');
         $meta = json_decode($r->metadata ?? '{}', true) ?: [];
         $inv = null;
         try {

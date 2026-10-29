@@ -4,7 +4,7 @@
 
 .lp-spinner {
   display: inline-block; width: 18px; height: 18px; flex: none; border-radius: 50%;
-  border: 2px solid #d9dbe6; border-top-color: var(--brand, #5b3df5); animation: lp-spin .7s linear infinite;
+  border: 2px solid #d9dbe6; border-top-color: var(--brand, #09027b); animation: lp-spin .7s linear infinite;
 }
 .lp-spinner--lg { width: 28px; height: 28px; border-width: 3px; }
 .lp-spinner--sm { width: 13px; height: 13px; }
@@ -30,7 +30,7 @@
 .lp-loading { position: relative; min-height: 120px; }
 .lp-loading::after {
   content: ""; position: absolute; top: min(50%, 140px); left: 50%; width: 26px; height: 26px; margin: -13px 0 0 -13px;
-  border-radius: 50%; border: 3px solid #d9dbe6; border-top-color: var(--brand, #5b3df5); animation: lp-spin .7s linear infinite; z-index: 3;
+  border-radius: 50%; border: 3px solid #d9dbe6; border-top-color: var(--brand, #09027b); animation: lp-spin .7s linear infinite; z-index: 3;
 }
 .lp-loading::before { content: ""; position: absolute; inset: 0; background: rgba(255, 255, 255, .72); z-index: 2; border-radius: inherit; }
 

@@ -20,8 +20,8 @@
     --color-muted: #5d6272;
     --color-faint: #8e93a3;
 
-    --color-brand: #5b3df5;
-    --color-brand-soft: #4a2ed6;
+    --color-brand: #09027b;
+    --color-brand-soft: #07015f;
     --color-brand-50: #f0edff;
     --color-ok: #0f8f5f;
     --color-warn: #b45309;
@@ -86,7 +86,7 @@
     --ag-secondary-border-color: #eef0f4;
     --ag-row-hover-color: #f0edff;
     --ag-selected-row-background-color: #e5dfff;
-    --ag-input-focus-border-color: #5b3df5;
+    --ag-input-focus-border-color: #09027b;
     --ag-font-family: var(--font-sans);
     --ag-font-size: 13px;
     --ag-wrapper-border-radius: 12px;

@@ -1,5 +1,5 @@
 /**
- * LuvuPay Merchant Console — dashboard Alpine app (CTO Fix).
+ * LuvuPay Merchant Console - dashboard Alpine app (CTO Fix).
  *
  * Security notes
  *  - Everything coming from the API is rendered with textContent / x-text, never as HTML.
@@ -38,12 +38,17 @@
     } catch (e) { return false; }
   }
 
-  /** Tiny safe DOM builder for AG Grid cell renderers. */
+  /** Tiny safe DOM builder for AG Grid cell renderers (hard security). */
   function h(tag, className, text, attrs) {
     var node = document.createElement(tag);
     if (className) node.className = className;
     if (text != null) node.textContent = String(text);
-    Object.keys(attrs || {}).forEach(function (k) { node.setAttribute(k, attrs[k]); });
+    Object.keys(attrs || {}).forEach(function (k) {
+      if (/^on/i.test(k)) return; // never set inline handlers
+      var v = attrs[k];
+      if ((k === 'href' || k === 'src') && /^\s*javascript:/i.test(String(v))) return;
+      node.setAttribute(k, v);
+    });
     return node;
   }
 
@@ -105,16 +110,22 @@
         init.body = JSON.stringify(body);
       }
     }
+    // Soft background progress — never blocks the UI
+    if (global.LuvuLoader && global.LuvuLoader.begin) global.LuvuLoader.begin();
+    var done = function () {
+      if (global.LuvuLoader && global.LuvuLoader.end) global.LuvuLoader.end();
+    };
     return fetch(API + '/' + path, init).then(function (res) {
       return res.json().catch(function () { return {}; }).then(function (data) {
+        done();
         return { ok: res.ok, status: res.status, data: data || {} };
-      });
-    });
+      }, function (err) { done(); throw err; });
+    }, function (err) { done(); throw err; });
   }
 
   /**
    * Human-facing lifecycle statuses only.
-   * Removed internal SMART-CONVERTED label — mapped to AI-RETAINED / PENDING RESALE.
+   * Removed internal SMART-CONVERTED label - mapped to AI-RETAINED / PENDING RESALE.
    */
   var LIFECYCLE_CLASS = {
     ACTIVE: 'text-ok',
@@ -128,18 +139,25 @@
     AWAITING_USER: 'text-warn',
   };
 
-  /** Normalize any legacy backend status into clean user-facing labels. */
+  /** Normalize backend status into clear user-facing labels (keep specific phrases). */
   function normalizeLifecycle(raw) {
-    var s = String(raw || '').toUpperCase().replace(/_/g, ' ').trim();
-    if (s === 'SMART-CONVERTED' || s === 'SMART CONVERTED' || s === 'SMART-CON') return 'AI-RETAINED';
-    if (s === 'GRACE_PERIOD' || s === 'GRACE PERIOD') return 'GRACE PERIOD';
-    if (s === 'PENDING_RESALE' || s === 'PENDING RESALE' || s === 'RESOLD') return 'PENDING RESALE';
-    if (s === 'AI_RETAINED' || s === 'AI-RETAINED') return 'AI-RETAINED';
-    if (s === 'ACTIVE') return 'ACTIVE';
-    if (s === 'CHURNED' || s === 'CANCELLED' || s === 'EXPIRED') return 'CHURNED';
-    if (s === 'DISPUTED' || s === 'DISPUTE' || s === 'CHARGEBACK') return 'DISPUTED';
-    if (s === 'AWAITING USER' || s === 'AWAITING_USER') return 'GRACE PERIOD';
-    return s || '—';
+    var original = String(raw || '').trim();
+    var s = original.toUpperCase().replace(/_/g, ' ').trim();
+    if (!s) return '-';
+    // Pass through already human-readable sentences from the API
+    if (original.length > 12 && /[a-z]/.test(original)) return original;
+    if (s === 'SMART-CONVERTED' || s === 'SMART CONVERTED' || s === 'SMART-CON') return 'Settled (smart convert)';
+    if (s === 'GRACE_PERIOD' || s === 'GRACE PERIOD') return 'Grace period (48h hold)';
+    if (s === 'PENDING_RESALE' || s === 'PENDING RESALE') return 'Resale listed (awaiting buyer)';
+    if (s === 'RESOLD') return 'Resold (original charge kept)';
+    if (s === 'AI_RETAINED' || s === 'AI-RETAINED') return 'Settled (AI retained)';
+    if (s === 'ACTIVE') return 'Settled';
+    if (s === 'COMPLETED' || s === 'SETTLED') return 'Settled';
+    if (s === 'CHURNED' || s === 'CANCELLED' || s === 'EXPIRED') return 'Ended / churned';
+    if (s === 'DISPUTED' || s === 'DISPUTE' || s === 'CHARGEBACK') return 'Dispute / chargeback';
+    if (s === 'AWAITING USER' || s === 'AWAITING_USER') return 'Grace period (awaiting user)';
+    if (s === 'PENDING' || s === 'PENDING PAYMENT' || s === 'PENDING BUYER APPROVAL') return 'Awaiting buyer approval';
+    return original || s || '-';
   }
 
   global.money = money;
@@ -149,11 +167,17 @@
     return [
       { field: 'type', headerName: 'Type', width: 100 },
       { field: 'product', headerName: 'Product / Plan', minWidth: 170, flex: 1,
-        cellRenderer: function (p) { return h('span', 'font-medium text-white', p.value || PROJECT.product); } },
-      { field: 'lifecycle', headerName: 'Status', width: 150,
+        cellRenderer: function (p) { return h('span', 'font-medium text-slate-900', p.value || PROJECT.product); } },
+      { field: 'lifecycle', headerName: 'Status', width: 210,
         cellRenderer: function (p) {
           var label = normalizeLifecycle(p.value);
-          return h('span', 'font-bold ' + (LIFECYCLE_CLASS[label] || LIFECYCLE_CLASS[p.value] || 'text-muted'), label);
+          var cls = 'text-slate-800';
+          var u = String(label).toLowerCase();
+          if (u.indexOf('settled') !== -1 || u.indexOf('active') !== -1 || u.indexOf('captured') !== -1 || u.indexOf('sent') !== -1) cls = 'text-emerald-700';
+          else if (u.indexOf('grace') !== -1 || u.indexOf('awaiting') !== -1 || u.indexOf('pending') !== -1) cls = 'text-amber-700';
+          else if (u.indexOf('resale') !== -1 || u.indexOf('resold') !== -1) cls = 'text-indigo-700';
+          else if (u.indexOf('dispute') !== -1 || u.indexOf('churn') !== -1 || u.indexOf('ended') !== -1 || u.indexOf('fail') !== -1) cls = 'text-rose-700';
+          return h('span', 'font-semibold text-[12px] ' + cls, label);
         } },
       { field: 'email', headerName: 'Customer', flex: 1, minWidth: 170 },
       { field: 'amount_minor', headerName: 'Amount', width: 110,
@@ -162,11 +186,11 @@
         cellRenderer: function (p) {
           var retained = normalizeLifecycle(p.data && p.data.lifecycle) === 'AI-RETAINED' || p.value;
           return h('span', retained ? 'text-[11px] font-semibold text-ok' : 'text-faint',
-            retained ? (p.value || 'Store Credit: $15 · Charity: $10 · Fee: $5') : '—');
+            retained ? (p.value || 'Store Credit: $15 · Charity: $10 · Fee: $5') : '-');
         } },
       { field: 'trust_score', headerName: 'Trust', width: 120,
         cellRenderer: function (p) {
-          if (p.value == null) return h('span', 'text-faint', '—');
+          if (p.value == null) return h('span', 'text-faint', '-');
           var tone = p.value >= 80 ? 'ok' : p.value >= 50 ? 'warn' : 'bad';
           var wrap = h('div', 'flex items-center gap-2');
           var meter = h('meter', 'h-1.5 w-12', null, { min: '0', max: '100', value: String(p.value) });
@@ -177,7 +201,7 @@
       { field: 'churn_risk', headerName: 'Churn', width: 90,
         cellRenderer: function (p) {
           var map = { low: ['Low', 'text-ok'], medium: ['Med', 'text-warn'], high: ['High', 'text-bad'] };
-          var m = map[String(p.value || '').toLowerCase()] || ['—', 'text-faint'];
+          var m = map[String(p.value || '').toLowerCase()] || ['-', 'text-faint'];
           return h('span', 'text-xs font-bold ' + m[1], m[0]);
         } },
       { field: 'actions', headerName: 'Actions', width: 200, sortable: false, filter: false,
@@ -201,6 +225,16 @@
           }
           if (d.invoice_id) {
             wrap.appendChild(h('button', 'text-[10px] font-semibold text-brand-soft hover:underline', 'Invoice', { type: 'button', 'data-action': 'invoice' }));
+
+          var lifeN = normalizeLifecycle(d.lifecycle);
+          if (lifeN.toLowerCase().indexOf('grace') !== -1 || lifeN.toLowerCase().indexOf('awaiting') !== -1 || String(d.status||'') === 'held' || String(d.status||'') === 'failed') {
+            wrap.appendChild(h(
+              'button',
+              'bg-indigo-50 text-indigo-700 border border-indigo-200 text-xs px-3 py-1.5 rounded-lg hover:bg-indigo-100 font-medium',
+              'AI Negotiate',
+              { type: 'button', 'data-action': 'negotiator' }
+            ));
+          }
           }
           if (d.receipt_id || d.id) {
             wrap.appendChild(h('button', 'text-[10px] font-semibold text-muted hover:underline', 'Receipt', { type: 'button', 'data-action': 'receipt' }));
@@ -227,6 +261,7 @@
     return {
       // state
       loading: true,
+      bgLoading: false,
       loaded: false,
       deliveriesLoaded: false,
       tab: 'overview',
@@ -253,12 +288,16 @@
       checkoutEnv: CFG.paypalEnv || 'sandbox',
       decisionOpen: false,
       campaignStudioOpen: false,
+      negotiatorOpen: false,
       evidenceOpen: false,
       withdrawalReceiptOpen: false,
       withdrawalReceipt: {},
       evidenceRow: null,
       evidenceExporting: false,
       evidenceExported: false,
+      evidencePack: null,
+      evidenceLoading: false,
+      evidenceError: null,
       decisionRow: null,
       selectedAction: null,
       phoneView: 'options',
@@ -332,7 +371,7 @@
       },
       dualViewOpen: false,
 
-      // AI Insights — derived from real ledger / summary (never invented)
+      // AI Insights - derived from real ledger / summary (never invented)
       aiInsights: [],
 
       get usagePct() {
@@ -368,11 +407,11 @@
           } catch (e) {}
 
           if (flag === 'captured') {
-            this.pushToast('Payment confirmed. Subscription is active and the funds are in your PayPal sandbox business balance', '✅');
+            this.pushToast('Payment confirmed. Subscription is active and the funds are in your PayPal sandbox business balance', 'ok');
           } else if (flag === 'processing') {
             this.pushToast('Approved. PayPal is still confirming the payment, refresh in a moment', '⏳');
           } else if (flag === 'capture_failed') {
-            this.pushToast('PayPal payment not completed: ' + (params.get('err') || 'unknown error'), '❌');
+            this.pushToast('PayPal payment not completed: ' + (params.get('err') || 'unknown error'), 'err');
           } else if (flag === 'cancelled') {
             this.pushToast('PayPal checkout cancelled. No money moved', '⚠️');
           }
@@ -394,7 +433,7 @@
       setTab: function (id) { this.tab = id; },
 
       
-      _hydrateDemoRows: function () { /* no fake rows — ledger is AJAX/DB only */ },
+      _hydrateDemoRows: function () { /* no fake rows - ledger is AJAX/DB only */ },
 
       seedDemoData: async function () {
         // Resolve project name from live context (after create, PROJECT is updated)
@@ -473,18 +512,18 @@
           var res = await request('POST', 'demo/simulate-month', { rows: payload });
           if (!res.ok || !res.data || !res.data.ok) {
             var why = (res.data && (res.data.message || res.data.error)) || ('HTTP ' + res.status);
-            self.pushToast('Simulation failed: ' + why, '❌');
+            self.pushToast('Simulation failed: ' + why, 'err');
             return;
           }
           await self.load();
           self.hasData = !!(self.rowData && self.rowData.length);
-          self.pushToast(res.data.message || 'Simulated 30 days', '✅');
+          self.pushToast(res.data.message || 'Simulated 30 days', 'ok');
           if (window.LuvuToast) {
             window.LuvuToast.info('Data synced', 'Wallet, Subscriptions, Invoices, Analytics and Events now show the same ledger');
           }
           try { window.localStorage.setItem('luvupay_demo_seeded', '1'); } catch (e) {}
         } catch (e) {
-          self.pushToast('Simulation failed — see console', '❌');
+          self.pushToast('Simulation failed - see console', 'err');
           if (window.console) console.error(e);
         } finally {
           self.loadingSeed = false;
@@ -498,8 +537,12 @@
           else if (j && Array.isArray(j.events)) this.webhookLogs = j.events;
         } catch (e) {}
       },
-      load: async function () {
+      load: async function (opts) {
+        opts = opts || {};
+        // First paint: soft loading flag for skeletons. Refresh: keep data visible (stale-while-revalidate).
+        var first = !this.loaded;
         this.loading = true;
+        this.bgLoading = !first;
         try {
           var r = await Promise.all([
             request('GET', 'summary'),
@@ -508,21 +551,24 @@
             request('GET', 'usage'),
           ]);
           var summary = r[0].ok ? (r[0].data || {}) : {};
-          var rows = r[1].data.data || [];
+          var rows = (r[1].data && r[1].data.data) || r[1].data || [];
           this.rowData = Array.isArray(rows) ? rows.map(function (row) {
             return Object.assign({}, row, { lifecycle: normalizeLifecycle(row.lifecycle) });
           }) : [];
-          this.resaleRows = r[2].data.data || [];
-          this.hasData = (this.rowData && this.rowData.length > 0);
-          // Never auto-inject fake rows — only real API data
+          this.resaleRows = (r[2].data && r[2].data.data) || r[2].data || [];
+          // Never auto-inject fake rows - only real API data
           this.hasData = !!(this.rowData && this.rowData.length);
-          if (r[3].ok && r[3].data.limit != null) this.usage = r[3].data;
+          if (r[3].ok && r[3].data && r[3].data.limit != null) this.usage = r[3].data;
 
           this.applySummary(summary);
           var self = this;
           this.$nextTick(function () { self.mountGrids(); });
+        } catch (e) {
+          if (window.console) console.error('dashboard load failed', e);
+          if (!this.loaded) this.pushToast('Could not load dashboard data', 'err');
         } finally {
           this.loading = false;
+          this.bgLoading = false;
           this.loaded = true;
         }
       },
@@ -564,6 +610,8 @@
         if (this.grids[key]) { try { this.grids[key].destroy(); } catch (e) { /* already gone */ } }
         this.grids[key] = agGrid.createGrid(node, {
           columnDefs: columns,
+          domLayout: 'normal',
+          suppressCellFocus: true,
           rowData: rows || [],
           getRowId: function (p) { return String(p.data && p.data.id); },
           rowSelection: selectable ? 'single' : undefined,
@@ -590,7 +638,8 @@
             var target = e.event && e.event.target;
             var action = target && target.getAttribute && target.getAttribute('data-action');
             if (!action || !e.data) return;
-            if (action === 'evidence') {
+            if (action === 'negotiator') { self.openNegotiator(d); return; }
+          if (action === 'evidence') {
               self.openEvidenceBuilder(e.data);
             } else if (action === 'invoice' && e.data.invoice_id && /^[A-Za-z0-9-]+$/.test(String(e.data.invoice_id))) {
               global.location.assign('/dashboard/invoices/' + encodeURIComponent(String(e.data.invoice_id)));
@@ -658,7 +707,39 @@
 
       // ---- feedback
       /** Shows a LuvuToast. The optional icon only picks the tone: failure, warning, info or success (default). */
-      pushToast: function (message, icon) {
+      
+      statusLabel: function (row) {
+        return (row && (row.lifecycle || row.status_label || row.status)) || '';
+      },
+      statusClass: function (row) {
+        var s = String(this.statusLabel(row) || '').toLowerCase();
+        if (s.indexOf('settled') !== -1 || s.indexOf('completed') !== -1 || s.indexOf('active') !== -1 || s.indexOf('captured') !== -1 || s.indexOf('sent') !== -1) return 'text-emerald-700 font-semibold';
+        if (s.indexOf('pending') !== -1 || s.indexOf('awaiting') !== -1 || s.indexOf('grace') !== -1) return 'text-amber-700 font-semibold';
+        if (s.indexOf('failed') !== -1 || s.indexOf('cancel') !== -1 || s.indexOf('expired') !== -1) return 'text-rose-700 font-semibold';
+        if (s.indexOf('resale') !== -1 || s.indexOf('resold') !== -1) return 'text-indigo-700 font-semibold';
+        return 'text-slate-800 font-semibold';
+      },
+      insightIcon: function (key) {
+        var k = String(key || 'check');
+        // SVG path fragments keyed by MerchantMetrics icon names
+        var map = {
+          shield: '<path d="M12 3l8 3v6c0 4.5-3.2 8-8 9-4.8-1-8-4.5-8-9V6z"/>',
+          clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+          alert: '<path d="M12 3l10 18H2L12 3z"/><path d="M12 10v4M12 17h.01"/>',
+          check: '<path d="M5 13l4 4L19 7"/>',
+          heart: '<path d="M12 21s-7-4.5-9.5-8.5C.5 9 2.5 5 6.5 5c2 0 3.5 1.2 4.5 2.5C12 6.2 13.5 5 15.5 5c4 0 6 4 4 7.5C19 16.5 12 21 12 21z"/>',
+          refresh: '<path d="M4 12a8 8 0 0 1 14-5M20 12a8 8 0 0 1-14 5"/><path d="M18 4v4h-4M6 20v-4h4"/>',
+          lightbulb: '<path d="M9 18h6M10 21h4M8 10a4 4 0 1 1 8 0c0 2-1 3-2 4h-4c-1-1-2-2-2-4z"/>',
+        };
+        return map[k] || map.check;
+      },
+
+      openNegotiator: function (row) {
+        this.negotiatorOpen = true;
+        this.selectedId = row && row.id ? row.id : this.selectedId;
+        window.__luvuNegotiatorTx = row && row.id ? row.id : this.selectedId;
+      },
+pushToast: function (message, icon) {
         var tones = { '\u274c': 'error', '\ud83d\udeab': 'error', '\u26a0\ufe0f': 'warning', '!': 'warning', '\u2139\ufe0f': 'info', '\u23f3': 'info', '\ud83d\udd17': 'info', '\ud83d\udd14': 'info', '\ud83d\udcb3': 'info', '\u27a1\ufe0f': 'info' };
         if (!global.LuvuToast) return;
         global.LuvuToast.notify({ type: tones[icon] || 'success', title: message });
@@ -682,7 +763,7 @@
             this.walletBalanceMinor = 0;
             var netLabel = money((res.data && res.data.net_minor) || 0, this.walletCurrency || 'USD');
             var feeLabel = money((res.data && res.data.fee_minor) || 0, this.walletCurrency || 'USD');
-            this.pushToast('Withdrew ' + amount + ' — you receive ' + netLabel + ' after the ' + feeLabel + ' PayPal fee' + (res.data && res.data.mock ? ' (simulated).' : '.') + (res.data && res.data.receipt_email_sent ? ' Receipt emailed.' : ''), '💸');
+            this.pushToast('Withdrew ' + amount + ' - you receive ' + netLabel + ' after the ' + feeLabel + ' PayPal fee' + (res.data && res.data.mock ? ' (simulated).' : '.') + (res.data && res.data.receipt_email_sent ? ' Receipt emailed.' : ''), '💸');
             if (res.data && res.data.warning) { this.pushToast(res.data.warning, '⚠️'); }
             if (res.data && res.data.payout_batch_id) {
               this.pushToast('Payout batch: ' + res.data.payout_batch_id, '🔗');
@@ -708,7 +789,7 @@
               this.withdrawalReceiptOpen = true;
             }
             if (res.data && res.data.receipt_email_error && !res.data.receipt_email_sent) {
-              this.pushToast('Email receipt not sent: ' + res.data.receipt_email_error + ' — download from the receipt panel.', '📧');
+              this.pushToast('Email receipt not sent: ' + res.data.receipt_email_error + ' - download from the receipt panel.', 'ok');
             }
             await this.load();
           } else {
@@ -717,11 +798,11 @@
               this.pushToast('Connect PayPal in Settings to continue', '⚠️');
               try { window.location.href = '/settings'; } catch (e2) {}
             } else {
-              this.pushToast(err || 'Withdraw failed', '❌');
+              this.pushToast(err || 'Withdraw failed', 'err');
             }
           }
         } catch (e) {
-          this.pushToast('Network error during withdraw', '❌');
+          this.pushToast('Network error during withdraw', 'err');
         } finally {
           this.walletWithdrawing = false;
         }
@@ -753,7 +834,7 @@
                 this.pushToast(err, '⚠️');
               }
             } else {
-              this.pushToast(err, '❌');
+              this.pushToast(err, 'err');
             }
           }
           if (res.ok) { await this.refreshKpi(); }
@@ -761,7 +842,7 @@
         } catch (e) {
           this.simMsgOk = false;
           this.simMsg = 'Network error';
-          this.pushToast('Network error calling demo/' + path, '❌');
+          this.pushToast('Network error calling demo/' + path, 'err');
           return null;
         } finally {
           this.simBusy = null;
@@ -855,11 +936,11 @@
             await sleep(250);
           }
           await this.load();
-          if (ok) this.pushToast(ok + ' subscription' + (ok === 1 ? '' : 's') + ' active' + (emailed ? ' · ' + emailed + ' receipt email' + (emailed === 1 ? '' : 's') + ' sent' : ''), '✅');
-          if (fail) this.pushToast(fail + ' failed: ' + lastErr, '❌');
+          if (ok) this.pushToast(ok + ' subscription' + (ok === 1 ? '' : 's') + ' active' + (emailed ? ' · ' + emailed + ' receipt email' + (emailed === 1 ? '' : 's') + ' sent' : ''), 'ok');
+          if (fail) this.pushToast(fail + ' failed: ' + lastErr, 'err');
           if (!fail) { await sleep(500); this.showCheckoutModal = false; }
         } catch (e) {
-          this.pushToast('Checkout error', '❌');
+          this.pushToast('Checkout error', 'err');
         } finally {
           this.checkoutPaying = false;
         }
@@ -968,7 +1049,7 @@
           var inv = res.row && res.row.invoice_number;
           row.note = inv ? ('Paid · invoice ' + inv) : 'Paid via PayPal';
           if (res.row) this.applyRow(res.row, true);
-          this.pushToast('Payment confirmed for ' + row.email + '. Funds are in your PayPal sandbox business balance.', '✅');
+          this.pushToast('Payment confirmed for ' + row.email + '. Funds are in your PayPal sandbox business balance.', 'ok');
           if (inv) this.pushToast('Invoice generated: ' + inv, '🧾');
           this.preview = { phase: 'checkout', name: row.name, email: row.email, product: PROJECT.product, status: 'ACTIVE', trust_score: res.row && res.row.trust_score, churn_risk: res.row && res.row.churn_risk, ai_nudge: null, spinning: false, certificate_code: null };
         } else if (res.state === 'processing') {
@@ -979,7 +1060,7 @@
           this.pushToast('PayPal checkout cancelled. No money moved', '⚠️');
         } else {
           row.status = 'failed'; row.note = res.message || 'Payment failed';
-          this.pushToast(row.note, '❌');
+          this.pushToast(row.note, 'err');
         }
       },
 
@@ -1020,7 +1101,7 @@
           }
         }
         if (!row) {
-          this.pushToast('No ACTIVE subscription charge yet. Run “Simulate 30 days” or create a checkout first', '❌');
+          this.pushToast('No ACTIVE subscription charge yet. Run “Simulate 30 days” or create a checkout first', 'err');
           return;
         }
 
@@ -1093,7 +1174,7 @@
         this.logDecision('[Day H] Payment Failed. Missed cancellation detected → charge ' + String(row.id).slice(0, 8) + ' (' + this.journey.amount + ') held for ' + hours + 'h. [Webhook] subscription.grace_period_started', 'warn');
         this.journeyEvents(j.recent_events, seen, 'warn');
         await sleep(350);
-        this.logDecision('[Nebius AI] Analyzing ' + name + "'s usage of " + (row.product || PROJECT.name || 'the product') + '…', 'gold');
+        this.preview.spinning = true; this.logDecision('[Nebius AI] Analyzing ' + name + "'s usage of " + (row.product || PROJECT.name || 'the product') + '…', 'gold');
         await sleep(450);
         var src = g.ai_source === 'nebius' ? 'Nebius model' : 'local template (set NEBIUS_API_KEY for live AI)';
         var risk = g.ai_churn && (g.ai_churn.risk || g.ai_churn.level || (typeof g.ai_churn === 'string' ? g.ai_churn : ''));
@@ -1111,8 +1192,8 @@
         opts.push('Expire in ' + hours + 'h');
         this.logDecision('[AI Agent] Options ready: ' + opts.join(' · '), 'green');
         this.logDecision(this.journey.sandbox
-          ? '[PayPal Sandbox] Connected — refunds are sent to the sandbox API when the charge has a capture id.'
-          : '[Ledger] PayPal keys not set — running on the mock ledger (same real database rows).', this.journey.sandbox ? 'blue' : '');
+          ? '[PayPal Sandbox] Connected - refunds are sent to the sandbox API when the charge has a capture id.'
+          : '[Ledger] PayPal keys not set - running on the mock ledger (same real database rows).', this.journey.sandbox ? 'blue' : '');
         this._journeySeen = seen;
         this.decisionReady = true;
         this.decisionBusy = false;
@@ -1153,7 +1234,7 @@
         var next = Object.assign({
           id: this.selectedId || ('local-' + Date.now()), created_at: new Date().toISOString(), email: 'sarah.j@example.com',
           display_name: this.decisionCustomer, amount_minor: PROJECT.price_minor, currency: PROJECT.currency, type: 'Charge',
-          product: PROJECT.product, trust_score: 64, churn_risk: 'high',
+          product: PROJECT.product, trust_score: 100, churn_risk: 'high',
         }, row || {}, { lifecycle: normalizeLifecycle(lifecycle), status: status });
         this.applyRow(next, !row);
       },
@@ -1161,18 +1242,24 @@
 
       downloadWithdrawalReceipt: function () {
         var r = this.withdrawalReceipt || {};
+        var esc = (global.DomSafe && global.DomSafe.esc) || function (s) {
+          return String(s == null ? '' : s)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        };
         var html = r.html;
         if (!html) {
+          // Fallback built only with escaped values — never raw concatenation of untrusted data
           html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Withdrawal receipt</title></head><body style="font-family:system-ui,sans-serif;padding:32px;color:#0f172a">'
             + '<h1>Withdrawal receipt</h1>'
-            + '<p><b>Merchant:</b> ' + (r.merchant_name || '') + '</p>'
-            + '<p><b>Gross:</b> ' + (r.gross || '') + '</p>'
-            + '<p><b>PayPal fee:</b> ' + (r.fee || '') + '</p>'
-            + '<p><b>Net received:</b> ' + (r.net || '') + '</p>'
-            + '<p><b>Status:</b> ' + (r.status || '') + '</p>'
-            + '<p><b>PayPal batch:</b> ' + (r.batch_id || '') + '</p>'
-            + '<p><b>To:</b> ' + (r.receiver || '') + '</p>'
-            + '<p><b>Ledger:</b> ' + (r.ledger_id || '') + '</p>'
+            + '<p><b>Merchant:</b> ' + esc(r.merchant_name) + '</p>'
+            + '<p><b>Gross:</b> ' + esc(r.gross) + '</p>'
+            + '<p><b>PayPal fee:</b> ' + esc(r.fee) + '</p>'
+            + '<p><b>Net received:</b> ' + esc(r.net) + '</p>'
+            + '<p><b>Status:</b> ' + esc(r.status) + '</p>'
+            + '<p><b>PayPal batch:</b> ' + esc(r.batch_id) + '</p>'
+            + '<p><b>To:</b> ' + esc(r.receiver) + '</p>'
+            + '<p><b>Ledger:</b> ' + esc(r.ledger_id) + '</p>'
             + '<p style="color:#64748b;font-size:12px">Generated by LuvuPay · PayPal holds the official payout record.</p>'
             + '</body></html>';
         }
@@ -1188,12 +1275,34 @@
 
       printWithdrawalReceipt: function () {
         var r = this.withdrawalReceipt || {};
+        var esc = (global.DomSafe && global.DomSafe.esc) || function (s) {
+          return String(s == null ? '' : s)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        };
+        // Prefer server-escaped HTML; otherwise build a minimal escaped fallback
+        var html = r.html;
+        if (!html) {
+          html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Withdrawal receipt</title></head><body style="font-family:system-ui,sans-serif;padding:24px">'
+            + '<pre style="white-space:pre-wrap;word-break:break-word">' + esc(JSON.stringify(r, null, 2)) + '</pre>'
+            + '</body></html>';
+        }
+        // Hard security: never document.write — use Blob URL via DomSafe helper
+        if (global.DomSafe && global.DomSafe.openPrintableHtml) {
+          var w = global.DomSafe.openPrintableHtml(html, { autoPrint: true, printDelay: 400 });
+          if (!w) this.pushToast('Popup blocked - use Download instead', '⚠️');
+          return;
+        }
+        // Fallback without DomSafe still avoids document.write
         var w = global.open('', '_blank', 'noopener,noreferrer,width=640,height=800');
-        if (!w) { this.pushToast('Popup blocked — use Download instead', '⚠️'); return; }
-        var html = r.html || ('<pre>' + JSON.stringify(r, null, 2) + '</pre>');
-        w.document.write(html);
-        w.document.close();
-        setTimeout(function () { try { w.focus(); w.print(); } catch (e) {} }, 300);
+        if (!w) { this.pushToast('Popup blocked - use Download instead', '⚠️'); return; }
+        var blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+        var url = URL.createObjectURL(blob);
+        try { w.location.href = url; } catch (e) { try { w.close(); } catch (e2) {} URL.revokeObjectURL(url); return; }
+        setTimeout(function () {
+          try { w.focus(); w.print(); } catch (e) {}
+          setTimeout(function () { URL.revokeObjectURL(url); }, 120000);
+        }, 400);
       },
 
       openEvidenceBuilder: function (row) {
@@ -1201,26 +1310,69 @@
         this.evidenceOpen = true;
         this.evidenceExporting = false;
         this.evidenceExported = false;
+        this.evidencePack = null;
+        this.evidenceError = null;
+        this.evidenceLoading = true;
+        var self = this;
+        var id = row && row.id;
+        if (!id) { this.evidenceLoading = false; this.evidenceError = 'No transaction selected'; return; }
+        if (global.LuvuLoader && global.LuvuLoader.begin) global.LuvuLoader.begin();
+        fetch('/api/v1/dashboard/demo/dispute-evidence/' + encodeURIComponent(id), {
+          credentials: 'same-origin',
+          headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') || {}).content || '' }
+        }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+          .then(function (res) {
+            if (global.LuvuLoader && global.LuvuLoader.end) global.LuvuLoader.end();
+            self.evidenceLoading = false;
+            if (!res.ok || !res.d.ok) {
+              self.evidenceError = (res.d && res.d.summary) || 'Could not build evidence';
+              return;
+            }
+            self.evidencePack = res.d;
+          }).catch(function (e) {
+            if (global.LuvuLoader && global.LuvuLoader.end) global.LuvuLoader.end();
+            self.evidenceLoading = false;
+            self.evidenceError = String(e.message || e);
+          });
       },
 
       exportEvidenceToPayPal: async function () {
-        if (this.evidenceExporting) return;
+        if (this.evidenceExporting || !this.evidencePack) return;
         this.evidenceExporting = true;
-        await sleep(1100);
-        this.evidenceExporting = false;
-        this.evidenceExported = true;
-        var who = (this.evidenceRow && (this.evidenceRow.display_name || this.evidenceRow.email)) || 'subscriber';
-        this.pushToast('Evidence package exported for ' + who + ' — ready for PayPal Resolution Center', '⚖️');
+        try {
+          var pack = this.evidencePack || {};
+          var lines = [];
+          lines.push(pack.summary || 'LuvuPay dispute evidence');
+          lines.push('Generated: ' + (pack.generated_at || new Date().toISOString()));
+          lines.push('');
+          (pack.sections || []).forEach(function (sec) {
+            lines.push('## ' + sec.title);
+            (sec.points || []).forEach(function (pt) { lines.push('- ' + pt); });
+            lines.push('');
+          });
+          lines.push(JSON.stringify(pack.raw || {}, null, 2));
+          var blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
+          var a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = 'luvupay-dispute-evidence-' + String((pack.transaction_id || 'pack')).slice(0, 8) + '.txt';
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          this.evidenceExported = true;
+          if (typeof this.pushToast === 'function') this.pushToast('Evidence pack downloaded', 'ok');
+        } finally {
+          this.evidenceExporting = false;
+        }
       },
 
       // ---- receipts, webhooks, rate limit, deliveries
       openReceipt: async function (id) {
-        if (!id) { this.pushToast('No receipt id on this row', '❌'); return; }
+        if (!id) { this.pushToast('No receipt id on this row', 'err'); return; }
         var res = await request('GET', 'demo/receipts/' + encodeURIComponent(id)).catch(function () { return { ok: false, data: {} }; });
         if (!res.ok) {
           this.simMsgOk = false;
           this.simMsg = (res.data && (res.data.message || res.data.error)) || 'Receipt not found';
-          this.pushToast(this.simMsg, '❌');
+          this.pushToast(this.simMsg, 'err');
           return;
         }
         var j = res.data;
@@ -1230,9 +1382,9 @@
           charity: money(j.charity_minor, j.currency || 'USD'),
           fee: money(j.fee_minor, j.currency || 'USD'),
           store_credit: money(j.store_credit_minor, j.currency || 'USD'),
-          certificate_code: j.certificate_code || '—',
-          transaction_id: j.transaction_id || '—',
-          paypal_payout_id: j.paypal_payout_id || '—',
+          certificate_code: j.certificate_code || '-',
+          transaction_id: j.transaction_id || '-',
+          paypal_payout_id: j.paypal_payout_id || '-',
         };
         this.receiptOpen = true;
       },
@@ -1265,3 +1417,64 @@
     };
   };
 })(window);
+
+
+  global.negotiatorChat = function negotiatorChat() {
+    return {
+      messages: [],
+      options: [],
+      input: '',
+      thinking: false,
+      booted: false,
+      ensureBoot: async function () {
+        if (this.booted) return;
+        this.booted = true;
+        this.messages = [{ role: 'assistant', content: 'Hi - I can help with a failed payment. Tell me what is going on, or pick an option below.' }];
+        this.options = [
+          { id: 'split_half', label: 'Pay half now, half next week' },
+          { id: 'resale', label: 'List remaining access on marketplace' },
+          { id: 'safe_refund', label: 'Request safe partial refund' },
+          { id: 'pay_full', label: 'Pay full amount now' },
+        ];
+      },
+      send: async function (text) {
+        text = String(text || '').trim();
+        if (!text || this.thinking) return;
+        this.messages.push({ role: 'user', content: text });
+        this.input = '';
+        this.thinking = true;
+        if (window.LuvuLoader && window.LuvuLoader.begin) window.LuvuLoader.begin();
+        try {
+          var res = await fetch('/api/v1/dashboard/demo/negotiator', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              'X-Requested-With': 'XMLHttpRequest',
+              'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') || {}).content || ''
+            },
+            body: JSON.stringify({
+              message: text,
+              transaction_id: window.__luvuNegotiatorTx || null,
+              history: this.messages.slice(0, -1)
+            })
+          });
+          var data = await res.json().catch(function () { return {}; });
+          // No artificial delay — reply as soon as the API responds
+          if (data.reply) this.messages.push({ role: 'assistant', content: data.reply });
+          else this.messages.push({ role: 'assistant', content: 'I could not reach the AI service. Try again, or use an option button.' });
+          if (Array.isArray(data.options) && data.options.length) this.options = data.options;
+        } catch (e) {
+          this.messages.push({ role: 'assistant', content: 'Network error. Please try again.' });
+        } finally {
+          this.thinking = false;
+          if (window.LuvuLoader && window.LuvuLoader.end) window.LuvuLoader.end();
+        }
+        this.$nextTick(function () {
+          var el = document.getElementById('negotiator-scroll');
+          if (el) el.scrollTop = el.scrollHeight;
+        });
+      }
+    };
+  };

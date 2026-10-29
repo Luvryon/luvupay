@@ -24,6 +24,7 @@ class AuthenticateMerchant
 
         $request->attributes->set('merchant', $merchant);
         $request->attributes->set('merchant_id', $merchant->getKey());
+        // Ignore any client-supplied merchant_id body/query - tenant is the API key only.
         $this->ctx->actor('merchant_api', $merchant->api_key_prefix);
 
         return $next($request);

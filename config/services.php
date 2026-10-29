@@ -18,10 +18,14 @@ return [
 
     'paypal' => [
         'mode' => env('PAYPAL_MODE', 'sandbox'),            // sandbox | live
-        'client_id' => env('PAYPAL_CLIENT_ID'),
-        'secret' => env('PAYPAL_SECRET'),
+        'client_id' => env('PAYPAL_CLIENT_ID') ?: env('PAYPAL_SANDBOX_CLIENT_ID') ?: env('PAYPAL_LIVE_CLIENT_ID'),
+        'secret' => env('PAYPAL_SECRET') ?: env('PAYPAL_SANDBOX_SECRET') ?: env('PAYPAL_LIVE_SECRET'),
         'webhook_id' => env('PAYPAL_WEBHOOK_ID'),
-        'plan_id' => env('PAYPAL_PLAN_ID'),                 // optional: force one pre-made sandbox plan (must match the project price)           // from the PayPal developer dashboard, per environment
+        'plan_id' => env('PAYPAL_PLAN_ID'),
+        'sandbox_business_email' => env('PAYPAL_SANDBOX_BUSINESS_EMAIL'),
+        'sandbox_business_password' => env('PAYPAL_SANDBOX_BUSINESS_PASSWORD'),
+        'sandbox_buyer_email' => env('PAYPAL_SANDBOX_BUYER_EMAIL'),
+        'sandbox_buyer_password' => env('PAYPAL_SANDBOX_BUYER_PASSWORD'),                 // optional: force one pre-made sandbox plan (must match the project price)           // from the PayPal developer dashboard, per environment
         /*
          | Environment-swap receivers (NEVER hardcode sb-*** emails in PHP/Blade).
          | Sandbox: ugly auto-generated Business accounts from developer.paypal.com
