@@ -8,7 +8,9 @@ use App\Services\Nebius\RetentionOfferService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 /** POST /api/v1/dashboard/demo/retention-campaign - merchant-approved bulk retention email. */
@@ -23,7 +25,7 @@ final class DemoRetentionCampaignController
             'body' => ['required', 'string', 'max:5000'],
             'discount' => ['required', 'integer', 'min:0', 'max:50'],
             'tone' => ['nullable', 'string', 'max:40'],
-            'image_data_url' => ['nullable', 'string', 'max:300000'], // client must compress; ~225KB binary
+            'image_data_url' => ['nullable', 'string', 'max:300000'],
             'cohort' => ['nullable', 'in:failed_and_refund,selected'],
             'transaction_ids' => ['nullable', 'array', 'max:100'],
             'transaction_ids.*' => ['uuid'],
@@ -36,7 +38,6 @@ final class DemoRetentionCampaignController
         if ($cohort === 'selected' && ! empty($data['transaction_ids'])) {
             $q->whereIn('id', $data['transaction_ids']);
         } else {
-            // failed payments + rows with refund decision / grace held
             $q->where(function ($w) {
                 $w->whereIn('status', ['failed', 'held'])
                     ->orWhere('metadata', 'like', '%partial_refund%')
@@ -49,6 +50,10 @@ final class DemoRetentionCampaignController
         $skipped = 0;
         $errors = [];
 
+        $merchantName = (string) (DB::table('merchants')->where('id', $merchantId)->value('name') ?: 'Your subscription');
+        $ctaUrl = rtrim((string) config('app.url'), '/').'/m/'.$merchantId;
+        $imagePublicUrl = $this->persistCampaignImage($data['image_data_url'] ?? null, $merchantId);
+
         foreach ($rows as $row) {
             $email = trim((string) $row->email);
             if ($email === '' || ! filter_var($email, FILTER_VALIDATE_EMAIL)) {
@@ -59,7 +64,16 @@ final class DemoRetentionCampaignController
             $name = e((string) ($meta['display_name'] ?? explode('@', $email)[0]));
             $subject = str_replace(['—', '–'], ['-', '-'], $data['subject']);
             $bodyText = str_replace(['—', '–'], ['-', '-'], $data['body']);
-            $html = $this->buildHtml($name, e($bodyText), (int) $data['discount'], $data['image_data_url'] ?? null);
+            $product = e((string) ($meta['product'] ?? 'your plan'));
+            $html = $this->buildHtml(
+                $name,
+                e($bodyText),
+                (int) $data['discount'],
+                $imagePublicUrl,
+                e($merchantName),
+                $product,
+                $ctaUrl,
+            );
 
             try {
                 Mail::to($email)->send(new PlainHtmlMail($subject, $html));
@@ -86,20 +100,128 @@ final class DemoRetentionCampaignController
         ]);
     }
 
-    private function buildHtml(string $name, string $body, int $discount, ?string $imageDataUrl): string
+    private function persistCampaignImage(?string $imageDataUrl, string $merchantId): ?string
     {
-        $img = '';
-        if ($imageDataUrl && str_starts_with($imageDataUrl, 'data:image/')) {
-            $img = '<div style="margin:16px 0"><img src="'.e($imageDataUrl).'" alt="" style="max-width:100%;border-radius:12px"/></div>';
+        if (! $imageDataUrl || ! str_starts_with($imageDataUrl, 'data:image/')) {
+            return null;
+        }
+        if (! preg_match('#^data:(image/(?:jpeg|jpg|png|webp));base64,(.+)$#s', $imageDataUrl, $m)) {
+            return null;
+        }
+        $mime = strtolower($m[1]);
+        $ext = match ($mime) {
+            'image/png' => 'png',
+            'image/webp' => 'webp',
+            default => 'jpg',
+        };
+        $binary = base64_decode($m[2], true);
+        if ($binary === false || strlen($binary) < 32 || strlen($binary) > 2_500_000) {
+            return null;
+        }
+        try {
+            $dir = 'campaign-images/'.$merchantId;
+            $name = Str::uuid()->toString().'.'.$ext;
+            Storage::disk('public')->put($dir.'/'.$name, $binary);
+
+            return url('/storage/'.$dir.'/'.$name);
+        } catch (\Throwable $e) {
+            Log::warning('retention.campaign_image_persist_failed', ['err' => $e->getMessage()]);
+
+            return null;
+        }
+    }
+
+    private function buildHtml(
+        string $name,
+        string $body,
+        int $discount,
+        ?string $imageUrl,
+        string $merchantName,
+        string $product,
+        string $ctaUrl,
+    ): string {
+        $discountLabel = $discount > 0 ? $discount.'% off' : 'special recovery offer';
+        $safeCta = e($ctaUrl);
+        $imgBlock = '';
+        if ($imageUrl && preg_match('#^https?://#i', $imageUrl)) {
+            $imgBlock = '<tr><td style="padding:0 0 20px 0">'
+                .'<img src="'.e($imageUrl).'" alt="" width="520" style="display:block;width:100%;max-width:520px;height:auto;border:0;border-radius:12px">'
+                .'</td></tr>';
         }
 
-        return '<div style="font-family:system-ui,sans-serif;max-width:560px;margin:0 auto;color:#0f172a">'
-            .'<p>Hi <strong>'.$name.'</strong>,</p>'
-            .'<p>'.nl2br($body).'</p>'
-            .$img
-            .'<p><a href="#" style="display:inline-block;background:#5b3df5;color:#fff;text-decoration:none;padding:10px 16px;border-radius:8px;font-weight:600">'
-            .'Renew with '.$discount.'% off</a></p>'
-            .'<p style="color:#64748b;font-size:12px">Sent by your merchant via LuvuPay Retention Studio. Merchant approved this send.</p>'
-            .'</div>';
+        $bodyHtml = nl2br($body);
+
+        return <<<HTML
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Keep your access</title>
+</head>
+<body style="margin:0;padding:0;background:#f1f5f9;font-family:Inter,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#0f172a">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f1f5f9;padding:28px 12px">
+<tr><td align="center">
+<table role="presentation" width="560" cellspacing="0" cellpadding="0" style="width:100%;max-width:560px;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e2e8f0">
+  <tr>
+    <td style="padding:22px 28px;background:linear-gradient(135deg,#4f46e5,#6366f1);color:#fff">
+      <div style="font-size:13px;opacity:.9;letter-spacing:.04em;text-transform:uppercase">{$merchantName}</div>
+      <div style="font-size:22px;font-weight:800;margin-top:6px;line-height:1.25">Your {$product} access can still be saved</div>
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:28px">
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+        {$imgBlock}
+        <tr><td style="font-size:16px;line-height:1.55;color:#0f172a;padding-bottom:12px">
+          Hi <strong>{$name}</strong>,
+        </td></tr>
+        <tr><td style="font-size:15px;line-height:1.65;color:#334155;padding-bottom:16px">
+          {$bodyHtml}
+        </td></tr>
+        <tr><td style="font-size:15px;line-height:1.65;color:#334155;padding-bottom:16px">
+          We know payments fail for everyday reasons - an expired card, a bank hold, or a busy week. You do not have to start over. Finish recovery in one step and keep the benefits you already earned.
+        </td></tr>
+        <tr><td style="padding-bottom:20px">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#eef2ff;border-radius:12px;border:1px solid #c7d2fe">
+            <tr><td style="padding:16px 18px">
+              <div style="font-size:12px;font-weight:700;color:#4338ca;text-transform:uppercase;letter-spacing:.03em">Merchant-approved offer</div>
+              <div style="font-size:20px;font-weight:800;color:#312e81;margin-top:4px">{$discountLabel}</div>
+              <div style="font-size:13px;color:#475569;margin-top:6px;line-height:1.5">
+                Limited recovery window. Renew now to restore access without losing your place.
+              </div>
+            </td></tr>
+          </table>
+        </td></tr>
+        <tr><td align="center" style="padding:8px 0 22px 0">
+          <!--[if mso]>
+          <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" href="{$safeCta}" style="height:48px;v-text-anchor:middle;width:260px" arcsize="14%" stroke="f" fillcolor="#4f46e5">
+            <w:anchorlock/>
+            <center style="color:#ffffff;font-family:Segoe UI,sans-serif;font-size:16px;font-weight:700">Renew with {$discountLabel}</center>
+          </v:roundrect>
+          <![endif]-->
+          <!--[if !mso]><!-- -->
+          <a href="{$safeCta}"
+             style="display:inline-block;background:#4f46e5;color:#ffffff !important;text-decoration:none;padding:14px 28px;border-radius:10px;font-size:16px;font-weight:700;line-height:1.2;mso-hide:all">
+            Renew with {$discountLabel}
+          </a>
+          <!--<![endif]-->
+        </td></tr>
+        <tr><td style="font-size:14px;line-height:1.6;color:#64748b;padding-bottom:8px">
+          Prefer another option? Reply to this email and we can help with a split payment, a temporary pause, or a safe partial refund where policy allows.
+        </td></tr>
+        <tr><td style="font-size:12px;line-height:1.5;color:#94a3b8;padding-top:16px;border-top:1px solid #e2e8f0">
+          Sent by <strong style="color:#64748b">{$merchantName}</strong> via LuvuPay Retention Studio.
+          This message was approved by the merchant before it was sent. If you did not expect it, you can ignore this email.
+        </td></tr>
+      </table>
+    </td>
+  </tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>
+HTML;
     }
 }

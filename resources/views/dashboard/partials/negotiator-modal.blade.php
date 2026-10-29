@@ -17,7 +17,7 @@
             </template>
             <div x-show="thinking" class="flex items-center gap-2 text-xs text-slate-500">
                 <span class="inline-block size-2 rounded-full bg-indigo-500 animate-pulse"></span>
-                <span>AI is reviewing payment history and options…</span>
+                <span>Thinking…</span>
             </div>
         </div>
 

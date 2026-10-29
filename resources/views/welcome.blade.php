@@ -418,8 +418,26 @@
                 <a href="/docs/sandbox" class="lp-btn lp-btn-outline lp-btn-lg">Sandbox guide</a>
             </div>
         </div>
-        <div class="lp-cta-visual relative mx-auto w-full max-w-md lg:max-w-none" aria-hidden="true">
-            <svg viewBox="0 0 520 520" class="w-full" fill="none" font-family="inherit">
+        <div class="lp-cta-visual cs relative mx-auto w-full max-w-md overflow-hidden rounded-[2rem] lg:max-w-none" style="background:#eef0ff" aria-hidden="true">
+            <style>
+                .cs-slides{position:relative;height:4.1rem}
+                .cs-slides p{position:absolute;inset:0;margin:0;font-size:1.12rem;line-height:1.3;font-weight:600;letter-spacing:-.01em;color:#0f172a;opacity:0;animation:csSlide 12s ease-in-out infinite}
+                .cs-slides p:nth-child(2){animation-delay:4s}
+                .cs-slides p:nth-child(3){animation-delay:8s}
+                .cs-bar{height:3px;border-radius:99px;background:rgba(9,2,123,.12);overflow:hidden}
+                .cs-bar i{display:block;height:100%;width:0;border-radius:99px;background:#09027b;animation:csBar 4s linear infinite}
+                @keyframes csSlide{0%{opacity:0;transform:translateY(10px)}6%,30%{opacity:1;transform:none}36%,100%{opacity:0;transform:translateY(-10px)}}
+                @keyframes csBar{to{width:100%}}
+                @media (prefers-reduced-motion:reduce){
+                    .cs-slides p{animation:none}
+                    .cs-slides p:first-child{opacity:1}
+                    .cs-bar i{animation:none;width:35%}
+                }
+            </style>
+
+            <img src="{{ asset('images/ready-start.webp') }}" alt="" width="640" height="640" class="absolute inset-0 h-full w-full object-cover" loading="lazy">
+
+            <svg viewBox="0 20 520 470" class="relative block w-full" style="z-index:1" fill="none" font-family="inherit">
                 <defs>
                     <filter id="cta-sh" x="-30%" y="-30%" width="160%" height="170%">
                         <feDropShadow dx="0" dy="14" stdDeviation="16" flood-color="#09027b" flood-opacity=".22"/>
@@ -427,18 +445,7 @@
                     <filter id="cta-sh2" x="-30%" y="-40%" width="160%" height="190%">
                         <feDropShadow dx="0" dy="8" stdDeviation="9" flood-color="#0f172a" flood-opacity=".16"/>
                     </filter>
-                    <clipPath id="cta-clip"><rect x="40" y="90" width="440" height="400" rx="36"/></clipPath>
                 </defs>
-
-                {{-- panel navy di belakang --}}
-                <rect x="40" y="90" width="440" height="400" rx="36" fill="#09027b"/>
-                <g clip-path="url(#cta-clip)" stroke="#fff" stroke-opacity=".09">
-                    <circle cx="410" cy="150" r="190"/>
-                    <circle cx="410" cy="150" r="125"/>
-                    <circle cx="410" cy="150" r="60"/>
-                    <circle cx="70" cy="480" r="130"/>
-                    <circle cx="70" cy="480" r="70"/>
-                </g>
 
                 {{-- ponsel --}}
                 <g filter="url(#cta-sh)">
@@ -508,6 +515,18 @@
                 <text x="382" y="321" font-size="10" font-weight="600" fill="#0f172a">Charity received</text>
                 <text x="382" y="336" font-size="10" font-weight="700" fill="#059669" font-family="ui-monospace,SFMono-Regular,Menlo,monospace">+$1.20</text>
             </svg>
+
+            {{-- teks auto slide --}}
+            <div class="relative px-4 pb-4 sm:px-5 sm:pb-5" style="z-index:1">
+                <div class="rounded-2xl border border-white/70 bg-white/80 p-4 backdrop-blur-md">
+                    <div class="cs-slides">
+                        <p>From idea<br>to revenue,<br>faster.</p>
+                        <p>Charge today,<br>give a second<br>chance tomorrow.</p>
+                        <p>Every cent<br>auditable,<br>every time.</p>
+                    </div>
+                    <div class="cs-bar mt-3"><i></i></div>
+                </div>
+            </div>
         </div>
     </div>
 </section>

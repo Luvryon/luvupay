@@ -5,7 +5,7 @@
 (function (global) {
   'use strict';
 
-  var MAX_DATA_URL = 280000; // stay under server max:300000
+  var MAX_DATA_URL = 280000;
   var MAX_EDGE = 1200;
 
   function csrf() {
@@ -13,7 +13,7 @@
     return m ? m.getAttribute('content') : '';
   }
 
-  function compressDataUrl(dataUrl, mime) {
+  function compressDataUrl(dataUrl) {
     return new Promise(function (resolve) {
       try {
         var img = new Image();
@@ -37,7 +37,6 @@
             out = canvas.toDataURL('image/jpeg', quality);
           }
           if (out.length > MAX_DATA_URL) {
-            // last resort: shrink more
             canvas.width = Math.round(cw * 0.7);
             canvas.height = Math.round(ch * 0.7);
             ctx = canvas.getContext('2d');
@@ -68,7 +67,7 @@
       sent: false,
       generating: false,
       subject: 'We miss you. Keep your access active',
-      bodyLead: 'You have been with us for a long time. Your last payment failed, but your access can still be saved.',
+      bodyLead: 'You have been with us for a long time. Your last payment failed, but your access can still be saved. We held a recovery path open so you do not lose the benefits you already earned - renew in one step when you are ready.',
       previewName: 'there',
       brand: 'your plan',
       tone: 'Empathetic (loyal user)',
@@ -87,12 +86,9 @@
         var self = this;
         var reader = new FileReader();
         reader.onload = async function (ev) {
-          var raw = ev.target.result;
-          var compressed = await compressDataUrl(String(raw), f.type);
+          var compressed = await compressDataUrl(String(ev.target.result));
           if (!compressed) {
-            if (global.LuvuToast) {
-              global.LuvuToast.error('Image too large', 'Could not compress enough. Try a smaller photo.');
-            }
+            if (global.LuvuToast) global.LuvuToast.error('Image too large', 'Could not compress enough. Try a smaller photo.');
             self.customImage = null;
             return;
           }
@@ -108,15 +104,15 @@
         var variants = [
           {
             s: 'Important: keep your ' + this.brand + ' access',
-            b: 'Hi ' + this.previewName + ', we noticed a payment issue. Renew now with ' + this.discount + '% off to keep uninterrupted access.',
+            b: 'Hi ' + this.previewName + ', we noticed a payment issue. Renew now with ' + this.discount + '% off to keep uninterrupted access. We held a recovery path open so you do not lose the benefits you already earned.',
           },
           {
             s: 'We miss you, ' + this.previewName,
-            b: 'Hi ' + this.previewName + ', your plan is still recoverable. As a valued member you get ' + this.discount + '% off if you renew today.',
+            b: 'Hi ' + this.previewName + ', your plan is still recoverable. As a valued member you get ' + this.discount + '% off if you renew today. Finish in one step and keep what you already paid for.',
           },
           {
             s: this.previewName + ', a quick way to restore access',
-            b: 'Payment failed once. Finish in one click and keep your benefits. Offer: ' + this.discount + '% off for 24 hours.',
+            b: 'Payment failed once. Finish in one click and keep your benefits. Offer: ' + this.discount + '% off for 24 hours. No need to start over.',
           },
         ];
         var v = variants[Math.floor(Math.random() * variants.length)];
@@ -128,9 +124,7 @@
       approveAndSend: async function () {
         if (this.sending || this.sent) return;
         if (this.customImage && this.customImage.length > MAX_DATA_URL) {
-          if (global.LuvuToast) {
-            global.LuvuToast.error('Image too large', 'Re-upload a smaller image (auto-compress failed)');
-          }
+          if (global.LuvuToast) global.LuvuToast.error('Image too large', 'Re-upload a smaller image (auto-compress failed)');
           return;
         }
         this.sending = true;
@@ -166,10 +160,7 @@
           }
           this.sent = true;
           if (global.LuvuToast) {
-            global.LuvuToast.success(
-              'Campaign sent',
-              data.message || ('Sent to ' + (data.sent || 0) + ' users')
-            );
+            global.LuvuToast.success('Campaign sent', data.message || ('Sent to ' + (data.sent || 0) + ' users'));
           }
         } catch (e) {
           this.sending = false;
