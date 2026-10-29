@@ -419,65 +419,94 @@
             </div>
         </div>
         <div class="lp-cta-visual relative mx-auto w-full max-w-md lg:max-w-none" aria-hidden="true">
-            <svg viewBox="0 0 520 430" class="w-full" fill="none" font-family="inherit">
+            <svg viewBox="0 0 520 520" class="w-full" fill="none" font-family="inherit">
                 <defs>
-                    <filter id="cta-sh" x="-20%" y="-20%" width="140%" height="150%">
-                        <feDropShadow dx="0" dy="12" stdDeviation="14" flood-color="#09027b" flood-opacity=".12"/>
+                    <filter id="cta-sh" x="-30%" y="-30%" width="160%" height="170%">
+                        <feDropShadow dx="0" dy="14" stdDeviation="16" flood-color="#09027b" flood-opacity=".22"/>
                     </filter>
+                    <filter id="cta-sh2" x="-30%" y="-40%" width="160%" height="190%">
+                        <feDropShadow dx="0" dy="8" stdDeviation="9" flood-color="#0f172a" flood-opacity=".16"/>
+                    </filter>
+                    <clipPath id="cta-clip"><rect x="40" y="90" width="440" height="400" rx="36"/></clipPath>
                 </defs>
 
-                {{-- jam di belakang kartu --}}
-                <circle cx="400" cy="150" r="150" fill="#09027b" fill-opacity=".04"/>
-                <circle cx="400" cy="150" r="150" stroke="#09027b" stroke-opacity=".3" stroke-width="10" stroke-dasharray="1.5 18.1"/>
-                <circle cx="400" cy="150" r="150" stroke="#09027b" stroke-opacity=".55" stroke-width="18" stroke-dasharray="2.5 77.5" transform="rotate(-90 400 150)"/>
-                <circle cx="400" cy="150" r="108" stroke="#09027b" stroke-opacity=".2" stroke-dasharray="2 7"/>
+                {{-- panel navy di belakang --}}
+                <rect x="40" y="90" width="440" height="400" rx="36" fill="#09027b"/>
+                <g clip-path="url(#cta-clip)" stroke="#fff" stroke-opacity=".09">
+                    <circle cx="410" cy="150" r="190"/>
+                    <circle cx="410" cy="150" r="125"/>
+                    <circle cx="410" cy="150" r="60"/>
+                    <circle cx="70" cy="480" r="130"/>
+                    <circle cx="70" cy="480" r="70"/>
+                </g>
+
+                {{-- ponsel --}}
+                <g filter="url(#cta-sh)">
+                    <rect x="150" y="30" width="220" height="450" rx="38" fill="#0b0f1e"/>
+                </g>
+                <rect x="158" y="38" width="204" height="434" rx="31" fill="#fff"/>
+                <rect x="228" y="46" width="64" height="16" rx="8" fill="#0b0f1e"/>
+
+                <text x="176" y="92" font-size="13" font-weight="700" fill="#0f172a">Subscriptions</text>
 
                 {{-- kartu langganan --}}
-                <g filter="url(#cta-sh)">
-                    <rect x="40" y="60" width="300" height="180" rx="20" fill="#fff" stroke="#e8eaf3"/>
-                </g>
-                <circle cx="68" cy="90" r="9" fill="#09027b"/>
-                <path d="M64.5 90.5l2.5 2.5 4.5-5" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-                <text x="86" y="94" font-size="13" font-weight="600" fill="#0f172a">Pro plan</text>
-                <rect x="266" y="80" width="50" height="20" rx="10" fill="#fef3c7"/>
-                <text x="291" y="94" font-size="10" font-weight="600" fill="#b45309" text-anchor="middle">Held</text>
+                <rect x="176" y="106" width="168" height="152" rx="16" fill="#f6f7fb" stroke="#e8eaf3"/>
+                <circle cx="198" cy="130" r="11" fill="#0f172a"/>
+                <text x="198" y="134" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">S</text>
+                <text x="216" y="129" font-size="11" font-weight="600" fill="#0f172a">Streamly Pro</text>
+                <text x="216" y="142" font-size="9.5" fill="#64748b">$12.00 / month</text>
+                <text x="192" y="172" font-size="9" fill="#64748b">Renewal held for</text>
+                <text x="192" y="196" font-size="22" font-weight="700" fill="#0f172a" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" letter-spacing="-.5">47:52:10</text>
+                <rect x="192" y="206" width="136" height="4" rx="2" fill="#e2e5f0"/>
+                <rect x="192" y="206" width="128" height="4" rx="2" fill="#09027b"/>
+                <rect x="192" y="220" width="136" height="26" rx="13" fill="#09027b"/>
+                <text x="260" y="237" font-size="10.5" font-weight="600" fill="#fff" text-anchor="middle">Second Chance</text>
 
-                <text x="64" y="132" font-size="11" fill="#64748b">Second Chance closes in</text>
-                <text x="64" y="162" font-size="30" font-weight="700" fill="#0f172a" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" letter-spacing="-1">47:52:10</text>
-                <rect x="64" y="176" width="252" height="5" rx="2.5" fill="#eef0f6"/>
-                <rect x="64" y="176" width="236" height="5" rx="2.5" fill="#09027b"/>
-                <rect x="64" y="196" width="150" height="30" rx="15" fill="#09027b"/>
-                <text x="139" y="215" font-size="11.5" font-weight="600" fill="#fff" text-anchor="middle">Use Second Chance</text>
+                {{-- kemana uangnya pergi --}}
+                <text x="176" y="284" font-size="11" font-weight="600" fill="#0f172a">Where your money goes</text>
+                <g font-size="10" fill="#64748b">
+                    <text x="192" y="310">Customer</text>
+                    <text x="192" y="334">Charity</text>
+                    <text x="192" y="358">Merchant</text>
+                </g>
+                <circle cx="182" cy="307" r="4" fill="#09027b"/>
+                <circle cx="182" cy="331" r="4" fill="#f59e0b"/>
+                <circle cx="182" cy="355" r="4" fill="#10b981"/>
+                <path d="M176 319H344M176 343H344" stroke="#eef0f6"/>
+                <g font-size="10" font-weight="600" fill="#0f172a" text-anchor="end" font-family="ui-monospace,SFMono-Regular,Menlo,monospace">
+                    <text x="344" y="310">$7.20</text>
+                    <text x="344" y="334">$1.20</text>
+                    <text x="344" y="358">$3.60</text>
+                </g>
 
-                {{-- segel berhasil di pojok kartu --}}
-                <circle cx="340" cy="62" r="16" fill="#10b981" stroke="#fff" stroke-width="3"/>
-                <path d="M333 62l5 5 9-10" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                {{-- jual sisa akses --}}
+                <rect x="176" y="374" width="168" height="30" rx="10" fill="#ecfdf5"/>
+                <text x="190" y="393" font-size="9.5" font-weight="600" fill="#047857">Sell unused 18 days</text>
+                <text x="332" y="393" font-size="9.5" font-weight="700" fill="#047857" text-anchor="end" font-family="ui-monospace,SFMono-Regular,Menlo,monospace">+$5.40</text>
 
-                {{-- kartu pembagian dana --}}
-                <g filter="url(#cta-sh)">
-                    <rect x="190" y="256" width="290" height="148" rx="20" fill="#fff" stroke="#e8eaf3"/>
-                </g>
-                <text x="212" y="286" font-size="12" font-weight="600" fill="#0f172a">Money split</text>
-                <text x="458" y="286" font-size="12" font-weight="600" fill="#0f172a" text-anchor="end" font-family="ui-monospace,SFMono-Regular,Menlo,monospace">$12.00</text>
+                {{-- tab bar --}}
+                <path d="M158 424H362" stroke="#eef0f6"/>
+                <circle cx="196" cy="448" r="5" fill="#cbd5e1"/>
+                <circle cx="260" cy="448" r="5" fill="#09027b"/>
+                <circle cx="324" cy="448" r="5" fill="#cbd5e1"/>
 
-                <g font-size="11" fill="#64748b">
-                    <text x="212" y="314">Customer</text>
-                    <text x="212" y="344">Charity</text>
-                    <text x="212" y="374">Merchant</text>
+                {{-- notifikasi mengambang kiri --}}
+                <g filter="url(#cta-sh2)">
+                    <rect x="14" y="150" width="184" height="58" rx="16" fill="#fff"/>
                 </g>
-                <g fill="#eef0f6">
-                    <rect x="282" y="308" width="130" height="7" rx="3.5"/>
-                    <rect x="282" y="338" width="130" height="7" rx="3.5"/>
-                    <rect x="282" y="368" width="130" height="7" rx="3.5"/>
+                <circle cx="42" cy="179" r="13" fill="#fef3c7"/>
+                <path d="M42 171.5V179l4.5 2.8" stroke="#b45309" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                <text x="64" y="175" font-size="10.5" font-weight="600" fill="#0f172a">Renews tomorrow</text>
+                <text x="64" y="190" font-size="9" fill="#64748b">Keep it or undo in one tap</text>
+
+                {{-- chip amal mengambang kanan --}}
+                <g filter="url(#cta-sh2)">
+                    <rect x="336" y="300" width="164" height="48" rx="16" fill="#fff"/>
                 </g>
-                <rect x="282" y="308" width="78" height="7" rx="3.5" fill="#09027b"/>
-                <rect x="282" y="338" width="13" height="7" rx="3.5" fill="#f59e0b"/>
-                <rect x="282" y="368" width="39" height="7" rx="3.5" fill="#10b981"/>
-                <g font-size="11" font-weight="600" fill="#0f172a" text-anchor="end">
-                    <text x="458" y="314">60%</text>
-                    <text x="458" y="344">10%</text>
-                    <text x="458" y="374">30%</text>
-                </g>
+                <circle cx="361" cy="324" r="13" fill="#fff1f2"/>
+                <path d="M361 331L354.5 324.5A3.6 3.6 0 0 1 361 320.2A3.6 3.6 0 0 1 367.5 324.5Z" fill="#f43f5e"/>
+                <text x="382" y="321" font-size="10" font-weight="600" fill="#0f172a">Charity received</text>
+                <text x="382" y="336" font-size="10" font-weight="700" fill="#059669" font-family="ui-monospace,SFMono-Regular,Menlo,monospace">+$1.20</text>
             </svg>
         </div>
     </div>
