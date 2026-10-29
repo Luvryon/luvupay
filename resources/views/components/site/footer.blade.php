@@ -17,12 +17,37 @@
 <footer class="border-t border-line bg-white">
     <div class="mx-auto grid max-w-7xl grid-cols-1 gap-10 px-5 py-14 text-sm sm:px-8 md:grid-cols-2 lg:grid-cols-[1.6fr_repeat(3,1fr)]">
 
-        {{-- Logo: always first --}}
-        <div class="order-1 md:order-none md:col-start-1 md:row-start-1">
+        {{-- Logo and description: stay together --}}
+        <div class="order-1 md:order-none">
             <a href="/" class="flex items-center gap-2.5 font-semibold tracking-tight text-ink hover:text-ink">
                 @include('partials.logo', ['size' => 28])
                 LuvuPay
             </a>
+
+            <p class="mt-4 max-w-xs leading-relaxed text-muted">
+                Ethical subscription infrastructure. One API for Second Chance, resale and audit-ready money movement
+            </p>
+
+            {{-- Social media and status: last on mobile --}}
+            <div class="hidden md:block">
+                <div class="mt-5 flex items-center gap-2.5">
+                    @foreach($socials as $s)
+                        <a href="{{ $s['href'] }}"
+                           aria-label="{{ $s['label'] }}"
+                           class="grid size-9 place-items-center rounded-full border border-line text-muted transition hover:border-brand-200 hover:bg-brand-50 hover:text-brand-700">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+                                <path d="{{ $s['path'] }}"/>
+                            </svg>
+                        </a>
+                    @endforeach
+                </div>
+
+                <p class="mt-5 inline-flex items-center gap-2 text-xs text-muted">
+                    <span class="size-2 rounded-full bg-emerald-500"></span>
+                    All systems normal
+                    <a href="/status" class="text-muted underline underline-offset-2 hover:text-ink">Status</a>
+                </p>
+            </div>
         </div>
 
         {{-- Product, Developers, Company --}}
@@ -39,13 +64,9 @@
             </div>
         @endforeach
 
-        {{-- Description, social media, status --}}
-        <div class="order-last md:order-none md:col-start-1 md:row-start-1 md:pt-11">
-            <p class="max-w-xs leading-relaxed text-muted">
-                Ethical subscription infrastructure. One API for Second Chance, resale and audit-ready money movement
-            </p>
-
-            <div class="mt-5 flex items-center gap-2.5">
+        {{-- Mobile-only social media and status --}}
+        <div class="order-last md:hidden">
+            <div class="flex items-center gap-2.5">
                 @foreach($socials as $s)
                     <a href="{{ $s['href'] }}"
                        aria-label="{{ $s['label'] }}"
@@ -77,3 +98,4 @@
         </div>
     </div>
 </footer>
+
