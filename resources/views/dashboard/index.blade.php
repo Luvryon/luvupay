@@ -39,20 +39,116 @@
     <div x-show="hasData" x-cloak style="display:none" class="stack">
 
         <section class="cols cols-wallet">
-            <div class="c-wallet">
-                <div>
-                    <p class="dim">Merchant wallet</p>
-                    <p class="amt" x-text="walletBalance">$0.00</p>
-                    <p class="dim" style="max-width:460px">Balance from settled charges (minus refunds, charity, withdrawals). </p>
+            <style>
+                /* ===== Merchant wallet: dompet kulit dengan kartu mengintip ===== */
+                .wl{--leather-1:#1b1590;--leather-2:#09027b;--leather-3:#05024a;--gold-1:#f6e3a1;--gold-2:#e0b84f;--gold-3:#a8801f;position:relative;padding-top:3rem;min-width:0}
+                .wl *{box-sizing:border-box}
+
+                /* kartu yang mengintip dari slot dompet */
+                .wl-cards{position:absolute;left:0;right:0;top:0;height:10rem;pointer-events:none}
+                .wl-card{position:absolute;top:0;width:15.5rem;max-width:62%;aspect-ratio:1.586;border-radius:14px;transition:transform .5s cubic-bezier(.2,.8,.3,1);animation:wlRise .9s cubic-bezier(.2,.8,.3,1) both}
+                .wl-c2{left:2.4rem;transform:rotate(-5deg);background:linear-gradient(135deg,#f7f3e6 0%,#e4dcc3 100%);box-shadow:0 10px 24px -12px rgba(5,2,74,.55),inset 0 0 0 1px rgba(168,128,31,.35);animation-delay:.05s}
+                .wl-c1{left:5.2rem;transform:rotate(2deg);background:linear-gradient(135deg,#6d5cf6 0%,#3d2fd0 55%,#241a9e 100%);box-shadow:0 14px 28px -12px rgba(5,2,74,.7),inset 0 0 0 1px rgba(255,255,255,.18);animation-delay:.18s;overflow:hidden}
+                .wl-c1 svg.wl-guil{position:absolute;right:-30%;top:-40%;width:90%;opacity:.5}
+                .wl-c1 .wl-chip{position:absolute;left:12px;top:30px;width:30px;height:22px}
+                .wl-c1 b{position:absolute;left:12px;top:9px;font-size:10px;font-weight:700;letter-spacing:-.01em;color:#fff}
+                .wl-c1 small{position:absolute;left:12px;top:60px;font:500 9px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.14em;color:rgba(255,255,255,.7)}
+                .wl:hover .wl-c1{transform:translateY(-12px) rotate(3deg)}
+                .wl:hover .wl-c2{transform:translateY(-6px) rotate(-8deg)}
+                @keyframes wlRise{from{opacity:0;transform:translateY(34px) rotate(0)}}
+
+                /* badan dompet */
+                .wl-body{position:relative;z-index:1;display:grid;gap:1.25rem;grid-template-columns:minmax(0,1fr);padding:1.6rem 1.6rem 1.7rem;border-radius:1.4rem;color:#fff;
+                    background-image:
+                        url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .55 0'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='.22'/></svg>"),
+                        linear-gradient(160deg,var(--leather-1) 0%,var(--leather-2) 52%,var(--leather-3) 100%);
+                    box-shadow:0 34px 50px -30px rgba(5,2,74,.75),0 2px 0 rgba(255,255,255,.14) inset,0 -10px 18px -8px rgba(0,0,0,.35) inset}
+                /* lipatan atas, tempat kartu masuk */
+                .wl-body::before{content:"";position:absolute;left:1.2rem;right:1.2rem;top:0;height:14px;border-radius:0 0 14px 14px;background:linear-gradient(180deg,rgba(0,0,0,.4),rgba(0,0,0,0));pointer-events:none}
+                /* jahitan */
+                .wl-stitch{position:absolute;inset:9px;border-radius:1.05rem;border:1.5px dashed rgba(246,227,161,.55);pointer-events:none}
+
+                .wl-main{position:relative;min-width:0}
+                .wl-label{display:flex;align-items:center;gap:.5rem;margin:0;font-size:.82rem;color:rgba(255,255,255,.7)}
+                .wl-coin{flex:none;width:22px;height:22px;transition:transform .6s cubic-bezier(.2,.8,.3,1)}
+                .wl:hover .wl-coin{transform:rotateY(360deg)}
+                .wl-amt{margin:.35rem 0 0;font-size:clamp(2.1rem,4.4vw,2.9rem);line-height:1.05;font-weight:700;letter-spacing:-.03em;color:#fff7e0;font-variant-numeric:tabular-nums;text-shadow:0 1px 0 rgba(0,0,0,.45),0 0 22px rgba(224,184,79,.28)}
+                .wl-dim{margin:.7rem 0 0;max-width:460px;font-size:.82rem;line-height:1.55;color:rgba(255,255,255,.62)}
+
+                /* kantong tempat tombol tarik dana */
+                .wl-slot{position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:.55rem;padding:.95rem 1.05rem;border-radius:1rem;background:rgba(3,1,40,.42);box-shadow:inset 0 3px 10px rgba(0,0,0,.45),0 1px 0 rgba(255,255,255,.1)}
+                .wl-slot .wl-dim{margin:0;font-size:.78rem}
+                .wl-slot strong{color:#fff;font-weight:600}
+                .wl-btn{display:inline-flex;align-items:center;justify-content:center;gap:.45rem;padding:.62rem 1.1rem;border:0;border-radius:99px;cursor:pointer;text-decoration:none;font:600 .85rem/1 inherit;color:#3b2a00;background:linear-gradient(180deg,var(--gold-1),var(--gold-2));box-shadow:0 8px 16px -8px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.7),inset 0 -2px 0 var(--gold-3);transition:transform .15s,filter .15s}
+                .wl-btn:hover:not(:disabled){transform:translateY(-1px);filter:brightness(1.05)}
+                .wl-btn:active:not(:disabled){transform:translateY(1px)}
+                .wl-btn:disabled{opacity:.5;cursor:not-allowed}
+                .wl-btn:focus-visible{outline:2px solid #fff;outline-offset:2px}
+
+                /* tali dan kancing penutup di sisi kanan */
+                .wl-strap{display:none;position:absolute;z-index:2;right:-10px;top:46%;width:3.4rem;height:2.7rem;border-radius:.5rem .9rem .9rem .5rem;
+                    background:linear-gradient(180deg,#2a22b4,#120b8c);box-shadow:0 8px 14px -6px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.2)}
+                .wl-strap::before{content:"";position:absolute;inset:4px;border-radius:.4rem .7rem .7rem .4rem;border:1.5px dashed rgba(246,227,161,.5)}
+                .wl-snap{position:absolute;left:.65rem;top:50%;width:1.25rem;height:1.25rem;margin-top:-.625rem;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff6cf,var(--gold-2) 55%,var(--gold-3));box-shadow:0 2px 4px rgba(0,0,0,.5),inset 0 -2px 3px rgba(0,0,0,.25)}
+                .wl-snap::after{content:"";position:absolute;inset:4px;border-radius:50%;border:1px solid rgba(90,60,0,.35)}
+
+                @media (min-width:700px){
+                    .wl-body{grid-template-columns:minmax(0,1fr) minmax(0,.85fr);align-items:center;padding:1.9rem 3.6rem 1.9rem 1.9rem}
+                    .wl-strap{display:block}
+                }
+                @media (prefers-reduced-motion:reduce){
+                    .wl-card{animation:none}
+                    .wl:hover .wl-c1,.wl:hover .wl-c2,.wl:hover .wl-coin{transform:none}
+                    .wl-c1{transform:rotate(2deg)}.wl-c2{transform:rotate(-5deg)}
+                }
+            </style>
+
+            <div class="wl">
+                {{-- kartu yang mengintip dari slot --}}
+                <div class="wl-cards" aria-hidden="true">
+                    <div class="wl-card wl-c2"></div>
+                    <div class="wl-card wl-c1">
+                        <svg class="wl-guil" viewBox="-100 -100 200 200" fill="none" stroke="#fff" stroke-width=".5" stroke-opacity=".5">
+                            <ellipse rx="90" ry="24"/><ellipse rx="90" ry="24" transform="rotate(30)"/><ellipse rx="90" ry="24" transform="rotate(60)"/><ellipse rx="90" ry="24" transform="rotate(90)"/><ellipse rx="90" ry="24" transform="rotate(120)"/><ellipse rx="90" ry="24" transform="rotate(150)"/><circle r="36"/>
+                        </svg>
+                        <b>LuvuPay</b>
+                        <svg class="wl-chip" viewBox="0 0 30 22" fill="none"><rect width="30" height="22" rx="4" fill="#e0b84f"/><path d="M0 8h30M0 14h30M10 0v22M20 0v22" stroke="#a8801f" stroke-width=".9"/><rect x="10" y="8" width="10" height="6" rx="1.5" fill="#f6e3a1"/></svg>
+                        <small>•••• 0048</small>
+                    </div>
                 </div>
-                <div class="act">
-                    <button type="button" class="c-btn c-btn-light" x-show="paypalConnected" x-on:click="withdrawToPayPal()" x-bind:disabled="walletWithdrawing || walletBalanceMinor <= 0"><span x-text="walletWithdrawing ? 'Sending…' : 'Withdraw to PayPal'"></span></button>
-                    <p class="dim" x-show="walletBalanceMinor > 0" x-cloak style="margin:8px 0 0;font-size:.8rem">PayPal fee <strong x-text="'−' + money(walletQuote.fee, walletCurrency)"></strong> from your wallet · you receive <strong x-text="money(walletQuote.net, walletCurrency)"></strong></p>
-                    <a href="{{ route('settings') }}" class="c-btn c-btn-light" x-show="!paypalConnected" x-cloak>Connect PayPal to withdraw</a>
-                    <span class="dim" style="color:#7ee2b8" x-show="walletBalanceMinor <= 0 && paypalConnected" x-cloak>Balance is clear. It refills on the next charge, resale, or retention</span>
-                    <span class="dim" x-show="!paypalConnected" x-cloak>Link PayPal in Settings to enable withdrawals</span>
+
+                <div class="wl-body">
+                    <span class="wl-stitch" aria-hidden="true"></span>
+
+                    <div class="wl-main">
+                        <p class="wl-label">
+                            <svg class="wl-coin" viewBox="0 0 24 24" aria-hidden="true">
+                                <circle cx="12" cy="12" r="11" fill="#a8801f"/>
+                                <circle cx="12" cy="12" r="9.6" fill="#e0b84f"/>
+                                <circle cx="12" cy="12" r="7.2" fill="none" stroke="#a8801f" stroke-width=".9" stroke-dasharray="1.6 1.4"/>
+                                <text x="12" y="16" font-size="10.5" font-weight="800" text-anchor="middle" fill="#6b4c00" font-family="ui-sans-serif,system-ui,sans-serif">$</text>
+                            </svg>
+                            Merchant wallet
+                        </p>
+                        <p class="wl-amt" x-text="walletBalance">$0.00</p>
+                        <p class="wl-dim">Balance from settled charges (minus refunds, charity, withdrawals).</p>
+                    </div>
+
+                    <div class="wl-slot">
+                        <button type="button" class="wl-btn" x-show="paypalConnected" x-on:click="withdrawToPayPal()" x-bind:disabled="walletWithdrawing || walletBalanceMinor <= 0">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+                            <span x-text="walletWithdrawing ? 'Sending…' : 'Withdraw to PayPal'"></span>
+                        </button>
+                        <p class="wl-dim" x-show="walletBalanceMinor > 0" x-cloak>PayPal fee <strong x-text="'−' + money(walletQuote.fee, walletCurrency)"></strong> from your wallet · you receive <strong x-text="money(walletQuote.net, walletCurrency)"></strong></p>
+                        <a href="{{ route('settings') }}" class="wl-btn" x-show="!paypalConnected" x-cloak>Connect PayPal to withdraw</a>
+                        <span class="wl-dim" style="color:#7ee2b8" x-show="walletBalanceMinor <= 0 && paypalConnected" x-cloak>Balance is clear. It refills on the next charge, resale, or retention</span>
+                        <span class="wl-dim" x-show="!paypalConnected" x-cloak>Link PayPal in Settings to enable withdrawals</span>
+                    </div>
+
+                    <div class="wl-strap" aria-hidden="true"><i class="wl-snap"></i></div>
                 </div>
             </div>
+
             <div class="c-card" aria-label="Insights">
                 <div class="c-head"><div><h2 class="c-title">Insights</h2><p class="c-sub">From your ledger rows</p></div></div>
                 <template x-for="(insight, idx) in aiInsights" :key="idx">
