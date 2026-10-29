@@ -13,65 +13,16 @@
         ['label' => 'LinkedIn', 'href' => '#', 'path' => 'M4.98 3.5C4.98 4.88 3.86 6 2.5 6S0 4.88 0 3.5 1.12 1 2.5 1s2.48 1.12 2.48 2.5zM.5 8.5h4V23h-4V8.5zM8.5 8.5h3.8v2h.05c.53-1 1.82-2.05 3.75-2.05 4 0 4.75 2.65 4.75 6.1V23h-4v-6.6c0-1.55-.03-3.55-2.15-3.55-2.15 0-2.48 1.68-2.48 3.45V23h-4V8.5z'],
     ];
 @endphp
+
 <footer class="border-t border-line bg-white">
     <div class="mx-auto grid max-w-7xl grid-cols-1 gap-10 px-5 py-14 text-sm sm:px-8 md:grid-cols-2 lg:grid-cols-[1.6fr_repeat(3,1fr)]">
 
-        {{-- Logo: tetap di urutan pertama --}}
-        <div class="order-1 md:order-none">
+        {{-- Logo: always first --}}
+        <div class="order-1 md:order-none md:col-start-1 md:row-start-1">
             <a href="/" class="flex items-center gap-2.5 font-semibold tracking-tight text-ink hover:text-ink">
                 @include('partials.logo', ['size' => 28])
                 LuvuPay
             </a>
-
-            {{-- Description, social media, status: terakhir di mobile --}}
-            <div class="mt-10 md:mt-0 md:hidden">
-                <p class="max-w-xs leading-relaxed text-muted">
-                    Ethical subscription infrastructure. One API for Second Chance, resale and audit-ready money movement
-                </p>
-
-                <div class="mt-5 flex items-center gap-2.5">
-                    @foreach($socials as $s)
-                        <a href="{{ $s['href'] }}"
-                           aria-label="{{ $s['label'] }}"
-                           class="grid size-9 place-items-center rounded-full border border-line text-muted transition hover:border-brand-200 hover:bg-brand-50 hover:text-brand-700">
-                            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
-                                <path d="{{ $s['path'] }}"/>
-                            </svg>
-                        </a>
-                    @endforeach
-                </div>
-
-                <p class="mt-5 inline-flex items-center gap-2 text-xs text-muted">
-                    <span class="size-2 rounded-full bg-emerald-500"></span>
-                    All systems normal
-                    <a href="/status" class="text-muted underline underline-offset-2 hover:text-ink">Status</a>
-                </p>
-            </div>
-
-            {{-- Description, social media, status: original position on tablet/desktop --}}
-            <div class="hidden md:block">
-                <p class="mt-4 max-w-xs leading-relaxed text-muted">
-                    Ethical subscription infrastructure. One API for Second Chance, resale and audit-ready money movement
-                </p>
-
-                <div class="mt-5 flex items-center gap-2.5">
-                    @foreach($socials as $s)
-                        <a href="{{ $s['href'] }}"
-                           aria-label="{{ $s['label'] }}"
-                           class="grid size-9 place-items-center rounded-full border border-line text-muted transition hover:border-brand-200 hover:bg-brand-50 hover:text-brand-700">
-                            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
-                                <path d="{{ $s['path'] }}"/>
-                            </svg>
-                        </a>
-                    @endforeach
-                </div>
-
-                <p class="mt-5 inline-flex items-center gap-2 text-xs text-muted">
-                    <span class="size-2 rounded-full bg-emerald-500"></span>
-                    All systems normal
-                    <a href="/status" class="text-muted underline underline-offset-2 hover:text-ink">Status</a>
-                </p>
-            </div>
         </div>
 
         {{-- Product, Developers, Company --}}
@@ -88,8 +39,8 @@
             </div>
         @endforeach
 
-        {{-- Mobile-only: description, social media, and status at the very bottom --}}
-        <div class="order-last md:hidden">
+        {{-- Description, social media, status --}}
+        <div class="order-last md:order-none md:col-start-1 md:row-start-1 md:pt-11">
             <p class="max-w-xs leading-relaxed text-muted">
                 Ethical subscription infrastructure. One API for Second Chance, resale and audit-ready money movement
             </p>
