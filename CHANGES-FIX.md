@@ -64,3 +64,24 @@ Wallet = charges − partial refunds − charity − withdrawals + resale fees.
 
 **Sandbox checklist**: .env -> `LUVUPAY_PAYMENT_DRIVER=paypal`, `PAYPAL_MODE=sandbox`, Client ID/Secret of a sandbox REST app; pay with a sandbox **personal** account (not the business one). The money appears in the **business** account that owns that REST app. Subscriptions must be enabled for the app (default on for sandbox apps).
 
+
+
+# Round 5 (31 Oct 2026): New Subscription Checkout bug sweep ("Transaction not found." etc.)
+
+**Root causes**
+- **"Transaction not found."** The dashboard added the *pending* checkout row to the grid and selected it. When the checkout was cancelled / the popup closed / the 30-min purge ran, the server deleted that row but the browser kept `selectedId` (and `patchRow` even re-created a row with the stale id), so the next action (`forgot`, `decision`, `resale`, negotiator, receipt...) hit a deleted transaction. Also, `checkout/{tx}/status` could 404 from `formatRow()` when a concurrent request discarded the row between the ownership check and the read.
+- **Invoice + emails never sent when the PayPal webhook won the race** against the return URL: `PendingCheckoutActivator` flipped the row to `completed` without invoice/email, and `settle()` then saw `completed` and skipped them forever. The activator also wrote lifecycle `Settled` instead of `ACTIVE`.
+- **Random 429 during payment**: the status poll shared the 30/min bucket (`dashboard96`) with every other demo action, and was also counted by the 120/min limiter in `EnsureDemoSimulator`.
+- **Next subscriber's popup got blocked**: after paying subscriber #1 the code auto-opened the next popup outside a click, so browsers blocked it and forced a full-page redirect.
+- Re-using an old pending checkout for the same email returned its old approval link without asking PayPal (could be dead, or already paid).
+- Declined payments left a ghost `pending` row; the popup page referenced a non-existent `/images/logo-mark.png`.
+
+**Fixes**
+- New `App\Services\Checkout\CheckoutFinalizer`: invoice + outbound delivery + subscriber receipt + merchant notice, **exactly once** (atomic cache lock + `checkout_finalized_at` marker). Called by mock checkout, the return/poll path, and the webhook activator.
+- `DemoCheckoutController`: status never 404s (`safeRow`), returns `removed_id` when a row is gone; hard declines discard the pending row; an existing pending checkout is re-verified with PayPal before its link is reused (`409 already_paid` if it was paid).
+- Status route has its own bucket (`throttle:240,1,dashboard97`) and is not counted by the demo limiter.
+- `dashboard.js`: `removeRow()` / `pruneSelection()` (selection can never point at a deleted row, also after `load()`), `sim()` self-heals on a 404 "Transaction not found" (refresh + friendly toast), no more auto-popup for the next subscriber (click "Continue with next subscriber"), pending rows no longer counted as subscribers in the local KPI.
+- Storage placeholders (`storage/framework/{views,cache/data,sessions}`) now ship, so a fresh deploy does not crash with "Please provide a valid cache path".
+- `phpunit.xml` now carries a valid test env (sqlite in memory, APP_KEY, mock driver). New `tests/Feature/CheckoutFlowTest.php` (6 tests): mock checkout, webhook-vs-return race, vanished checkout, tenant isolation, cancel, paypal-without-credentials.
+
+No migration needed. After deploy: `php artisan config:clear && php artisan route:clear`.

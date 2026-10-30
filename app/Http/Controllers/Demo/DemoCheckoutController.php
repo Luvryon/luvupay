@@ -3,8 +3,7 @@
 namespace App\Http\Controllers\Demo;
 
 use App\Http\Controllers\Demo\Concerns\DemoSupport;
-use App\Mail\PlainHtmlMail;
-use App\Services\Billing\InvoiceIssuer;
+use App\Services\Checkout\CheckoutFinalizer;
 use App\Services\PayPal\PayPalClient;
 use App\Support\MerchantProject;
 use App\Support\Money;
@@ -13,7 +12,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
@@ -97,13 +95,27 @@ final class DemoCheckoutController
         $this->purgeAbandoned($merchantId);
 
         // Prevent double pending checkouts for the same email (double-click / multi-select same user)
-        $existingPending = DB::table('transactions')
+        $findPending = fn () => DB::table('transactions')
             ->where('merchant_id', $merchantId)
             ->where('email', $email)
             ->where('type', 'charge')
             ->where('status', 'pending')
             ->orderByDesc('created_at')
             ->first();
+        $existingPending = $findPending();
+        if ($existingPending && $live) {
+            // The earlier attempt may have been paid (or dropped) in the meantime: ask PayPal before reusing its link.
+            $check = $this->settle($merchantId, (string) $existingPending->id, null, null);
+            if (($check['state'] ?? '') === 'captured') {
+                return response()->json([
+                    'ok' => false,
+                    'error' => 'already_paid',
+                    'message' => 'This subscriber has already paid. Use a different email to create another subscription.',
+                    'row' => $this->formatRow((string) $existingPending->id),
+                ], 409);
+            }
+            $existingPending = $findPending();   // settle() may have discarded a dead attempt
+        }
         if ($existingPending && $live) {
             $metaExisting = json_decode($existingPending->metadata ?? '{}', true) ?: [];
             $approve = $metaExisting['approve_url'] ?? null;
@@ -205,11 +217,7 @@ final class DemoCheckoutController
             $this->logWebhookEvent('paypal', 'BILLING.SUBSCRIPTION.ACTIVATED', ['id' => 'I-MOCK', 'status' => 'ACTIVE', 'custom_id' => $txId, 'mock' => true]);
             $this->logWebhookEvent('luvupay', 'subscription.activated', ['transaction_id' => $txId, 'email' => $email]);
 
-            $invoice = $this->ensureInvoice($merchantId, $txId, $name, $product);
-            $this->recordOutboundDelivery($merchantId, 'subscription.activated', [
-                'transaction_id' => $txId, 'subscription_id' => $subId, 'email' => $email, 'invoice_number' => $invoice['invoice_number'] ?? null,
-            ], success: true);
-            $mail = $this->safeEmails($merchantId, $email, $name, $product, $amountMinor, $currency, $ref, $txId);
+            $mail = app(CheckoutFinalizer::class)->finalize($merchantId, $txId);
 
             return $this->doneResponse($txId, 'mock', $name, $email, $product, $trust, $churn, $mail, 201);
         }
@@ -296,21 +304,25 @@ final class DemoCheckoutController
         $merchantId = $this->merchantId($request);
         $row = $this->ownedTx($merchantId, $tx);
         if (! $row) {
-            return response()->json(['ok' => true, 'state' => 'gone', 'message' => 'Checkout was cancelled or expired']);
+            return response()->json(['ok' => true, 'state' => 'gone', 'removed_id' => $tx, 'message' => 'Checkout was cancelled or expired', 'row' => null]);
         }
-        $result = $row->status === 'completed'
-            ? ['state' => 'captured', 'message' => 'Payment confirmed']
-            : $this->settle($merchantId, $tx, null, null);
+        $result = $this->settle($merchantId, $tx, null, null);
 
         // The popup was closed and the buyer never approved: nothing was paid, drop the pending rows.
         if ($request->boolean('abandon') && ($result['state'] ?? '') === 'processing' && ! empty($result['awaiting_buyer'])) {
             $this->logWebhookEvent('paypal', 'CHECKOUT.ORDER.CANCELLED', ['transaction_id' => $tx, 'reason' => 'popup_closed'], 'failed');
             $this->discard($merchantId, $tx);
 
-            return response()->json(['ok' => true, 'state' => 'cancelled', 'message' => 'Checkout cancelled, no money moved', 'row' => null]);
+            return response()->json(['ok' => true, 'state' => 'cancelled', 'removed_id' => $tx, 'message' => 'Checkout cancelled, no money moved', 'row' => null]);
         }
 
-        return response()->json(['ok' => true] + $result + ['row' => $this->ownedTx($merchantId, $tx) ? $this->formatRow($tx) : null]);
+        // settle()/fail() or a concurrent request may have discarded the row meanwhile: never 404 from a status poll.
+        $formatted = $this->safeRow($tx);
+
+        return response()->json(['ok' => true] + $result + [
+            'row' => $formatted,
+            'removed_id' => $formatted ? null : $tx,
+        ]);
     }
 
     // ------------------------------------------------------------------ settle (idempotent)
@@ -327,6 +339,9 @@ final class DemoCheckoutController
             return ['state' => 'not_found', 'message' => 'Checkout not found for this merchant'];
         }
         if ($row->status === 'completed') {
+            // The PayPal webhook may have activated it first: make sure invoice + emails still go out (once).
+            app(CheckoutFinalizer::class)->finalize($merchantId, $txId);
+
             return ['state' => 'captured', 'message' => 'Payment already confirmed'];
         }
         if ($row->status !== 'pending') {
@@ -465,7 +480,6 @@ final class DemoCheckoutController
             // Soft-fail: almost every capture race/API glitch is still recoverable while the order is open.
             // Only hard-fail on explicit buyer/instrument declines.
             $hardFail = (bool) preg_match('/INSTRUMENT_DECLINED|PAYER_CANNOT_PAY|PAYMENT_DENIED|CARD_GENERIC_ERROR|INVALID_RESOURCE_ID|ORDER_NOT_APPROVED|PERMISSION_DENIED|UNAUTHORIZED/i', $err);
-            $transient = ! $hardFail || (bool) preg_match('/timeout|timed out|temporarily|rate limit|429|503|502|connection|network|already.?captured|ORDER_ALREADY_CAPTURED|RESOURCE_CONFLICT|UNPROCESSABLE|INTERNAL_SERVER_ERROR|CANNOT_BE_CAPTURED/i', $err);
 
             if (! $hardFail) {
                 $this->logWebhookEvent('paypal', 'PAYMENT.CAPTURE.PENDING', ['transaction_id' => $txId, 'error' => $err], 'pending');
@@ -474,6 +488,7 @@ final class DemoCheckoutController
             }
 
             $this->logWebhookEvent('paypal', 'PAYMENT.CAPTURE.FAILED', ['transaction_id' => $txId, 'error' => $err], 'failed');
+            $this->discard($merchantId, $txId);   // declined: nothing was paid, do not leave a ghost row behind
 
             return ['state' => 'failed', 'message' => 'Could not confirm the payment with PayPal', 'error' => Str::limit($err, 160)];
         }
@@ -518,8 +533,6 @@ final class DemoCheckoutController
             DB::table('subscriptions')->where('id', $row->subscription_id)->update($subUpdate);
         }
 
-        $name = (string) ($meta['display_name'] ?? 'Customer');
-        $product = (string) ($meta['product'] ?? MerchantProject::current()->product());
         $this->logWebhookEvent('paypal', 'BILLING.SUBSCRIPTION.ACTIVATED', [
             'transaction_id' => $row->id, 'subscription_id' => $row->subscription_id, 'status' => 'ACTIVE', 'reference' => $info['reference'] ?? null,
         ]);
@@ -527,12 +540,8 @@ final class DemoCheckoutController
             'transaction_id' => $row->id, 'email' => $row->email, 'funds' => 'deposited_to_paypal_sandbox_business',
         ]);
 
-        // Invoice + emails only now that the money is really in.
-        $invoice = $this->ensureInvoice($merchantId, (string) $row->id, $name, $product);
-        $this->recordOutboundDelivery($merchantId, 'subscription.activated', [
-            'transaction_id' => $row->id, 'subscription_id' => $row->subscription_id, 'email' => $row->email, 'invoice_number' => $invoice['invoice_number'] ?? null,
-        ], success: true);
-        $this->safeEmails($merchantId, (string) $row->email, $name, $product, (int) $row->amount_minor, trim((string) $row->currency), (string) ($info['reference'] ?? $row->provider_reference), (string) $row->id);
+        // Invoice + emails only now that the money is really in (once, shared with the webhook path).
+        app(CheckoutFinalizer::class)->finalize($merchantId, (string) $row->id);
     }
 
     private function fail(string $merchantId, string $txId, string $why): array
@@ -681,6 +690,16 @@ final class DemoCheckoutController
             && trim((string) config('services.paypal.secret', '')) !== '';
     }
 
+    /** formatRow() that returns null instead of aborting with a 404 when the row has just been discarded. */
+    private function safeRow(string $txId): ?array
+    {
+        try {
+            return $this->formatRow($txId);
+        } catch (HttpExceptionInterface $e) {
+            return null;
+        }
+    }
+
     private function ownedTx(string $merchantId, string $txId): ?object
     {
         if (! preg_match('/^[0-9a-f-]{36}$/i', $txId)) {
@@ -728,34 +747,6 @@ final class DemoCheckoutController
                 }
             }
         } catch (\Throwable $e) {
-        }
-    }
-
-    /** @return array{id:string,invoice_number:string}|array{} */
-    private function ensureInvoice(string $merchantId, string $txId, string $name, string $product): array
-    {
-        try {
-            $existing = DB::table('invoices')->where('transaction_id', $txId)->first();
-            if ($existing) {
-                return ['id' => $existing->id, 'invoice_number' => $existing->invoice_number];
-            }
-            $tx = DB::table('transactions')->where('id', $txId)->first();
-
-            return app(InvoiceIssuer::class)->issueForTransaction($merchantId, $tx, ['customer_name' => $name, 'product' => $product]);
-        } catch (\Throwable $e) {
-            Log::warning('demo.checkout.invoice_failed', ['tx' => $txId, 'err' => $e->getMessage()]);
-
-            return [];
-        }
-    }
-
-    /** @return array{user_sent:bool,merchant_sent:bool,error:?string} */
-    private function safeEmails(string $merchantId, string $email, string $name, string $product, int $amountMinor, string $currency, string $ref, string $txId): array
-    {
-        try {
-            return $this->sendCheckoutEmails($merchantId, $email, $name, $product, $amountMinor, $currency, $ref, $txId);
-        } catch (\Throwable $e) {
-            return ['user_sent' => false, 'merchant_sent' => false, 'error' => $e->getMessage()];
         }
     }
 
@@ -811,114 +802,5 @@ final class DemoCheckoutController
         };
 
         return redirect('/dashboard?'.$qs.($txId !== '' ? '&tx='.urlencode($txId) : ''));
-    }
-
-    /**
-     * @return array{user_sent:bool,merchant_sent:bool,error:?string}
-     */
-    private function sendCheckoutEmails(
-        string $merchantId,
-        string $userEmail,
-        string $userName,
-        string $product,
-        int $amountMinor,
-        string $currency,
-        string $paypalRef,
-        string $txId,
-    ): array {
-        $userSent = false;
-        $merchantSent = false;
-        $error = null;
-        $amountLabel = number_format($amountMinor / 100, 2).' '.$currency;
-        // Merchant branding for invoice email
-        $merchantRow = DB::table('merchants')->where('id', $merchantId)->first(['id', 'name', 'logo_path', 'email']);
-        $merchantBrand = $merchantRow->name ?? 'Merchant';
-        $logoUrl = null;
-        if (! empty($merchantRow->logo_path)) {
-            $logoUrl = \App\Support\MerchantBranding::logoUrl($merchantRow);
-        }
-        $logoHtml = $logoUrl
-            ? '<img src="'.e($logoUrl).'" alt="'.e($merchantBrand).'" width="120" style="display:block;max-width:120px;height:auto;margin:0 auto 12px;border:0" />'
-            : '';
-        $invNum = null;
-        try {
-            $invNum = DB::table('invoices')->where('transaction_id', $txId)->value('invoice_number');
-        } catch (\Throwable $e) {
-        }
-
-        // Subscriber receipt: invoice inline (Bookipi-style) + PDF attached, merchant logo from Settings.
-        $res = \App\Services\Billing\InvoiceMailer::sendForTransaction($txId, 'subscription', $userEmail);
-        $userSent = $res['sent'];
-        $error = $res['error'];
-        $this->logWebhookEvent('luvupay', $userSent ? 'email.user_confirmation_sent' : 'email.user_confirmation_failed', [
-            'to' => $userEmail,
-            'transaction_id' => $txId,
-            'invoice_attached' => $userSent,
-            'error' => $error,
-        ], $userSent ? 'processed' : 'failed');
-
-        // Escape values for the merchant notification HTML body
-        $safeName = e($userName);
-        $safeEmail = e($userEmail);
-        $safeProduct = e($product);
-        $safeAmount = e($amountLabel);
-        $safePaypal = e($paypalRef);
-        $safeInv = $invNum ? e((string) $invNum) : null;
-
-        try {
-            $merchant = DB::table('merchants')->where('id', $merchantId)->first();
-            $merchantEmail = is_object($merchant) ? trim((string) ($merchant->email ?? '')) : '';
-            if ($merchantEmail !== '') {
-                $mHtml = <<<HTML
-<!DOCTYPE html>
-<html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#0f172a;font-family:Inter,Segoe UI,system-ui,sans-serif">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="padding:32px 16px">
-    <tr><td align="center">
-      <table role="presentation" width="100%" style="max-width:560px;background:#111827;border:1px solid #1e293b;border-radius:16px;overflow:hidden">
-        <tr><td style="padding:24px 28px;background:#0f172a;border-bottom:1px solid #1e293b">
-          <p style="margin:0;font-size:12px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:#a78bfa">Merchant notification</p>
-          <h1 style="margin:6px 0 0;font-size:20px;color:#fff">New subscription</h1>
-        </td></tr>
-        <tr><td style="padding:28px;color:#e2e8f0">
-          <p style="margin:0 0 16px;font-size:15px;line-height:1.6">
-            Customer <strong style="color:#fff">{$safeName}</strong>
-            (<a href="mailto:{$safeEmail}" style="color:#a78bfa;text-decoration:none">{$safeEmail}</a>)
-            activated <strong style="color:#fff">{$safeProduct}</strong> for <strong style="color:#34d399">{$safeAmount}</strong>.
-          </p>
-          <p style="margin:0;font-size:13px;color:#94a3b8;font-family:ui-monospace,monospace">
-            PayPal ref: {$safePaypal}
-          </p>
-        </td></tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>
-HTML;
-                if ($safeInv) {
-                    $mHtml = str_replace('PayPal ref: '.$safePaypal, 'PayPal ref: '.$safePaypal.' · Invoice '.$safeInv, $mHtml);
-                }
-                Mail::to($merchantEmail)->sendNow(new PlainHtmlMail(
-                    'New subscription: '.$product,
-                    $mHtml
-                ));
-                $merchantSent = true;
-                $this->logWebhookEvent('luvupay', 'email.merchant_notification_sent', [
-                    'to' => $merchantEmail,
-                    'transaction_id' => $txId,
-                ]);
-            }
-        } catch (\Throwable $e) {
-            $error = $error ?: $e->getMessage();
-            Log::warning('demo.checkout.merchant_email_failed', ['err' => $e->getMessage()]);
-        }
-
-        return [
-            'user_sent' => $userSent,
-            'merchant_sent' => $merchantSent,
-            'error' => $error,
-        ];
     }
 }

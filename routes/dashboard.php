@@ -99,9 +99,15 @@ Route::middleware($console)->group(function () {
     Route::get('/dashboard/paypal/return', [DemoCheckoutController::class, 'paypalReturn'])->middleware('demo.simulator')->name('dashboard.paypal.return');
     Route::get('/dashboard/paypal/cancel', [DemoCheckoutController::class, 'paypalCancel'])->middleware('demo.simulator')->name('dashboard.paypal.cancel');
 
+    // Status polling gets its OWN bucket: the checkout popup watcher polls every few seconds and must never
+    // eat the 30/min budget of the action routes below (that produced random 429s mid-payment).
+    Route::get('/api/v1/dashboard/demo/checkout/{tx}/status', [DemoCheckoutController::class, 'checkoutStatus'])
+        ->whereUuid('tx')
+        ->middleware(['demo.simulator', 'throttle:240,1,dashboard97'])
+        ->name('dashboard.demo.checkout.status');
+
     Route::prefix('api/v1/dashboard/demo')->name('dashboard.demo.')->middleware(['demo.simulator', 'throttle:30,1,dashboard96'])->group(function () {
         Route::post('checkout', [DemoCheckoutController::class, 'simulateCheckout'])->name('checkout');
-        Route::get('checkout/{tx}/status', [DemoCheckoutController::class, 'checkoutStatus'])->whereUuid('tx')->name('checkout.status');
         Route::post('simulate-month', DemoMonthController::class)->name('simulate-month');
         Route::post('forgot', [DemoLifecycleController::class, 'simulateForgot'])->name('forgot');
         Route::post('decision', [DemoLifecycleController::class, 'decision'])->name('decision');

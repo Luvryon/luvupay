@@ -56,7 +56,7 @@ final class PendingCheckoutActivator
 
         $now = now();
         $meta = json_decode($tx->metadata ?? '{}', true) ?: [];
-        $meta['lifecycle'] = 'Settled';
+        $meta['lifecycle'] = 'ACTIVE';
         $meta['awaiting_paypal'] = false;
         $meta['paypal_confirmed_at'] = $now->toIso8601String();
         $meta['activated_by'] = 'paypal_webhook';
@@ -99,6 +99,13 @@ final class PendingCheckoutActivator
             'subscription_id' => $tx->subscription_id,
             'reference' => $reference,
         ]);
+
+        // Webhook won the race against the return URL: invoice + emails must still go out (once).
+        try {
+            app(CheckoutFinalizer::class)->finalize((string) $tx->merchant_id, (string) $tx->id);
+        } catch (\Throwable $e) {
+            Log::warning('luvupay.webhook.finalize_failed', ['transaction_id' => $tx->id, 'err' => $e->getMessage()]);
+        }
 
         return true;
     }

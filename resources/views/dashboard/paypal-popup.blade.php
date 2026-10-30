@@ -35,7 +35,7 @@
 @endphp
 <main class="card" id="lp-popup-result"
       data-state="{{ $state }}" data-tx="{{ $tx }}" data-message="{{ $message }}" data-error="{{ $error }}">
-    <img class="logo" src="/images/logo-mark.png" alt="LuvuPay" width="28" height="28">
+    <img class="logo" src="/images/logo-mark.webp" alt="LuvuPay" width="28" height="28">
     <div class="icon {{ $cls }}" aria-hidden="true">{{ $glyph }}</div>
     <h1>{{ $title }}</h1>
     <p>{{ $message }}</p>

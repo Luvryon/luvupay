@@ -50,7 +50,10 @@ final class EnsureDemoSimulator
         if (RateLimiter::tooManyAttempts($key, 120)) {
             return response()->json(['error' => 'rate_limited', 'message' => 'Demo simulator rate limit exceeded'], 429);
         }
-        RateLimiter::hit($key, 60);
+        // Read-only status polling is throttled by its own route bucket; don't count it against the action budget.
+        if (! $request->routeIs('dashboard.demo.checkout.status')) {
+            RateLimiter::hit($key, 60);
+        }
 
         Log::info('demo.simulator.hit', [
             'path' => $request->path(),

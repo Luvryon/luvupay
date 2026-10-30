@@ -575,6 +575,7 @@
           this.resaleRows = (r[2].data && r[2].data.data) || r[2].data || [];
           // Never auto-inject fake rows - only real API data
           this.hasData = !!(this.rowData && this.rowData.length);
+          this.pruneSelection();
           if (r[3].ok && r[3].data && r[3].data.limit != null) this.usage = r[3].data;
 
           this.applySummary(summary);
@@ -683,6 +684,25 @@
         };
       },
 
+      /** Forget a row the server no longer has (cancelled / expired / declined checkout). Prevents "Transaction not found." later. */
+      removeRow: function (id) {
+        if (!id) return;
+        this.rowData = (this.rowData || []).filter(function (r) { return r.id !== id; });
+        var g = this.grids && this.grids.tx;
+        if (g) { try { g.applyTransaction({ remove: [{ id: id }] }); } catch (e) { /* grid destroyed */ } }
+        if (this.selectedId === id) { this.selectedId = null; this.selectedLifecycle = null; }
+        if (window.__luvuNegotiatorTx === id) window.__luvuNegotiatorTx = null;
+        this.recalcKpiLocal();
+      },
+
+      /** After a reload: selection / negotiator target must point at a row that still exists. */
+      pruneSelection: function () {
+        var ids = {};
+        (this.rowData || []).forEach(function (r) { ids[r.id] = true; });
+        if (this.selectedId && !ids[this.selectedId]) { this.selectedId = null; this.selectedLifecycle = null; }
+        if (window.__luvuNegotiatorTx && !ids[window.__luvuNegotiatorTx]) window.__luvuNegotiatorTx = null;
+      },
+
       applyRow: function (row, isNew) {
         if (!row || !row.id) return;
         row.lifecycle = normalizeLifecycle(row.lifecycle);
@@ -710,7 +730,7 @@
         }).length;
         this.kpi.chargebacks = String(wins);
         var charges = this.rowData.filter(function (t) {
-          return String(t.type).toLowerCase() === 'charge';
+          return String(t.type).toLowerCase() === 'charge' && String(t.status || '').toLowerCase() !== 'pending';
         }).length;
         this.kpi.subscriptions = String(charges || this.rowData.length);
         var resaleVolume = this.rowData
@@ -832,6 +852,13 @@ pushToast: function (message, icon) {
           var res = await request('POST', 'demo/' + path, body || {});
           this.simMsgOk = res.ok;
           this.simMsg = res.ok ? (res.data.message || 'Done') : (res.data.message || res.data.error || ('HTTP ' + res.status));
+          if (!res.ok && res.status === 404 && /transaction not found/i.test(String(res.data.message || ''))) {
+            // The row was removed on the server (cancelled / expired checkout). Resync instead of showing a dead-end error.
+            this.selectedId = null; this.selectedLifecycle = null;
+            this.pushToast('That row no longer exists (the checkout was cancelled or expired). The list was refreshed.', '⚠️');
+            this.load();
+            return null;
+          }
           if (!res.ok) {
             var err = res.data.message || res.data.error || ('HTTP ' + res.status);
             // Prefer a single friendly toast for missing PayPal link
@@ -1051,8 +1078,9 @@ pushToast: function (message, icon) {
         await this.load();
 
         if (res.state === 'captured' && rest && rest.length) {
-          this.pushToast('Paid ' + row.email + ' · next subscriber…', 'ok');
-          await this._checkoutPaypalOne(rest[0], rest.slice(1));
+          // Do NOT open the next popup here: window.open outside a user click is blocked and would force a full-page
+          // redirect. The CTA now reads "Continue with next subscriber"; the click opens the next popup.
+          this.pushToast('Paid ' + row.email + '. Click "Continue with next subscriber" for the next one.', 'ok');
           return;
         }
         if (res.state === 'captured') {
@@ -1144,6 +1172,7 @@ pushToast: function (message, icon) {
           }, 4000);
         } else if (res.state === 'cancelled' || res.state === 'gone') {
           row.status = 'idle'; row.note = 'Cancelled on PayPal, nothing was charged';
+          this.removeRow(res.removed_id || row.txId);
           this.pushToast('PayPal checkout cancelled. No money moved', '⚠️');
         } else {
           var soft = /could not confirm|still confirming|pending|timeout|network/i.test(String(res.message || res.error || ''));
@@ -1167,6 +1196,7 @@ pushToast: function (message, icon) {
             }, 2000);
           } else {
             row.status = 'failed'; row.note = res.message || 'Payment failed';
+            if (res.removed_id) this.removeRow(res.removed_id);
             this.pushToast(row.note, 'err');
           }
         }
@@ -1379,7 +1409,7 @@ pushToast: function (message, icon) {
       patchRow: function (lifecycle, status) {
         var row = this.rowData.find(function (r) { return r.id === this.selectedId; }.bind(this));
         var next = Object.assign({
-          id: this.selectedId || ('local-' + Date.now()), created_at: new Date().toISOString(), email: 'sarah.j@example.com',
+          id: row ? row.id : ('local-' + Date.now()), created_at: new Date().toISOString(), email: 'sarah.j@example.com',
           display_name: this.decisionCustomer, amount_minor: PROJECT.price_minor, currency: PROJECT.currency, type: 'Charge',
           product: PROJECT.product, trust_score: 100, churn_risk: 'high',
         }, row || {}, { lifecycle: normalizeLifecycle(lifecycle), status: status });
