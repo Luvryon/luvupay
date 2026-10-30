@@ -111,29 +111,32 @@
                             </div>
 
                             {{-- Feature 4: AI Negotiator Chat --}}
-                            <div x-show="phoneTab === 'chat' && phoneView !== 'done'" x-cloak class="flex flex-col gap-2 h-full">
-                                <div class="flex-1 space-y-2 overflow-y-auto pr-1">
-                                    <div class="bg-slate-100 rounded-lg p-2 text-xs text-slate-700 max-w-[80%]">
-                                        Hi <span x-text="journey.first || 'there'"></span>, payment failed. How can we help?
-                                    </div>
-                                    <div class="bg-indigo-600 text-white rounded-lg p-2 text-xs max-w-[80%] ml-auto">
-                                        I'm short on cash, can I pay half?
-                                    </div>
-                                    <div class="bg-slate-100 rounded-lg p-2 text-xs text-slate-700 max-w-[85%]">
-                                        Sure! I can split it: <strong>$25 now, $25 next week</strong>. Or I can refund <strong>$47.50</strong> safely. Which do you prefer?
-                                    </div>
-                                    <div class="bg-slate-100 rounded-lg p-2 text-xs text-slate-700 max-w-[85%] border border-indigo-100">
-                                        <span class="text-[10px] font-semibold text-indigo-600 uppercase tracking-wide">AI offer</span>
-                                        <p class="mt-1">Micro-payment keeps access active. Safe refund caps at amount − PayPal fee so your sandbox balance never goes negative</p>
-                                    </div>
+                            <div x-show="phoneTab === 'chat' && phoneView !== 'done'" x-cloak class="flex flex-col gap-2 h-full min-h-[200px]">
+                                <div class="flex-1 space-y-2 overflow-y-auto pr-1 max-h-52">
+                                    <template x-for="(m, i) in journeyChatMessages" :key="i">
+                                        <div class="flex" x-bind:class="m.role === 'user' ? 'justify-end' : 'justify-start'">
+                                            <div class="rounded-lg p-2 text-xs max-w-[85%] leading-relaxed"
+                                                 x-bind:class="m.role === 'user' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-700'"
+                                                 x-text="m.content"></div>
+                                        </div>
+                                    </template>
+                                    <div x-show="journeyChatThinking" class="text-[10px] text-slate-400">AI is thinking…</div>
                                 </div>
-                                <div class="pt-2 border-t border-slate-100 mt-auto">
+                                <div class="flex flex-wrap gap-1 pt-1">
+                                    <button type="button" class="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] text-slate-600" x-on:click="sendJourneyChat('[option:split_half] Pay half now, half next week')">Split</button>
+                                    <button type="button" class="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] text-slate-600" x-on:click="sendJourneyChat('[option:resale] Resale')">Resale</button>
+                                    <button type="button" class="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] text-slate-600" x-on:click="sendJourneyChat('[option:safe_refund] Safe refund')">Refund</button>
+                                    <button type="button" class="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] text-slate-600" x-on:click="sendJourneyChat('[option:pay_full] Pay full')">Pay full</button>
+                                </div>
+                                <form class="pt-1 border-t border-slate-100 mt-auto flex gap-1" x-on:submit.prevent="sendJourneyChat(journeyChatInput)">
                                     <input type="text"
+                                           x-model="journeyChatInput"
                                            placeholder="Type a message…"
-                                           class="w-full bg-white border border-slate-200 rounded-full px-3 py-1.5 text-[10px] text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                                           disabled
-                                           aria-label="Chat input (demo)">
-                                </div>
+                                           class="flex-1 bg-white border border-slate-200 rounded-full px-3 py-1.5 text-[10px] text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                                           x-bind:disabled="journeyChatThinking"
+                                           aria-label="Chat with AI">
+                                    <button type="submit" class="rounded-full bg-indigo-600 text-white px-3 py-1 text-[10px] font-semibold disabled:opacity-40" x-bind:disabled="journeyChatThinking || !(journeyChatInput || '').trim()">Send</button>
+                                </form>
                             </div>
 
                             {{-- Done state --}}

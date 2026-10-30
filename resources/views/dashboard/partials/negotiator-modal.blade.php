@@ -24,7 +24,7 @@
         <div class="mt-3 flex flex-wrap gap-2" x-show="options.length">
             <template x-for="opt in options" :key="opt.id">
                 <button type="button" class="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-700 hover:border-indigo-300 hover:bg-indigo-50"
-                        x-on:click="send(opt.label)" x-text="opt.label"></button>
+                        x-on:click="send('[option:' + opt.id + '] ' + opt.label)" x-text="opt.label"></button>
             </template>
         </div>
 

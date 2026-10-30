@@ -51,7 +51,7 @@ final class MerchantMetrics
             $day = $created->toDateString();
             $meta = json_decode($r->metadata ?? '{}', true) ?: [];
             $amt = abs((int) $r->amount_minor);
-            $done = in_array($r->status, ['completed', 'settled'], true);
+            $done = in_array($r->status, ['completed', 'settled', 'held'], true); // held = grace; funds still captured
 
             $this->apply($all, $r, $meta, $amt, $done);
             if ($inRange) {

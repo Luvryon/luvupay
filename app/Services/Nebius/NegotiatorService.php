@@ -7,8 +7,8 @@ use Illuminate\Support\Facades\Log;
 use Throwable;
 
 /**
- * Two-way retention negotiator. Uses Nebius when configured; otherwise a safe local policy engine.
- * Never invents refunds above the safe max; always offers merchant-approved style options.
+ * Two-way retention negotiator. Option clicks get deterministic replies;
+ * free-text can use Nebius when configured.
  */
 final class NegotiatorService
 {
@@ -19,7 +19,7 @@ final class NegotiatorService
 
     /**
      * @param  list<array{role:string,content:string}>  $history
-     * @param  array{name?:string,email?:string,amount_minor?:int,currency?:string,product?:string,loyalty_months?:int,fraud_risk?:string}  $ctx
+     * @param  array{name?:string,email?:string,amount_minor?:int,currency?:string,product?:string,loyalty_months?:int,fraud_risk?:string,merchant_id?:string}  $ctx
      * @return array{reply:string,options:list<array{id:string,label:string}>,tone:string,safe_refund:array,thinking_ms:int}
      */
     public function turn(array $history, array $ctx): array
@@ -33,38 +33,47 @@ final class NegotiatorService
         $split = $this->offers->microPaymentSplit($amount, $currency);
 
         $options = [
-            ['id' => 'split_half', 'label' => $split['options'][0]['label']],
+            ['id' => 'split_half', 'label' => $split['options'][0]['label'] ?? 'Pay half now, half next week'],
             ['id' => 'resale', 'label' => 'List remaining access on marketplace'],
             ['id' => 'safe_refund', 'label' => 'Request safe partial refund (max '.$this->fmt($safe['safe_refund_max_minor'], $currency).')'],
             ['id' => 'pay_full', 'label' => 'Pay full amount now'],
         ];
 
-        $reply = null;
-        $thinking = 1800;
+        $lastUser = $this->lastUserText($history);
+        $optionId = $this->detectOptionId($lastUser, $options);
 
+        // Option buttons → always deterministic (never generic loop)
+        if ($optionId !== null || $lastUser === '') {
+            $reply = $this->localReply($lastUser, $optionId, $name, $product, $amount, $currency, $tone, $safe, $split);
+            $thinking = 400;
+
+            return [
+                'reply' => $reply,
+                'options' => $options,
+                'tone' => $tone,
+                'safe_refund' => $safe,
+                'thinking_ms' => $thinking,
+            ];
+        }
+
+        $reply = null;
+        $thinking = 1200;
         if ($this->aiConfigured()) {
             try {
-                $started = microtime(true);
                 $messages = array_merge([
-                    [
-                        'role' => 'system',
-                        'content' => $this->systemPrompt($name, $product, $amount, $currency, $tone, $safe),
-                    ],
+                    ['role' => 'system', 'content' => $this->systemPrompt($name, $product, $amount, $currency, $tone, $safe)],
                 ], $history);
                 $result = app(NebiusAIContract::class)->chatText('negotiator', $messages, $ctx['merchant_id'] ?? null);
                 $reply = trim((string) ($result['content'] ?? ''));
-                $thinking = max(1200, (int) ($result['latency_ms'] ?? 1800));
+                $thinking = max(600, (int) ($result['latency_ms'] ?? 1200));
             } catch (Throwable $e) {
-                Log::warning('luvupay.negotiator.ai_fallback', ['error' => $e->getMessage()]);
+                Log::warning('luvupay.negotiator_ai_failed', ['err' => $e->getMessage()]);
             }
         }
-
         if ($reply === null || $reply === '') {
-            $reply = $this->localReply($history, $name, $product, $amount, $currency, $tone, $safe);
+            $reply = $this->localReply($lastUser, null, $name, $product, $amount, $currency, $tone, $safe, $split);
+            $thinking = 400;
         }
-
-        // Strip em dash for product copy consistency
-        $reply = str_replace(['—', '–'], ['-', '-'], $reply);
 
         return [
             'reply' => $reply,
@@ -90,51 +99,98 @@ final class NegotiatorService
         $maxRefund = $this->fmt($safe['safe_refund_max_minor'], $currency);
 
         return <<<PROMPT
-You are LuvuPay's retention negotiator for {$product}. Customer first name: {$name}. Failed charge: {$amt}.
-Tone: {$tone} (empathetic for loyal users, short transactional for new/high-risk).
+You are LuvuPay's retention negotiator for {$product}. Customer: {$name}. Failed charge: {$amt}.
+Tone: {$tone}.
 Rules:
-- Offer only: split payment (half now, half in 7 days), marketplace resale of remaining access, safe partial refund up to {$maxRefund}, or pay full now.
+- Respond specifically to what the user just said. Never repeat the same opening line.
+- Offer only: split payment, marketplace resale, safe partial refund up to {$maxRefund}, or pay full now.
 - Never promise a full refund above the safe max.
 - Keep replies under 80 words. No emojis. No em dash characters.
-- Ask one clear question when needed.
 PROMPT;
     }
 
-    /** @param list<array{role:string,content:string}> $history */
-    private function localReply(array $history, string $name, string $product, int $amount, string $currency, string $tone, array $safe): string
+    /** @param  list<array{role:string,content:string}>  $history */
+    private function lastUserText(array $history): string
     {
-        $lastUser = '';
         for ($i = count($history) - 1; $i >= 0; $i--) {
             if (($history[$i]['role'] ?? '') === 'user') {
-                $lastUser = strtolower((string) $history[$i]['content']);
-                break;
+                return strtolower(trim((string) $history[$i]['content']));
             }
         }
 
-        $first = $tone === 'empathetic'
-            ? "Hi {$name}, I see your {$product} payment failed. We can fix this without losing access."
-            : "Hi {$name}, your {$product} payment did not go through. Here are the options.";
+        return '';
+    }
 
+    /**
+     * @param  list<array{id:string,label:string}>  $options
+     */
+    private function detectOptionId(string $lastUser, array $options): ?string
+    {
         if ($lastUser === '') {
-            return $first.' Would a split payment (half now, half next week), listing remaining access, or a safe partial refund work best?';
+            return null;
         }
-
-        if (str_contains($lastUser, 'disk') || str_contains($lastUser, 'cheap') || str_contains($lastUser, 'bokek') || str_contains($lastUser, 'broke') || str_contains($lastUser, 'half')) {
-            $half = $this->fmt((int) floor($amount / 2), $currency);
-
-            return "Understood. I can offer {$half} now and {$half} in 7 days, or list remaining access on the marketplace. Which do you prefer?";
+        if (preg_match('/\[option:([a-z_]+)\]/', $lastUser, $m)) {
+            return $m[1];
+        }
+        foreach ($options as $opt) {
+            $id = strtolower((string) ($opt['id'] ?? ''));
+            if ($id !== '' && (str_contains($lastUser, $id) || $lastUser === str_replace('_', ' ', $id))) {
+                return $id;
+            }
+        }
+        if (str_contains($lastUser, 'split') || str_contains($lastUser, 'half') || str_contains($lastUser, 'minggu')) {
+            return 'split_half';
+        }
+        if (str_contains($lastUser, 'resale') || str_contains($lastUser, 'marketplace') || str_contains($lastUser, 'jual')) {
+            return 'resale';
         }
         if (str_contains($lastUser, 'refund')) {
-            return 'A full refund may leave the merchant covering processor fees. The safe max refund is '.$this->fmt($safe['safe_refund_max_minor'], $currency).'. Should I request that, or try a split payment instead?';
+            return 'safe_refund';
         }
-        if (str_contains($lastUser, 'resale') || str_contains($lastUser, 'jual') || str_contains($lastUser, 'sell')) {
-            return 'I can list remaining access on the marketplace so someone else takes over the seat. Confirm and we will open the listing.';
-        }
-        if (str_contains($lastUser, 'pay') || str_contains($lastUser, 'full')) {
-            return 'Alright - choose pay full amount to retry the charge, or split payment if cashflow is tight.';
+        if (str_contains($lastUser, 'pay full') || str_contains($lastUser, 'full amount') || $lastUser === 'pay_full') {
+            return 'pay_full';
         }
 
-        return $first.' Reply with split, resale, refund, or pay full.';
+        return null;
+    }
+
+    private function localReply(
+        string $lastUser,
+        ?string $optionId,
+        string $name,
+        string $product,
+        int $amount,
+        string $currency,
+        string $tone,
+        array $safe,
+        array $split,
+    ): string {
+        $half = $this->fmt((int) floor($amount / 2), $currency);
+        $maxRefund = $this->fmt($safe['safe_refund_max_minor'], $currency);
+        $splitLabel = $split['options'][0]['label'] ?? "{$half} now and {$half} in 7 days";
+
+        if ($optionId === null && $lastUser === '') {
+            return $tone === 'empathetic'
+                ? "Hi {$name}, I see your {$product} payment failed. We can fix this without losing access. Would split pay, resale, or a safe partial refund work best?"
+                : "Hi {$name}, your {$product} payment did not go through. Choose an option below: split, resale, safe refund, or pay full.";
+        }
+
+        return match ($optionId) {
+            'split_half' => "Great choice. I locked in a micro-payment plan: {$splitLabel}. Confirm and we will schedule the second charge in 7 days while access stays active.",
+            'resale' => 'Confirmed. I can list remaining access on the marketplace so another buyer takes the seat. The original charge stays settled for the merchant when it sells.',
+            'safe_refund' => "Understood. The safe partial refund cap is {$maxRefund} (processor fees protected). I will not exceed that amount. Confirm to request this refund path.",
+            'pay_full' => 'OK — we will retry the full amount now. If the card still fails, come back and pick split pay or safe refund instead.',
+            default => $this->freeTextFallback($lastUser, $name, $product, $half, $maxRefund),
+        };
+    }
+
+    private function freeTextFallback(string $lastUser, string $name, string $product, string $half, string $maxRefund): string
+    {
+        if (str_contains($lastUser, 'bokek') || str_contains($lastUser, 'broke') || str_contains($lastUser, 'disk')) {
+            return "I hear you, {$name}. Cash is tight — {$half} now and {$half} next week keeps {$product} active without a full charge today.";
+        }
+
+        return "Thanks for the detail. For {$product}, I can still offer split ({$half}+{$half}), marketplace resale, safe refund up to {$maxRefund}, or pay full. Which path should we take?";
     }
 
     private function fmt(int $minor, string $currency): string

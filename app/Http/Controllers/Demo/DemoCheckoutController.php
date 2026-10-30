@@ -96,6 +96,42 @@ final class DemoCheckoutController
 
         $this->purgeAbandoned($merchantId);
 
+        // Prevent double pending checkouts for the same email (double-click / multi-select same user)
+        $existingPending = DB::table('transactions')
+            ->where('merchant_id', $merchantId)
+            ->where('email', $email)
+            ->where('type', 'charge')
+            ->where('status', 'pending')
+            ->orderByDesc('created_at')
+            ->first();
+        if ($existingPending && $live) {
+            $metaExisting = json_decode($existingPending->metadata ?? '{}', true) ?: [];
+            $approve = $metaExisting['approve_url'] ?? null;
+            if ($approve) {
+                return response()->json([
+                    'ok' => true,
+                    'message' => 'Checkout already pending for this email — continue on PayPal',
+                    'mode' => 'paypal',
+                    'requires_approval' => true,
+                    'transaction_id' => $existingPending->id,
+                    'kind' => $metaExisting['paypal_kind'] ?? 'order',
+                    'paypal_sandbox' => [
+                        'live' => true,
+                        'mode' => config('services.paypal.mode', 'sandbox'),
+                        'kind' => $metaExisting['paypal_kind'] ?? 'order',
+                        'approve_url' => $approve,
+                        'order_id' => $metaExisting['paypal_order_id'] ?? null,
+                        'subscription_id' => $metaExisting['paypal_subscription_id'] ?? null,
+                        'buyer_email' => trim((string) (config('services.paypal.sandbox_buyer_email') ?: env('PAYPAL_SANDBOX_BUYER_EMAIL', ''))) ?: $email,
+                    ],
+                    'row' => $this->formatRow((string) $existingPending->id),
+                    'deduped' => true,
+                ]);
+            }
+            // No approve URL stored — drop stale pending rows for this email
+            $this->discard($merchantId, (string) $existingPending->id);
+        }
+
         $now = now();
         $userId = 'demo_user_'.Str::lower(Str::random(6));
         $subId = (string) Str::uuid();
@@ -193,6 +229,18 @@ final class DemoCheckoutController
                 'message' => 'PayPal Sandbox refused the checkout: '.Str::limit($e->getMessage(), 180),
             ], 502);
         }
+
+        // Persist approve URL so a retry for the same email can resume instead of creating a twin
+        $rowMeta = json_decode((string) DB::table('transactions')->where('id', $txId)->value('metadata'), true) ?: [];
+        $rowMeta['approve_url'] = $approval['approve_url'];
+        $rowMeta['paypal_kind'] = $approval['kind'];
+        if (! empty($approval['order_id'])) {
+            $rowMeta['paypal_order_id'] = $approval['order_id'];
+        }
+        if (! empty($approval['subscription_id'])) {
+            $rowMeta['paypal_subscription_id'] = $approval['subscription_id'];
+        }
+        DB::table('transactions')->where('id', $txId)->update(['metadata' => json_encode($rowMeta), 'updated_at' => now()]);
 
         $row = $this->formatRow($txId);
 

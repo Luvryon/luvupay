@@ -249,15 +249,6 @@
           if (d.invoice_id) {
             wrap.appendChild(h('button', 'text-[10px] font-semibold text-brand-soft hover:underline', 'Invoice', { type: 'button', 'data-action': 'invoice' }));
 
-          var lifeN = normalizeLifecycle(d.lifecycle);
-          if (lifeN.toLowerCase().indexOf('grace') !== -1 || lifeN.toLowerCase().indexOf('awaiting') !== -1 || String(d.status||'') === 'held' || String(d.status||'') === 'failed') {
-            wrap.appendChild(h(
-              'button',
-              'bg-indigo-50 text-indigo-700 border border-indigo-200 text-xs px-3 py-1.5 rounded-lg hover:bg-indigo-100 font-medium',
-              'AI Negotiate',
-              { type: 'button', 'data-action': 'negotiator' }
-            ));
-          }
           }
           if (d.receipt_id || d.id) {
             wrap.appendChild(h('button', 'text-[10px] font-semibold text-muted hover:underline', 'Receipt', { type: 'button', 'data-action': 'receipt' }));
@@ -325,6 +316,9 @@
       selectedAction: null,
       phoneView: 'options',
       phoneTab: 'options',
+      journeyChatMessages: [],
+      journeyChatInput: '',
+      journeyChatThinking: false,
       journeyStep: 'ready',
       aiThinkingLabel: 'Analyzing LTV…',
       aiThinkingProgress: 8,
@@ -936,6 +930,18 @@ pushToast: function (message, icon) {
           return;
         }
         // NB: no await before this call: window.open must run inside the click, or popup blockers eat it.
+        // Dedupe by email so one address cannot create twin pending checkouts
+        var seen = {};
+        todo = todo.filter(function (r) {
+          var k = String(r.email || '').toLowerCase();
+          if (!k || seen[k]) return false;
+          seen[k] = true;
+          return true;
+        });
+        if (!todo.length) {
+          this.pushToast('No unique subscribers to charge', '⚠️');
+          return;
+        }
         if (this.checkoutMode === 'paypal') return this._checkoutPaypalOne(todo[0], todo.slice(1));
         return this._checkoutMockAll(todo);
       },
@@ -1164,6 +1170,29 @@ pushToast: function (message, icon) {
         });
       },
 
+      
+      sendJourneyChat: async function (text) {
+        text = String(text || this.journeyChatInput || '').trim();
+        if (!text || this.journeyChatThinking) return;
+        this.journeyChatInput = '';
+        this.journeyChatMessages.push({ role: 'user', content: text });
+        this.journeyChatThinking = true;
+        try {
+          var res = await request('POST', 'demo/negotiator', {
+            message: text,
+            transaction_id: (this.decisionRow && this.decisionRow.id) || null,
+            history: this.journeyChatMessages.slice(0, -1),
+          });
+          var data = (res && res.data) || {};
+          if (data.reply) this.journeyChatMessages.push({ role: 'assistant', content: data.reply });
+          else this.journeyChatMessages.push({ role: 'assistant', content: 'Could not reach the AI. Try an option button, or retry.' });
+        } catch (e) {
+          this.journeyChatMessages.push({ role: 'assistant', content: 'Network error. Please try again.' });
+        } finally {
+          this.journeyChatThinking = false;
+        }
+      },
+
       openDecision: async function () {
         if (this.decisionBusy || this.decisionOpen) return;
         var UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -1202,6 +1231,9 @@ pushToast: function (message, icon) {
         this.decisionLogs = [];
         this.decisionOutcome = null;
         this.decisionReady = false;
+        this.journeyChatMessages = [{ role: 'assistant', content: 'Hi - payment failed. Tell me what is going on, or pick split / resale / refund / pay full.' }];
+        this.journeyChatInput = '';
+        this.journeyChatThinking = false;
         this.decisionBusy = true;
         this.phoneView = 'options';
         this.phoneTab = 'options';
