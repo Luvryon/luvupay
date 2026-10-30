@@ -513,8 +513,14 @@ final class DemoCheckoutController
         $cancelUrl = url('/dashboard/paypal/cancel'.$q);
 
         // Prefer explicit sandbox buyer so the popup does not stick to the merchant Business session.
-        $sandboxBuyer = trim((string) config('services.paypal.sandbox_buyer_email', ''));
+        // Read env() as fallback when config:cache was built without the key.
+        $sandboxBuyer = trim((string) (config('services.paypal.sandbox_buyer_email') ?: env('PAYPAL_SANDBOX_BUYER_EMAIL', '')));
         $payer = $sandboxBuyer !== '' ? $sandboxBuyer : trim($payerEmail);
+        $this->logWebhookEvent('paypal', 'CHECKOUT.PAYER_PREFILL', [
+            'transaction_id' => $txId,
+            'payer_email' => $payer !== '' ? $payer : null,
+            'source' => $sandboxBuyer !== '' ? 'PAYPAL_SANDBOX_BUYER_EMAIL' : 'checkout_email',
+        ]);
 
         $mode = (string) config('luvupay.checkout.mode', 'subscription');
         $subscriptionError = null;

@@ -38,6 +38,20 @@
     } catch (e) { return false; }
   }
 
+  /** Sandbox: force logout of Business session, then open approval as buyer. */
+  function paypalApproveUrl(approveUrl, buyerEmail) {
+    if (!isPayPalUrl(approveUrl)) return approveUrl;
+    try {
+      var u = new URL(approveUrl);
+      var sandbox = /sandbox\.paypal\.com$/i.test(u.hostname);
+      if (!sandbox) return approveUrl;
+      // Logout first so merchant Business cookie is not reused as payer
+      var logout = 'https://www.sandbox.paypal.com/signout?returnUri=' + encodeURIComponent(approveUrl);
+      return logout;
+    } catch (e) { return approveUrl; }
+  }
+
+
   /** Tiny safe DOM builder for AG Grid cell renderers (hard security). */
   function h(tag, className, text, attrs) {
     var node = document.createElement(tag);
@@ -993,14 +1007,25 @@ pushToast: function (message, icon) {
           try {
             sessionStorage.setItem('lp_checkout_queue', JSON.stringify(rest.map(function (r) { return { name: r.name, email: r.email }; })));
           } catch (e) {}
-          this.pushToast('Popup blocked, redirecting to PayPal…', '💳');
+          var go = paypalApproveUrl(pp.approve_url, pp.buyer_email);
+          if (pp.buyer_email) {
+            this.pushToast('PayPal: login as BUYER ' + pp.buyer_email + ' (Personal), not Business merchant', '💳');
+          } else {
+            this.pushToast('PayPal: use Personal sandbox buyer, not the merchant Business account', '💳');
+          }
           this.showCheckoutModal = false;
           this.checkoutPaying = false;
-          global.location.href = pp.approve_url;
+          global.location.href = go;
           return;
         }
 
-        pop.location.href = pp.approve_url;
+        if (pp.buyer_email) {
+          this.pushToast('PayPal: login as BUYER ' + pp.buyer_email + ' (Personal account from PAYPAL_SANDBOX_BUYER_EMAIL)', '💳');
+        } else {
+          this.pushToast('Set PAYPAL_SANDBOX_BUYER_EMAIL in .env — then login as that Personal buyer, not Business', '⚠️');
+        }
+        // Logout sandbox session first so Business merchant is not the payer
+        pop.location.href = paypalApproveUrl(pp.approve_url, pp.buyer_email);
         var txId = j.transaction_id;
         row.txId = txId;
         var msg = await waitForPopup(pop, txId, function () {
