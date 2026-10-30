@@ -195,23 +195,28 @@ class PayPalClient
     // ------------------------------------------------------------------ Orders API (resale checkout)
 
     /** POST /v2/checkout/orders: the buyer approves this, then we capture it. */
-    public function createOrder(Money $amount, string $referenceId, string $returnUrl, string $cancelUrl, string $requestId, ?string $customId = null): array
+    public function createOrder(Money $amount, string $referenceId, string $returnUrl, string $cancelUrl, string $requestId, ?string $customId = null, ?string $payerEmail = null): array
     {
         $unit = ['reference_id' => $referenceId, 'amount' => PayPalAmount::fromMoney($amount)];
         if ($customId !== null) {
             $unit['custom_id'] = $customId;
         }
 
+        $paypal = ['experience_context' => [
+            'brand_name' => 'LuvuPay',
+            'shipping_preference' => 'NO_SHIPPING',
+            'user_action' => 'PAY_NOW',
+            'return_url' => $returnUrl,
+            'cancel_url' => $cancelUrl,
+        ]];
+        if ($payerEmail) {
+            $paypal['email_address'] = $payerEmail;
+        }
+
         return $this->post('/v2/checkout/orders', [
             'intent' => 'CAPTURE',
             'purchase_units' => [$unit],
-            'payment_source' => ['paypal' => ['experience_context' => [
-                'brand_name' => 'LuvuPay',
-                'shipping_preference' => 'NO_SHIPPING',
-                'user_action' => 'PAY_NOW',
-                'return_url' => $returnUrl,
-                'cancel_url' => $cancelUrl,
-            ]]],
+            'payment_source' => ['paypal' => $paypal],
         ], $requestId);
     }
 

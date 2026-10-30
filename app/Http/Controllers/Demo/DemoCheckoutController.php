@@ -182,7 +182,7 @@ final class DemoCheckoutController
         $this->logWebhookEvent('luvupay', 'checkout.pending', ['transaction_id' => $txId, 'email' => $email, 'status' => 'PENDING_BUYER_APPROVAL']);
 
         try {
-            $approval = $this->createPayPalApproval($txId, $subId, $product, $interval, Money::of($amountMinor, $currency), $popup);
+            $approval = $this->createPayPalApproval($txId, $subId, $product, $interval, Money::of($amountMinor, $currency), $popup, (string) $email);
         } catch (\Throwable $e) {
             $this->logWebhookEvent('paypal', 'SANDBOX.CHECKOUT_FAILED', ['transaction_id' => $txId, 'error' => $e->getMessage()], 'failed');
             $this->discard($merchantId, $txId);   // nothing was paid, do not leave a ghost row behind
@@ -210,6 +210,8 @@ final class DemoCheckoutController
                 'approve_url' => $approval['approve_url'],
                 'order_id' => $approval['order_id'] ?? null,
                 'subscription_id' => $approval['subscription_id'] ?? null,
+                // Hint for demo: login as Personal sandbox buyer, NOT the Business merchant account
+                'buyer_email' => trim((string) config('services.paypal.sandbox_buyer_email', '')) ?: (string) $email,
             ],
             'row' => $row,
             'recent_events' => $this->recentWebhookEvents(10),
@@ -496,7 +498,7 @@ final class DemoCheckoutController
      *
      * @return array{kind:string,approve_url:string,order_id?:string,subscription_id?:string}
      */
-    private function createPayPalApproval(string $txId, string $subId, string $product, string $interval, Money $price, bool $popup): array
+    private function createPayPalApproval(string $txId, string $subId, string $product, string $interval, Money $price, bool $popup, string $payerEmail = ''): array
     {
         $client = PayPalClient::fromConfig();
         $token = $client->accessToken(true);
@@ -510,13 +512,17 @@ final class DemoCheckoutController
         $returnUrl = url('/dashboard/paypal/return'.$q);
         $cancelUrl = url('/dashboard/paypal/cancel'.$q);
 
+        // Prefer explicit sandbox buyer so the popup does not stick to the merchant Business session.
+        $sandboxBuyer = trim((string) config('services.paypal.sandbox_buyer_email', ''));
+        $payer = $sandboxBuyer !== '' ? $sandboxBuyer : trim($payerEmail);
+
         $mode = (string) config('luvupay.checkout.mode', 'subscription');
         $subscriptionError = null;
 
         if ($mode !== 'order') {
             try {
                 $planId = $this->ensurePlan($client, $product, $interval, $price);
-                $sub = $client->createSubscription($planId, '', $txId, $returnUrl, $cancelUrl, 'demo-sub-'.$txId);
+                $sub = $client->createSubscription($planId, $payer, $txId, $returnUrl, $cancelUrl, 'demo-sub-'.$txId);
                 $approveUrl = PayPalClient::link($sub, 'approve');
                 $paypalSubId = (string) ($sub['id'] ?? '');
                 if (! $approveUrl || $paypalSubId === '') {
@@ -536,7 +542,7 @@ final class DemoCheckoutController
             }
         }
 
-        $order = $client->createOrder($price, $txId, $returnUrl, $cancelUrl, 'demo-order-'.$txId, $txId);
+        $order = $client->createOrder($price, $txId, $returnUrl, $cancelUrl, 'demo-order-'.$txId, $txId, $payer !== '' ? $payer : null);
         $orderId = (string) ($order['id'] ?? '');
         $approveUrl = PayPalClient::link($order, 'payer-action', 'approve');
         if ($orderId === '' || ! $approveUrl) {

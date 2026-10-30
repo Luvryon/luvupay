@@ -225,16 +225,23 @@
           }
           if (d.invoice_id) {
             wrap.appendChild(h('button', 'text-[10px] font-semibold text-brand-soft hover:underline', 'Invoice', { type: 'button', 'data-action': 'invoice' }));
-
-          var lifeN = normalizeLifecycle(d.lifecycle);
-          if (lifeN.toLowerCase().indexOf('grace') !== -1 || lifeN.toLowerCase().indexOf('awaiting') !== -1 || String(d.status||'') === 'held' || String(d.status||'') === 'failed') {
+          }
+          // AI Negotiate: show on grace / failed / held / settled charges (demo + real retention path)
+          var lifeN = String(normalizeLifecycle(d.lifecycle) || '').toLowerCase();
+          var st = String(d.status || '').toLowerCase();
+          var canNegotiate = lifeN.indexOf('grace') !== -1
+            || lifeN.indexOf('awaiting') !== -1
+            || lifeN.indexOf('settled') !== -1
+            || lifeN.indexOf('active') !== -1
+            || lifeN.indexOf('retain') !== -1
+            || st === 'held' || st === 'failed' || st === 'completed';
+          if (canNegotiate && UUID.test(String(d.id || ''))) {
             wrap.appendChild(h(
               'button',
               'bg-indigo-50 text-indigo-700 border border-indigo-200 text-xs px-3 py-1.5 rounded-lg hover:bg-indigo-100 font-medium',
               'AI Negotiate',
               { type: 'button', 'data-action': 'negotiator' }
             ));
-          }
           }
           if (d.receipt_id || d.id) {
             wrap.appendChild(h('button', 'text-[10px] font-semibold text-muted hover:underline', 'Receipt', { type: 'button', 'data-action': 'receipt' }));
@@ -991,6 +998,11 @@ pushToast: function (message, icon) {
           return;
         }
 
+        if (pp.buyer_email) {
+          this.pushToast('PayPal sandbox: login as BUYER (' + pp.buyer_email + '), not the Business merchant account', '💳');
+        } else {
+          this.pushToast('PayPal sandbox: use a Personal sandbox buyer account, not the merchant Business login', '💳');
+        }
         pop.location.href = pp.approve_url;
         var txId = j.transaction_id;
         row.txId = txId;
@@ -1122,16 +1134,30 @@ pushToast: function (message, icon) {
         var UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
         var row = null, i;
         var sel = this.selectedRow;
-        var isCharge = function (r) { return r && String(r.type || '').toLowerCase() === 'charge' && Number(r.amount_minor) > 0 && String(r.status || '') === 'completed'; };
-        if (sel && isCharge(sel) && String(sel.lifecycle || '').toUpperCase() === 'ACTIVE' && UUID.test(String(sel.id))) row = sel;
+        // lifecycle is normalized to "Settled" for ACTIVE — do not require the raw string "ACTIVE"
+        var isEligible = function (r) {
+          if (!r || !UUID.test(String(r.id))) return false;
+          var type = String(r.type || '').toLowerCase();
+          if (type !== 'charge' && type !== 'payment') return false;
+          if (Number(r.amount_minor) <= 0) return false;
+          var st = String(r.status || '').toLowerCase();
+          if (!(st === 'completed' || st === 'succeeded' || st === 'captured' || st === 'active')) return false;
+          var life = String(normalizeLifecycle(r.lifecycle) || r.lifecycle || '').toLowerCase();
+          // Accept Settled / Active / Grace / AI-retained as journey candidates
+          if (life.indexOf('settled') !== -1 || life.indexOf('active') !== -1) return true;
+          if (life.indexOf('grace') !== -1 || life.indexOf('retain') !== -1) return true;
+          if (String(r.lifecycle || '').toUpperCase() === 'ACTIVE') return true;
+          return false;
+        };
+        if (sel && isEligible(sel)) row = sel;
         if (!row) {
           for (i = 0; i < this.rowData.length; i++) {
             var r = this.rowData[i];
-            if (isCharge(r) && String(r.lifecycle || '').toUpperCase() === 'ACTIVE' && UUID.test(String(r.id))) { row = r; break; }
+            if (isEligible(r)) { row = r; break; }
           }
         }
         if (!row) {
-          this.pushToast('No ACTIVE subscription charge yet. Run “Simulate 30 days” or create a checkout first', 'err');
+          this.pushToast('No active subscription charge yet. Create a new subscription checkout (and finish PayPal as the BUYER), or run Simulate 30 days first', 'err');
           return;
         }
 
