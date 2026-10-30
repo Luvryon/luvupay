@@ -80,23 +80,32 @@
       try { bc = new BroadcastChannel('luvupay-paypal'); bc.onmessage = function (ev) { accept(ev.data); }; } catch (e) { bc = null; }
       global.addEventListener('message', onMessage);
       global.addEventListener('storage', onStorage);
+      // PayPal login navigates cross-origin; pop.closed often flickers true. Require ~6s sustained close.
+      var closedStreak = 0;
+      var CLOSED_NEEDED = 12;
       poll = setInterval(function () {
         var closed = false;
-        try { closed = !pop || pop.closed; } catch (e) { closed = false; }
+        try { closed = !pop || pop.closed; } catch (e) {
+          closed = false; // COOP / cross-origin: never treat as closed
+        }
         if (closed) {
-          clearInterval(poll);
-          setTimeout(function () { done({ state: 'closed' }); }, 800);   // let a late message win
+          closedStreak += 1;
+          if (closedStreak >= CLOSED_NEEDED) {
+            clearInterval(poll);
+            setTimeout(function () { done({ state: 'closed' }); }, 2500);
+          }
+        } else {
+          closedStreak = 0;
         }
       }, 500);
-      // Safety net when the popup message gets lost: ask the server (which asks PayPal) every few seconds.
       if (typeof check === 'function') {
         srv = setInterval(function () {
           if (finished || srvBusy) return;
           srvBusy = true;
           Promise.resolve(check()).then(function (d) { if (d) done(d); }).catch(function () {}).then(function () { srvBusy = false; });
-        }, 4000);
+        }, 3000);
       }
-      cap = setTimeout(function () { done({ state: 'closed' }); }, 15 * 60 * 1000);
+      cap = setTimeout(function () { done({ state: 'closed' }); }, 20 * 60 * 1000);
     });
   }
 
@@ -1028,14 +1037,25 @@ pushToast: function (message, icon) {
         if (msg && !abandoned && msg.state === 'failed') return { state: 'failed', message: msg.message || msg.error || 'Payment failed' };
 
         if (abandoned) {
-          // Window closed with no message. Give PayPal / the return page a moment before treating it as cancelled.
-          for (i = 0; i < 6; i++) {
+          // Popup reported closed — but user may still be logging in on PayPal (COOP false-close).
+          // Poll WITHOUT abandon for up to ~45s; only cancel if still unpaid after that.
+          for (i = 0; i < 30; i++) {
             r = await request('GET', 'demo/checkout/' + tx + '/status');
             d = r.data || {};
-            if (!r.ok) return { state: 'failed', message: d.message || 'Could not check the payment status' };
-            if (d.state !== 'processing' || !d.awaiting_buyer) return d;
-            await sleep(800);
+            if (r.ok) {
+              if (d.state === 'captured') return d;
+              if (d.state === 'failed' || d.state === 'cancelled' || d.state === 'gone') return d;
+              if (d.state === 'processing' && !d.awaiting_buyer) {
+                // approved, waiting capture — keep waiting
+              }
+            }
+            await sleep(1500);
           }
+          // Final check once more before discard
+          r = await request('GET', 'demo/checkout/' + tx + '/status');
+          d = r.data || {};
+          if (r.ok && d.state === 'captured') return d;
+          if (r.ok && d.state && d.state !== 'processing') return d;
           r = await request('GET', 'demo/checkout/' + tx + '/status?abandon=1');
           return r.ok ? (r.data || { state: 'cancelled' }) : { state: 'failed', message: (r.data && r.data.message) || 'Could not cancel the checkout' };
         }
