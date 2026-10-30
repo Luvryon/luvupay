@@ -1091,26 +1091,30 @@ pushToast: function (message, icon) {
           return r.ok ? (r.data || { state: 'cancelled' }) : { state: 'failed', message: (r.data && r.data.message) || 'Could not cancel the checkout' };
         }
 
-        // Poll longer: PayPal often activates a second after the popup closes.
-        // Never treat a one-off "Could not confirm" as final while status may still flip to captured.
-        for (i = 0; i < 10; i++) {
+        // Poll longer: PayPal often activates several seconds after the popup closes.
+        // "Could not confirm" is treated as processing, not a final failure.
+        for (i = 0; i < 24; i++) {
           r = await request('GET', 'demo/checkout/' + tx + '/status');
           d = r.data || {};
           if (!r.ok) {
-            if (i < 9) { await sleep(700); continue; }
-            return { state: 'failed', message: d.message || 'Could not check the payment status' };
+            if (i < 23) { await sleep(1000); continue; }
+            return { state: 'processing', message: d.message || 'Still checking PayPal…' };
           }
           if (d.state === 'captured' || d.state === 'cancelled' || d.state === 'gone') return d;
           if (d.state === 'failed') {
-            var msg = String(d.message || '');
-            if (/could not confirm|still confirming|pending/i.test(msg) && i < 9) {
-              await sleep(700);
+            var msg = String(d.message || d.error || '');
+            // Soft errors → keep polling
+            if (/could not confirm|still confirming|pending|timeout|network|try again/i.test(msg) && i < 23) {
+              await sleep(1000);
               continue;
             }
-            return d;
+            // Real declines only
+            if (/declined|denied|instrument|cannot pay/i.test(msg)) return d;
+            if (i < 23) { await sleep(1000); continue; }
+            return { state: 'processing', message: 'PayPal is still confirming the payment' };
           }
-          // processing (with or without awaiting_buyer)
-          if (i < 9) { await sleep(700); continue; }
+          // processing
+          if (i < 23) { await sleep(1000); continue; }
           return d;
         }
         return { state: 'processing', message: 'PayPal is still confirming the payment' };
@@ -1142,8 +1146,29 @@ pushToast: function (message, icon) {
           row.status = 'idle'; row.note = 'Cancelled on PayPal, nothing was charged';
           this.pushToast('PayPal checkout cancelled. No money moved', '⚠️');
         } else {
-          row.status = 'failed'; row.note = res.message || 'Payment failed';
-          this.pushToast(row.note, 'err');
+          var soft = /could not confirm|still confirming|pending|timeout|network/i.test(String(res.message || res.error || ''));
+          if (soft || res.state === 'processing') {
+            row.status = 'awaiting'; row.note = 'PayPal is still confirming…';
+            this.pushToast('PayPal is still confirming the payment — hang tight', '⏳');
+            var self2 = this;
+            var tx = row.txId || row.id || '';
+            var tries = 0;
+            var timer = setInterval(function () {
+              tries++;
+              request('GET', 'demo/checkout/' + encodeURIComponent(tx) + '/status').then(function (r) {
+                var d = (r && r.data) || {};
+                if (d.state === 'captured') {
+                  clearInterval(timer);
+                  self2._checkoutApplyResult(row, d);
+                } else if (tries >= 15) {
+                  clearInterval(timer);
+                }
+              }).catch(function () {});
+            }, 2000);
+          } else {
+            row.status = 'failed'; row.note = res.message || 'Payment failed';
+            this.pushToast(row.note, 'err');
+          }
         }
       },
 

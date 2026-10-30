@@ -407,7 +407,8 @@ final class DemoCheckoutController
                 return ['state' => 'processing', 'message' => 'Payment is pending at PayPal'];
             }
             if ($capStatus !== 'COMPLETED' && $orderStatus !== 'COMPLETED') {
-                return $this->fail($merchantId, $txId, 'PayPal did not complete the payment ('.($capStatus ?: $orderStatus).').');
+                // Not a hard failure — buyer may still finish or capture is lagging
+                return ['state' => 'processing', 'message' => 'PayPal is still confirming the payment ('.($capStatus ?: $orderStatus).')'];
             }
             $this->activate($merchantId, $row, $meta, ['reference' => $captureId ?: $orderId]);
 
@@ -461,9 +462,12 @@ final class DemoCheckoutController
                 Log::warning('demo.checkout.settle_recovery_failed', ['tx' => $txId, 'err' => $inner->getMessage()]);
             }
 
-            // Transient API errors should not kill a payment that may still complete — keep polling.
-            $transient = (bool) preg_match('/timeout|timed out|temporarily|rate limit|429|503|502|connection|network|already.?captured|ORDER_ALREADY_CAPTURED/i', $err);
-            if ($transient) {
+            // Soft-fail: almost every capture race/API glitch is still recoverable while the order is open.
+            // Only hard-fail on explicit buyer/instrument declines.
+            $hardFail = (bool) preg_match('/INSTRUMENT_DECLINED|PAYER_CANNOT_PAY|PAYMENT_DENIED|CARD_GENERIC_ERROR|INVALID_RESOURCE_ID|ORDER_NOT_APPROVED|PERMISSION_DENIED|UNAUTHORIZED/i', $err);
+            $transient = ! $hardFail || (bool) preg_match('/timeout|timed out|temporarily|rate limit|429|503|502|connection|network|already.?captured|ORDER_ALREADY_CAPTURED|RESOURCE_CONFLICT|UNPROCESSABLE|INTERNAL_SERVER_ERROR|CANNOT_BE_CAPTURED/i', $err);
+
+            if (! $hardFail) {
                 $this->logWebhookEvent('paypal', 'PAYMENT.CAPTURE.PENDING', ['transaction_id' => $txId, 'error' => $err], 'pending');
 
                 return ['state' => 'processing', 'message' => 'PayPal is still confirming the payment', 'error' => Str::limit($err, 160)];
