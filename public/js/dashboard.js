@@ -225,23 +225,16 @@
           }
           if (d.invoice_id) {
             wrap.appendChild(h('button', 'text-[10px] font-semibold text-brand-soft hover:underline', 'Invoice', { type: 'button', 'data-action': 'invoice' }));
-          }
-          // AI Negotiate: show on grace / failed / held / settled charges (demo + real retention path)
-          var lifeN = String(normalizeLifecycle(d.lifecycle) || '').toLowerCase();
-          var st = String(d.status || '').toLowerCase();
-          var canNegotiate = lifeN.indexOf('grace') !== -1
-            || lifeN.indexOf('awaiting') !== -1
-            || lifeN.indexOf('settled') !== -1
-            || lifeN.indexOf('active') !== -1
-            || lifeN.indexOf('retain') !== -1
-            || st === 'held' || st === 'failed' || st === 'completed';
-          if (canNegotiate && UUID.test(String(d.id || ''))) {
+
+          var lifeN = normalizeLifecycle(d.lifecycle);
+          if (lifeN.toLowerCase().indexOf('grace') !== -1 || lifeN.toLowerCase().indexOf('awaiting') !== -1 || String(d.status||'') === 'held' || String(d.status||'') === 'failed') {
             wrap.appendChild(h(
               'button',
               'bg-indigo-50 text-indigo-700 border border-indigo-200 text-xs px-3 py-1.5 rounded-lg hover:bg-indigo-100 font-medium',
               'AI Negotiate',
               { type: 'button', 'data-action': 'negotiator' }
             ));
+          }
           }
           if (d.receipt_id || d.id) {
             wrap.appendChild(h('button', 'text-[10px] font-semibold text-muted hover:underline', 'Receipt', { type: 'button', 'data-action': 'receipt' }));
@@ -645,7 +638,7 @@
             var target = e.event && e.event.target;
             var action = target && target.getAttribute && target.getAttribute('data-action');
             if (!action || !e.data) return;
-            if (action === 'negotiator') { self.openNegotiator(d); return; }
+            if (action === 'negotiator') { self.openNegotiator(e.data); return; }
           if (action === 'evidence') {
               self.openEvidenceBuilder(e.data);
             } else if (action === 'invoice' && e.data.invoice_id && /^[A-Za-z0-9-]+$/.test(String(e.data.invoice_id))) {
@@ -998,11 +991,6 @@ pushToast: function (message, icon) {
           return;
         }
 
-        if (pp.buyer_email) {
-          this.pushToast('PayPal sandbox: login as BUYER (' + pp.buyer_email + '), not the Business merchant account', '💳');
-        } else {
-          this.pushToast('PayPal sandbox: use a Personal sandbox buyer account, not the merchant Business login', '💳');
-        }
         pop.location.href = pp.approve_url;
         var txId = j.transaction_id;
         row.txId = txId;
@@ -1022,10 +1010,12 @@ pushToast: function (message, icon) {
         this.preview.spinning = false;
         await this.load();
 
-        if (res.state === 'captured' && this.checkoutRemaining > 0) {
-          this.pushToast('Next up: ' + (this.checkoutRows.filter(function (r) { return r.selected && r.status !== 'done'; })[0] || {}).name + '. Click continue.', '➡️');
-        } else if (res.state === 'captured') {
-          await sleep(900);
+        if (res.state === 'captured' && rest && rest.length) {
+          this.pushToast('Paid ' + row.email + ' · next subscriber…', 'ok');
+          await this._checkoutPaypalOne(rest[0], rest.slice(1));
+          return;
+        }
+        if (res.state === 'captured') {
           this.showCheckoutModal = false;
         }
       },
@@ -1044,7 +1034,7 @@ pushToast: function (message, icon) {
             d = r.data || {};
             if (!r.ok) return { state: 'failed', message: d.message || 'Could not check the payment status' };
             if (d.state !== 'processing' || !d.awaiting_buyer) return d;
-            await sleep(2500);
+            await sleep(800);
           }
           r = await request('GET', 'demo/checkout/' + tx + '/status?abandon=1');
           return r.ok ? (r.data || { state: 'cancelled' }) : { state: 'failed', message: (r.data && r.data.message) || 'Could not cancel the checkout' };
@@ -1056,20 +1046,20 @@ pushToast: function (message, icon) {
           r = await request('GET', 'demo/checkout/' + tx + '/status');
           d = r.data || {};
           if (!r.ok) {
-            if (i < 9) { await sleep(2000); continue; }
+            if (i < 9) { await sleep(700); continue; }
             return { state: 'failed', message: d.message || 'Could not check the payment status' };
           }
           if (d.state === 'captured' || d.state === 'cancelled' || d.state === 'gone') return d;
           if (d.state === 'failed') {
             var msg = String(d.message || '');
             if (/could not confirm|still confirming|pending/i.test(msg) && i < 9) {
-              await sleep(2000);
+              await sleep(700);
               continue;
             }
             return d;
           }
           // processing (with or without awaiting_buyer)
-          if (i < 9) { await sleep(2000); continue; }
+          if (i < 9) { await sleep(700); continue; }
           return d;
         }
         return { state: 'processing', message: 'PayPal is still confirming the payment' };
@@ -1134,16 +1124,15 @@ pushToast: function (message, icon) {
         var UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
         var row = null, i;
         var sel = this.selectedRow;
-        // lifecycle is normalized to "Settled" for ACTIVE — do not require the raw string "ACTIVE"
+        // API lifecycle is normalized to "Settled" for ACTIVE — never require raw "ACTIVE"
         var isEligible = function (r) {
           if (!r || !UUID.test(String(r.id))) return false;
           var type = String(r.type || '').toLowerCase();
-          if (type !== 'charge' && type !== 'payment') return false;
+          if (type !== 'charge' && type !== 'payment' && type.indexOf('charge') === -1) return false;
           if (Number(r.amount_minor) <= 0) return false;
           var st = String(r.status || '').toLowerCase();
           if (!(st === 'completed' || st === 'succeeded' || st === 'captured' || st === 'active')) return false;
           var life = String(normalizeLifecycle(r.lifecycle) || r.lifecycle || '').toLowerCase();
-          // Accept Settled / Active / Grace / AI-retained as journey candidates
           if (life.indexOf('settled') !== -1 || life.indexOf('active') !== -1) return true;
           if (life.indexOf('grace') !== -1 || life.indexOf('retain') !== -1) return true;
           if (String(r.lifecycle || '').toUpperCase() === 'ACTIVE') return true;
@@ -1157,7 +1146,7 @@ pushToast: function (message, icon) {
           }
         }
         if (!row) {
-          this.pushToast('No active subscription charge yet. Create a new subscription checkout (and finish PayPal as the BUYER), or run Simulate 30 days first', 'err');
+          this.pushToast('No active subscription charge yet. Finish a checkout (PayPal as BUYER) or run Simulate 30 days first', 'err');
           return;
         }
 
@@ -1472,7 +1461,7 @@ pushToast: function (message, icon) {
       },
     };
   };
-})(window);
+
 
 
   global.negotiatorChat = function negotiatorChat() {
@@ -1534,3 +1523,4 @@ pushToast: function (message, icon) {
       }
     };
   };
+})(window);
