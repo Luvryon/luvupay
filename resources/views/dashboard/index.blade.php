@@ -268,6 +268,16 @@
                 Missed cancellation journey
             </button>
 
+            <button
+                type="button"
+                class="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 font-medium shadow-sm text-sm disabled:opacity-50"
+                x-show="selectedRow && selectedRow.split && selectedRow.split.status === 'active'" x-cloak
+                x-on:click="collectInstallment(selectedRow)"
+                x-bind:disabled="simBusy"
+            >
+                Collect next instalment
+            </button>
+
             {{-- Tertiary: debug --}}
             <button
                 type="button"

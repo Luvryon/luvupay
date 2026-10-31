@@ -24,12 +24,12 @@ Route::middleware($console)->group(function () {
         require __DIR__.'/onboarding_paypal.php';
     }
     Route::get('/dashboard', [DashboardApiController::class, 'page'])->name('dashboard');
-    Route::post('/api/v1/dashboard/project', [DashboardApiController::class, 'setProject'])->middleware('throttle:30,1,dashboard24')->name('dashboard.project.set');
+    Route::post('/api/v1/dashboard/project', [DashboardApiController::class, 'setProject'])->middleware(['merchant.can:billing.write', 'throttle:30,1,dashboard24'])->name('dashboard.project.set');
     Route::redirect('/onboarding', '/dashboard')->name('onboarding'); // onboarding removed
     Route::get('/analytics', [MerchantPanelController::class, 'analytics'])->middleware('merchant.can:analytics.read')->name('analytics');
     Route::get('/wallet', [MerchantPanelController::class, 'wallet'])->name('wallet');
     Route::post('/api/v1/dashboard/payouts', [PayoutController::class, 'executePayout'])
-        ->middleware(['throttle:10,1,dashboard29'])
+        ->middleware(['merchant.can:payouts.write', 'throttle:10,1,dashboard29'])
         ->name('dashboard.payouts.execute');
     // Developers console page removed — API docs live at /docs
     Route::redirect('/developers', '/analytics')->name('developers');
@@ -75,7 +75,7 @@ Route::middleware($console)->group(function () {
         Route::get('subscriptions', [DashboardApiController::class, 'subscriptions'])->name('subscriptions');
         Route::get('resale-listings', [DashboardApiController::class, 'resaleListings'])->name('resale.listings');
         Route::get('audit-logs', [DashboardApiController::class, 'auditLogs'])->middleware('merchant.can:exports.read')->name('audit');
-        Route::post('wallet/withdraw', [\App\Http\Controllers\PayoutController::class, 'executePayout'])->middleware('throttle:10,1,dashboard72')->name('wallet.withdraw');
+        Route::post('wallet/withdraw', [\App\Http\Controllers\PayoutController::class, 'executePayout'])->middleware(['merchant.can:payouts.write', 'throttle:10,1,dashboard72'])->name('wallet.withdraw');
     });
 
 
@@ -96,8 +96,8 @@ Route::middleware($console)->group(function () {
     });
 
     // Demo Simulator (hackathon / local only — gated by demo.simulator middleware)
-    Route::get('/dashboard/paypal/return', [DemoCheckoutController::class, 'paypalReturn'])->middleware('demo.simulator')->name('dashboard.paypal.return');
-    Route::get('/dashboard/paypal/cancel', [DemoCheckoutController::class, 'paypalCancel'])->middleware('demo.simulator')->name('dashboard.paypal.cancel');
+    Route::get('/dashboard/paypal/return', [DemoCheckoutController::class, 'paypalReturn'])->middleware(['demo.simulator', 'merchant.can:billing.write'])->name('dashboard.paypal.return');
+    Route::get('/dashboard/paypal/cancel', [DemoCheckoutController::class, 'paypalCancel'])->middleware(['demo.simulator', 'merchant.can:billing.write'])->name('dashboard.paypal.cancel');
 
     // Status polling gets its OWN bucket: the checkout popup watcher polls every few seconds and must never
     // eat the 30/min budget of the action routes below (that produced random 429s mid-payment).
@@ -107,15 +107,17 @@ Route::middleware($console)->group(function () {
         ->name('dashboard.demo.checkout.status');
 
     Route::prefix('api/v1/dashboard/demo')->name('dashboard.demo.')->middleware(['demo.simulator', 'throttle:30,1,dashboard96'])->group(function () {
-        Route::post('checkout', [DemoCheckoutController::class, 'simulateCheckout'])->name('checkout');
-        Route::post('simulate-month', DemoMonthController::class)->name('simulate-month');
-        Route::post('forgot', [DemoLifecycleController::class, 'simulateForgot'])->name('forgot');
-        Route::post('decision', [DemoLifecycleController::class, 'decision'])->name('decision');
-        Route::post('resale', [DemoResaleController::class, 'simulateResale'])->name('resale');
-        Route::post('negotiator', [DemoNegotiatorController::class, 'chat'])->name('negotiator');
-        Route::post('retention-campaign', [DemoRetentionCampaignController::class, 'send'])->name('retention-campaign');
+        Route::post('checkout', [DemoCheckoutController::class, 'simulateCheckout'])->middleware('merchant.can:billing.write')->name('checkout');
+        Route::post('simulate-month', DemoMonthController::class)->middleware('merchant.can:billing.write')->name('simulate-month');
+        Route::post('forgot', [DemoLifecycleController::class, 'simulateForgot'])->middleware('merchant.can:billing.write')->name('forgot');
+        Route::post('grace/stage', [DemoLifecycleController::class, 'setStage'])->middleware('merchant.can:billing.write')->name('grace-stage');
+        Route::post('split/collect', [DemoLifecycleController::class, 'collectInstallment'])->middleware('merchant.can:billing.write')->name('split-collect');
+        Route::post('decision', [DemoLifecycleController::class, 'decision'])->middleware('merchant.can:billing.write')->name('decision');
+        Route::post('resale', [DemoResaleController::class, 'simulateResale'])->middleware('merchant.can:billing.write')->name('resale');
+        Route::post('negotiator', [DemoNegotiatorController::class, 'chat'])->middleware('merchant.can:billing.write')->name('negotiator');
+        Route::post('retention-campaign', [DemoRetentionCampaignController::class, 'send'])->middleware('merchant.can:billing.write')->name('retention-campaign');
         Route::get('dispute-evidence/{tx}', [DemoDisputeEvidenceController::class, 'show'])->whereUuid('tx')->name('dispute-evidence');
-        Route::post('smart-convert', [DemoSmartConvertController::class, 'smartConvert'])->name('smart-convert');
+        Route::post('smart-convert', [DemoSmartConvertController::class, 'smartConvert'])->middleware('merchant.can:billing.write')->name('smart-convert');
         Route::get('webhook-logs', [DemoInsightsController::class, 'webhookLogs'])->name('webhooks');
         Route::get('receipts/{id}', [DemoInsightsController::class, 'charityReceipt'])->name('receipt');
     });

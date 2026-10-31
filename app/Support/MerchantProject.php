@@ -25,6 +25,7 @@ final class MerchantProject
         public readonly bool $charitySplit = false,
         public readonly bool $gracePeriod = true,
         public readonly int $partialRefundBps = 2000,
+        public readonly int $charityBps = 2000,
     ) {}
 
     public static function current(): self
@@ -80,6 +81,7 @@ final class MerchantProject
             'charity_split' => (bool) ($data['charity_split'] ?? $existing['charity_split'] ?? true),
             'grace_period' => (bool) ($data['grace_period'] ?? $existing['grace_period'] ?? true),
             'partial_refund_bps' => max(0, min(10000, (int) ($data['partial_refund_bps'] ?? $existing['partial_refund_bps'] ?? 2000))),
+            'charity_bps' => max(100, min(5000, (int) ($data['charity_bps'] ?? $existing['charity_bps'] ?? 2000))),
         ];
 
         session([self::sessionKey() => $payload]);
@@ -138,6 +140,7 @@ final class MerchantProject
             'charity_split' => $this->charitySplit,
             'grace_period' => $this->gracePeriod,
             'partial_refund_bps' => $this->partialRefundBps,
+            'charity_bps' => $this->charityBps,
             'is_set' => $this->isSet(),
         ];
     }
@@ -158,6 +161,7 @@ final class MerchantProject
             (bool) ($stored['charity_split'] ?? false),
             (bool) ($stored['grace_period'] ?? true),
             max(0, min(10000, (int) ($stored['partial_refund_bps'] ?? 2000))),
+            max(100, min(5000, (int) ($stored['charity_bps'] ?? 2000))),
         );
     }
 

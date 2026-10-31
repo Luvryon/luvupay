@@ -68,6 +68,9 @@
                         <div class="cm-note" x-show="row.note" x-cloak>
                             <span x-text="row.note"></span>
                             <button type="button" class="cm-remove" x-show="row.status === 'idle' || row.status === 'failed'" x-on:click="removeCheckoutRow(idx)" x-bind:disabled="checkoutPaying">Remove</button>
+                            <button type="button" class="cm-remove" x-show="row.status === 'awaiting' && row.txId" x-on:click="checkoutRecheck(row)">Check again</button>
+                            <button type="button" class="cm-remove" x-show="row.status === 'awaiting' && row.awaitingBuyer && row.approveUrl" x-on:click="checkoutReopen(row)">Reopen PayPal</button>
+                            <button type="button" class="cm-remove" x-show="row.status === 'awaiting' && row.awaitingBuyer && row.txId" x-on:click="checkoutCancel(row)">Cancel checkout</button>
                         </div>
                     </li>
                 </template>

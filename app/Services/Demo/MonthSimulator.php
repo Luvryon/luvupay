@@ -22,7 +22,7 @@ final class MonthSimulator
 
     private const PATTERN = [
         'active', 'partial_refund', 'resale', 'active', 'charity', 'renewed',
-        'churned', 'active', 'resale_listed', 'partial_refund', 'grace', 'charity',
+        'churned', 'split', 'resale_listed', 'partial_refund', 'grace', 'charity',
     ];
 
     private const NAMES = [
@@ -56,7 +56,7 @@ final class MonthSimulator
         DB::transaction(function () use ($people, $n, $merchantId, $project, $currency, $provider, $amount, $product, &$counts) {
             foreach ($people as $i => $p) {
                 $outcome = $this->resolveOutcome(self::PATTERN[$i % count(self::PATTERN)], $project);
-                $daysAgo = $outcome === 'grace' ? 0 : ($n > 1 ? (int) round((($n - 1 - $i) * 27) / ($n - 1)) + 1 : 1);
+                $daysAgo = $outcome === 'grace' ? 0 : ($outcome === 'split' ? 2 : ($n > 1 ? (int) round((($n - 1 - $i) * 27) / ($n - 1)) + 1 : 1));
                 $at = now()->subDays($daysAgo)->setTime(8 + ($i * 7) % 12, ($i * 13) % 60, 0);
                 $this->one($merchantId, $project, $currency, $provider, $amount, $product, $outcome, $at, $p, $i);
                 $counts[$outcome] = ($counts[$outcome] ?? 0) + 1;
@@ -70,7 +70,7 @@ final class MonthSimulator
     private function resolveOutcome(string $o, MerchantProject $p): string
     {
         // Without a grace period there is no post-charge retention path: everything settles as a normal charge.
-        if (! $p->gracePeriod && in_array($o, ['partial_refund', 'resale', 'resale_listed', 'charity', 'renewed', 'grace'], true)) {
+        if (! $p->gracePeriod && in_array($o, ['partial_refund', 'resale', 'resale_listed', 'charity', 'renewed', 'grace', 'split'], true)) {
             return 'active';
         }
 
@@ -97,6 +97,7 @@ final class MonthSimulator
 
         $refundBps = $project->partialRefundBps;
         $refund = (int) round($amount * $refundBps / 10000);
+        $donate = max(1, min($amount, (int) round($amount * $project->charityBps / 10000)));
         $meta = ['demo' => true, 'source' => 'simulate_30_days', 'display_name' => $name, 'product' => $product, 'lifecycle' => 'ACTIVE', 'plan_id' => 'premium_monthly'];
         $status = 'completed';
         $subStatus = 'active';
@@ -111,11 +112,13 @@ final class MonthSimulator
                 $meta['lifecycle'] = 'AI-RETAINED';
                 $meta['decision'] = 'partial_refund_accepted';
                 $meta['smart_convert'] = ['type' => 'partial_refund', 'refund_bps' => $refundBps, 'refund_minor' => $refund, 'chargeback_prevented' => true];
+                $subStatus = 'cancelled';
                 break;
             case 'charity':
                 $meta['lifecycle'] = 'AI-RETAINED';
                 $meta['decision'] = 'charity_donate';
-                $meta['charity'] = ['donated_minor' => $amount, 'at' => $at->toIso8601String()];
+                $meta['charity'] = ['donated_minor' => $donate, 'bps' => $project->charityBps, 'at' => $at->toIso8601String()];
+                $subStatus = 'cancelled';
                 break;
             case 'resale_listed':
                 $meta['lifecycle'] = 'PENDING RESALE';
@@ -128,6 +131,9 @@ final class MonthSimulator
                 $meta['lifecycle'] = 'RESOLD';
                 $meta['decision'] = 'marketplace_resale';
                 $subStatus = 'resold';
+                break;
+            case 'split':
+                $status = 'held';   // SplitPayService::open() below sets the real state
                 break;
             case 'churned':
                 $meta['lifecycle'] = 'CHURNED';
@@ -182,15 +188,17 @@ final class MonthSimulator
         $this->recordOutboundDelivery($m, 'subscription.activated', ['transaction_id' => $txId, 'invoice_number' => $inv['invoice_number'] ?? null], success: $outcome !== 'churned');
 
         // ---- outcome side effects (rows written exactly like the manual Demo Simulator flows)
-        if ($outcome === 'charity') {
-            $this->charityRow($m, $subId, $txId, $userId, $email, $amount, $cur, $at, $provider, 'charity_donate');
-            $this->logWebhookEvent('luvupay', 'charity.donation', ['transaction_id' => $txId, 'amount_minor' => $amount]);
+        if ($outcome === 'split') {
+            app(\App\Services\Luvu\SplitPayService::class)->open($m, DB::table('transactions')->where('id', $txId)->first(), $at);
+        } elseif ($outcome === 'charity') {
+            $this->charityRow($m, $subId, $txId, $userId, $email, $donate, $cur, $at, $provider, 'charity_donate');
+            $this->logWebhookEvent('luvupay', 'charity.donation', ['transaction_id' => $txId, 'amount_minor' => $donate]);
         } elseif ($outcome === 'partial_refund') {
             $this->logWebhookEvent('luvupay', 'subscription.partial_refund', ['transaction_id' => $txId, 'refund_minor' => $refund]);
         } elseif ($outcome === 'resale') {
             $this->resaleRows($m, $project, $subId, $txId, $userId, $email, $amount, $cur, $at, $provider, $name);
         } elseif ($outcome === 'resale_listed') {
-            $this->listRow($m, $subId, $txId, $userId, $email, $name, $amount, $cur, $provider);
+            $this->listRow($m, $subId, $txId, $userId, $email, $name, $amount, $cur, $provider, $at);
         } elseif ($outcome === 'churned') {
             $this->logWebhookEvent('paypal', 'BILLING.SUBSCRIPTION.EXPIRED', ['transaction_id' => $txId]);
         } elseif ($outcome === 'grace') {
@@ -199,24 +207,19 @@ final class MonthSimulator
     }
 
     /** Live (unsold) listing: shows on the public merchant page with a redeem token and a Buy button. */
-    private function listRow(string $m, string $subId, string $parent, string $userId, string $email, string $name, int $amount, string $cur, string $provider): void
+    private function listRow(string $m, string $subId, string $parent, string $userId, string $email, string $name, int $amount, string $cur, string $provider, Carbon $at): void
     {
         $now = now();
-        $asking = max(100, (int) round($amount * 0.6));
-        $fee = max(100, (int) round($amount * 0.10));
+        $periodEnd = $at->copy()->addDays(30);
+        $asking = \App\Services\Resale\ResaleSettlement::askingPrice($amount, $periodEnd, $now);
         DB::table('resale_listings')->insert([
             'id' => (string) Str::uuid(), 'merchant_id' => $m, 'subscription_id' => $subId, 'seller_merchant_user_id' => $userId, 'seller_email' => $email,
             'status' => 'active', 'entitlement_status' => 'pending', 'asking_price_minor' => $asking, 'currency' => $cur,
-            'access_expires_at' => $now->copy()->addDays(15), 'listed_at' => $now, 'correlation_id' => (string) Str::uuid(),
-            'redeem_token' => \App\Services\Hosted\HostedPurchase::token($name, 15),
+            'access_expires_at' => $periodEnd, 'listed_at' => $now, 'correlation_id' => (string) Str::uuid(),
+            'redeem_token' => \App\Services\Hosted\HostedPurchase::token($name, max(1, (int) ceil($now->floatDiffInDays($periodEnd, true)))),
             'metadata' => json_encode(['demo' => true, 'seller_name' => $name, 'source' => 'simulate_30_days']), 'created_at' => $now, 'updated_at' => $now,
         ]);
-        DB::table('transactions')->insert([
-            'id' => (string) Str::uuid(), 'merchant_id' => $m, 'subscription_id' => $subId, 'parent_transaction_id' => $parent, 'type' => 'resale_fee',
-            'status' => 'completed', 'idempotency_key' => 'sim30-resale-fee-'.$parent, 'merchant_user_id' => $userId, 'email' => $email,
-            'amount_minor' => $fee, 'currency' => $cur, 'provider' => 'luvupay', 'provider_reference' => 'RESALE-FEE-'.$parent, 'processed_at' => $now,
-            'metadata' => json_encode(['lifecycle' => 'PENDING RESALE', 'parent_transaction_id' => $parent, 'path' => 'resale_fee']), 'created_at' => $now, 'updated_at' => $now,
-        ]);
+        // No fee row at listing time: the platform fee exists only once the listing sells (sale - seller payout).
         $this->logWebhookEvent('luvupay', 'marketplace.listing_created', ['transaction_id' => $parent, 'asking_minor' => $asking]);
     }
 
@@ -251,8 +254,9 @@ final class MonthSimulator
     {
         $buyerId = 'sim_buyer_'.Str::lower(Str::random(6));
         $buyerEmail = 'buyer.'.$buyerId.'@demo.luvupay.local';
-        $asking = max(100, (int) round($amount * 0.5));
-        $sellerPayout = (int) round($asking * (int) config('luvupay.resale.seller_bps', 9000) / 10000);
+        $sold0 = $at->copy()->addDays(2);
+        $asking = \App\Services\Resale\ResaleSettlement::askingPrice($amount, $at->copy()->addDays(30), $sold0->isFuture() ? now() : $sold0);
+        $sellerPayout = \App\Services\Resale\ResaleSettlement::split($asking)['seller_minor'];
         $listingId = (string) Str::uuid();
         $sale = (string) Str::uuid();
         $payout = (string) Str::uuid();
@@ -286,12 +290,10 @@ final class MonthSimulator
         $meta = json_decode(DB::table('transactions')->where('id', $parent)->value('metadata') ?: '{}', true) ?: [];
         $meta['buyer_email'] = $buyerEmail;
         $meta['listing_id'] = $listingId;
+        $meta['decision'] = 'marketplace_resale';
         DB::table('transactions')->where('id', $parent)->update(['metadata' => json_encode($meta)]);
         DB::table('subscriptions')->where('id', $subId)->update(['merchant_user_id' => $buyerId, 'email' => $buyerEmail]);
 
-        if ($project->charitySplit) {
-            $this->charityRow($m, $subId, $parent, $sellerId, 'Ocean Cleanup Alliance', (int) round($amount * 0.2), $cur, $sold, $provider, 'resale_charity_leg');
-        }
         $this->logWebhookEvent('luvupay', 'entitlement.transfer', ['listing_id' => $listingId, 'seller' => $sellerEmail, 'buyer' => $buyerEmail]);
         $this->logWebhookEvent('paypal', 'PAYMENT.CAPTURE.COMPLETED', ['id' => 'RESALE-'.$listingId, 'status' => 'COMPLETED']);
     }

@@ -18,3 +18,4 @@ Schedule::command('luvi:webhooks:replay --status=failed,received --stuck-minutes
 Schedule::command('luvi:webhooks:replay --prune-days=90')->dailyAt('04:30')->onOneServer();
 // Provider/ledger reconciliation also runs shortly after the settlement window for faster discovery of stuck payouts.
 Schedule::command('luvi:reconcile')->hourlyAt(20)->withoutOverlapping()->onOneServer();
+Schedule::command('luvupay:sweep')->everyFiveMinutes()->withoutOverlapping()->onOneServer();   // grace windows + split-pay schedule

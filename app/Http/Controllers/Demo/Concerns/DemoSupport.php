@@ -68,6 +68,8 @@ trait DemoSupport
             'certificate_code' => $meta['certificate_code'] ?? null,
             'receipt_id' => $meta['receipt_id'] ?? null,
             'ai_nudge' => $meta['ai_nudge'] ?? null,
+            'split' => $meta['split'] ?? null,
+            'decision' => $meta['decision'] ?? null,
             'display_name' => $meta['display_name'] ?? null,
             'product' => $meta['product'] ?? MerchantProject::current()->product(),
             'invoice_id' => $inv->id ?? null,

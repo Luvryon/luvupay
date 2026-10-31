@@ -25,210 +25,124 @@ final class PayoutController extends Controller
 {
     public function executePayout(Request $request): JsonResponse
     {
+        // Only merchant withdrawals go through this endpoint. Charity donations are executed by the "donate" decision
+        // (one per charge, amount derived server-side); a free-form charity payout API would let any caller drain the platform account.
         $data = $request->validate([
-            'payout_type' => ['required', 'in:merchant_withdrawal,charity_donation'],
-            'amount_minor' => ['nullable', 'integer', 'min:1'],
-            'transaction_id' => ['nullable', 'uuid'], // required for charity (ties to subscription row)
-            'charity_label' => ['nullable', 'string', 'max:120'], // display only — never the email
+            'payout_type' => ['nullable', 'in:merchant_withdrawal'],
+            'amount_minor' => ['nullable', 'integer', 'min:1', 'max:100000000000'],
         ]);
 
         $user = $request->user('merchant_web');
         abort_unless($user && $user->merchant_id, 403);
-        $merchantId = $user->merchant_id;
+        $merchantId = (string) $user->merchant_id;
+        $type = 'merchant_withdrawal';
 
-        $type = $data['payout_type'];
-        // Mock driver (default for demos / no PayPal credentials): payouts are simulated end-to-end,
-        // written to the same ledger, and move the wallet exactly like a real PayPal Payout would.
         $mock = (string) config('luvupay.payment.driver', 'mock') !== 'paypal';
         $receiver = $mock
-            ? ($this->resolveReceiver($type, (string) $merchantId) ?? 'mock-receiver@luvupay.local')
-            : $this->resolveReceiver($type, (string) $merchantId);
+            ? ($this->resolveReceiver($type, $merchantId) ?? 'mock-receiver@luvupay.local')
+            : $this->resolveReceiver($type, $merchantId);
         if ($receiver === null) {
-            return response()->json([
-                'ok' => false,
-                'error' => $type === 'merchant_withdrawal'
-                    ? 'Set your PayPal payout email in Settings → Payouts (or PAYPAL_MERCHANT_SANDBOX_EMAIL in .env)'
-                    : 'PAYPAL_CHARITY_SANDBOX_EMAIL is not set in .env',
-            ], 422);
+            return response()->json(['ok' => false, 'error' => 'Set your PayPal payout email in Settings → Payouts (or PAYPAL_MERCHANT_SANDBOX_EMAIL in .env)'], 422);
         }
 
-        $currency = 'USD';
-        $amountMinor = 0;
-        $note = '';
-        $txId = $data['transaction_id'] ?? null;
+        $currency = strtoupper(trim((string) DB::table('merchants')->where('id', $merchantId)->value('currency'))) ?: 'USD';
+        $senderBatchId = 'lp-wd-'.Str::lower(Str::random(12));
+        $requestId = $senderBatchId;
+        $ledgerId = (string) Str::uuid();
 
-        if ($type === 'merchant_withdrawal') {
+        // 1) RESERVE. The merchant row is locked, so two concurrent withdrawals are serialised and can never both
+        //    spend the same balance. The pending ledger row already counts as withdrawn.
+        $reserved = DB::transaction(function () use ($merchantId, $data, $currency, $senderBatchId, $ledgerId, $mock) {
+            DB::table('merchants')->where('id', $merchantId)->lockForUpdate()->first();
             $available = $this->availableBalanceMinor($merchantId);
             $amountMinor = (int) ($data['amount_minor'] ?? $available);
             if ($amountMinor <= 0 || $amountMinor > $available) {
-                return response()->json(['ok' => false, 'error' => 'Insufficient available balance'], 422);
+                return ['error' => 'Insufficient available balance'];
             }
             $quote = PayoutFee::quote($amountMinor);
             if ($quote['net_minor'] < PayoutFee::MIN_NET_MINOR) {
-                return response()->json(['ok' => false, 'error' => 'Amount too small: after the PayPal fee you would receive less than '.number_format(PayoutFee::MIN_NET_MINOR / 100, 2).'.'], 422);
+                return ['error' => 'Amount too small: after the PayPal fee you would receive less than '.number_format(PayoutFee::MIN_NET_MINOR / 100, 2).'.'];
             }
-            $note = 'LuvuPay merchant withdrawal';
-        } else {
-            // charity_donation — amount from held subscription residual
-            abort_unless($txId, 422, 'transaction_id required for charity_donation');
-            $tx = DB::table('transactions')->where('merchant_id', $merchantId)->where('id', $txId)->first();
-            abort_unless($tx, 404);
-            $amountMinor = (int) ($data['amount_minor'] ?? $tx->amount_minor);
-            $currency = $tx->currency ?? 'USD';
-            $label = $data['charity_label'] ?? 'Verified charity';
-            $note = 'LuvuPay charity split · '.$label;
+            DB::table('transactions')->insert([
+                'id' => $ledgerId, 'merchant_id' => $merchantId, 'idempotency_key' => 'payout-'.$senderBatchId, 'type' => 'payout', 'status' => 'pending',
+                'amount_minor' => -abs($amountMinor), 'currency' => $currency, 'provider' => $mock ? 'mock' : 'paypal', 'provider_reference' => $senderBatchId,
+                'metadata' => json_encode(['payout_type' => 'merchant_withdrawal', 'gross_minor' => $quote['gross_minor'], 'fee_minor' => $quote['fee_minor'], 'net_minor' => $quote['net_minor'], 'reserved' => true]),
+                'created_at' => now(), 'updated_at' => now(),
+            ]);
+
+            return ['amount' => $amountMinor, 'quote' => $quote];
+        });
+        if (isset($reserved['error'])) {
+            return response()->json(['ok' => false, 'error' => $reserved['error']], 422);
         }
-
-        // What PayPal actually sends: gross - fee for withdrawals (fee stays in the merchant's ledger debit), full amount for charity.
-        $quote = $quote ?? ['gross_minor' => $amountMinor, 'fee_minor' => 0, 'net_minor' => $amountMinor];
+        $amountMinor = $reserved['amount'];
+        $quote = $reserved['quote'];
         $sendMinor = $quote['net_minor'];
-        $senderBatchId = 'lp-'.($type === 'merchant_withdrawal' ? 'wd' : 'ch').'-'.Str::lower(Str::random(12));
-        $requestId = $senderBatchId;
+        $note = 'LuvuPay merchant withdrawal';
 
+        // 2) PAY. Any failure releases the reservation (status failed is not counted as withdrawn).
         try {
             $fallbackReason = null;
             if ($mock) {
                 $batch = ['batch_header' => ['payout_batch_id' => 'MOCK-'.strtoupper(Str::random(12)), 'batch_status' => 'SUCCESS']];
             } else {
                 try {
-                    $client = PayPalClient::fromConfig();
-                    $money = Money::of($sendMinor, $currency);
-                    $batch = $client->createPayout(
-                        [[
-                            'receiver' => $receiver, // from .env — never from the request body
-                            'amount' => $money,
-                            'note' => $note,
-                            'sender_item_id' => $requestId,
-                        ]],
-                        $senderBatchId,
-                        $requestId,
-                        $type === 'merchant_withdrawal' ? 'LuvuPay withdrawal' : 'LuvuPay charity donation'
+                    $batch = PayPalClient::fromConfig()->createPayout(
+                        [['receiver' => $receiver, 'amount' => Money::of($sendMinor, $currency), 'note' => $note, 'sender_item_id' => $requestId]],
+                        $senderBatchId, $requestId, 'LuvuPay withdrawal'
                     );
                 } catch (Throwable $pe) {
-                    // PayPal Sandbox frequently rejects payouts (Payouts not enabled on the app, sender account without
-                    // balance, unverified receiver). In sandbox we still complete the withdrawal as a clearly-labelled
-                    // simulation instead of failing with HTTP 502. Production never falls back.
+                    // Sandbox only: a payout PayPal rejects (Payouts not enabled, no funds...) is recorded as a labelled simulation.
                     if (! $this->sandboxFallback()) {
                         throw $pe;
                     }
                     $fallbackReason = $this->explainPayPalError($pe->getMessage());
-                    Log::warning('paypal.payout.sandbox_fallback', ['type' => $type, 'merchant_id' => $merchantId, 'error' => $pe->getMessage()]);
+                    Log::warning('paypal.payout.sandbox_fallback', ['merchant_id' => $merchantId, 'error' => $pe->getMessage()]);
                     $batch = ['batch_header' => ['payout_batch_id' => 'SANDBOX-SIM-'.strtoupper(Str::random(10)), 'batch_status' => 'SUCCESS']];
                 }
             }
             $simulated = $mock || $fallbackReason !== null;
-
-            $batchId = (string) ($batch['batch_header']['payout_batch_id'] ?? $batch['batch_header']['payout_batch_id'] ?? '');
+            $batchId = (string) ($batch['batch_header']['payout_batch_id'] ?? '');
             $status = (string) ($batch['batch_header']['batch_status'] ?? 'UNKNOWN');
+            Log::info('paypal.payout.created', ['merchant_id' => $merchantId, 'batch_id' => $batchId, 'status' => $status, 'amount_minor' => $amountMinor, 'receiver_masked' => $this->maskEmail($receiver)]);
 
-            Log::info('paypal.payout.created', [
-                'type' => $type,
-                'merchant_id' => $merchantId,
-                'batch_id' => $batchId,
-                'status' => $status,
-                'amount_minor' => $amountMinor,
-                // never log the full receiver email in production logs if possible — mask
-                'receiver_masked' => $this->maskEmail($receiver),
-            ]);
-
-            // Ledger row
-            $ledgerId = (string) Str::uuid();
-            DB::table('transactions')->insert([
-                'id' => $ledgerId,
-                'merchant_id' => $merchantId,
-                'idempotency_key' => 'payout-'.$senderBatchId,
-                'type' => $type === 'merchant_withdrawal' ? 'payout' : 'charity_payout',
+            DB::table('transactions')->where('id', $ledgerId)->update([
                 'status' => strtolower($status) === 'success' ? 'completed' : 'pending',
-                'amount_minor' => -abs($amountMinor),
-                'currency' => $currency,
-                'provider' => $simulated ? 'mock' : 'paypal',
-                'provider_reference' => $batchId ?: $senderBatchId,
-                'email' => $type === 'charity_donation' ? ($data['charity_label'] ?? 'Charity') : null,
+                'provider' => $simulated ? 'mock' : 'paypal', 'provider_reference' => $batchId ?: $senderBatchId, 'processed_at' => now(),
                 'metadata' => json_encode([
-                    'payout_type' => $type,
-                    'payout_batch_id' => $batchId,
-                    'batch_status' => $status,
-                    'source_transaction_id' => $txId,
-                    'charity_label' => $data['charity_label'] ?? null,
-                    'receiver_masked' => $this->maskEmail($receiver),
-                    'gross_minor' => $quote['gross_minor'],
-                    'fee_minor' => $quote['fee_minor'],
-                    'net_minor' => $quote['net_minor'],
-                    'fee_bps' => PayoutFee::config()['bps'],
-                    'simulated' => $simulated,
-                    'fallback_reason' => $fallbackReason,
+                    'payout_type' => 'merchant_withdrawal', 'payout_batch_id' => $batchId, 'batch_status' => $status, 'receiver_masked' => $this->maskEmail($receiver),
+                    'gross_minor' => $quote['gross_minor'], 'fee_minor' => $quote['fee_minor'], 'net_minor' => $quote['net_minor'], 'fee_bps' => PayoutFee::config()['bps'],
+                    'simulated' => $simulated, 'fallback_reason' => $fallbackReason,
                 ]),
-                'created_at' => now(),
                 'updated_at' => now(),
             ]);
 
-            if ($type === 'charity_donation' && $txId) {
-                $src = DB::table('transactions')->where('id', $txId)->first();
-                if ($src) {
-                    $meta = json_decode($src->metadata ?? '{}', true) ?: [];
-                    $meta['lifecycle'] = 'AI-RETAINED';
-                    $meta['decision'] = 'charity_donate';
-                    $meta['charity'] = [
-                        'label' => $data['charity_label'] ?? 'American Red Cross',
-                        'payout_batch_id' => $batchId,
-                        'amount_minor' => $amountMinor,
-                        'at' => now()->toIso8601String(),
-                    ];
-                    DB::table('transactions')->where('id', $txId)->update([
-                        'status' => 'completed',
-                        'metadata' => json_encode($meta),
-                        'updated_at' => now(),
-                    ]);
-                }
-            }
-
-            $receipt = ['sent' => false, 'to' => null, 'error' => null];
-            $receiptPayload = null;
-            if ($type === 'merchant_withdrawal') {
-                $receiptArgs = [
-                    'gross_minor' => $quote['gross_minor'], 'fee_minor' => $quote['fee_minor'], 'net_minor' => $quote['net_minor'],
-                    'currency' => $currency, 'batch_id' => $batchId ?: null, 'status' => $status, 'receiver_masked' => $this->maskEmail($receiver),
-                    'simulated' => $simulated, 'ledger_id' => $ledgerId,
-                ];
-                $receipt = \App\Services\Payout\PayoutMailer::sendWithdrawalReceipt((string) $merchantId, $receiptArgs);
-                $receiptPayload = \App\Services\Payout\PayoutMailer::receiptPayload((string) $merchantId, $receiptArgs);
-            }
+            $receiptArgs = [
+                'gross_minor' => $quote['gross_minor'], 'fee_minor' => $quote['fee_minor'], 'net_minor' => $quote['net_minor'],
+                'currency' => $currency, 'batch_id' => $batchId ?: null, 'status' => $status, 'receiver_masked' => $this->maskEmail($receiver),
+                'simulated' => $simulated, 'ledger_id' => $ledgerId,
+            ];
+            $receipt = \App\Services\Payout\PayoutMailer::sendWithdrawalReceipt($merchantId, $receiptArgs);
+            $receiptPayload = \App\Services\Payout\PayoutMailer::receiptPayload($merchantId, $receiptArgs);
 
             return response()->json([
                 'ok' => true,
-                'message' => ($simulated ? 'Simulated: ' : '').($type === 'merchant_withdrawal'
-                    ? 'Withdrawal submitted to PayPal Payouts'
-                    : 'Charity donation submitted to PayPal Payouts'),
-                'mock' => $simulated,
-                'fallback' => $fallbackReason !== null,
+                'message' => ($simulated ? 'Simulated: ' : '').'Withdrawal submitted to PayPal Payouts',
+                'mock' => $simulated, 'fallback' => $fallbackReason !== null,
                 'warning' => $fallbackReason ? 'PayPal Sandbox did not accept this payout ('.$fallbackReason.'). It was recorded as a simulated payout so your wallet stays consistent.' : null,
-                'payout_type' => $type,
-                'payout_batch_id' => $batchId,
-                'batch_status' => $status,
-                'amount_minor' => $amountMinor,
-                'gross_minor' => $quote['gross_minor'],
-                'fee_minor' => $quote['fee_minor'],
-                'net_minor' => $quote['net_minor'],
-                'receipt_email_sent' => $receipt['sent'],
-                'receipt_email_to' => $receipt['to'] ? $this->maskEmail($receipt['to']) : null,
-                'receipt_email_error' => $receipt['error'] ?? null,
-                'receipt' => $receiptPayload,
-                'currency' => $currency,
-                // UI-safe: never return the sandbox email
-                'receiver_display' => $type === 'merchant_withdrawal'
-                    ? $this->maskEmail($receiver)
-                    : ($data['charity_label'] ?? 'American Red Cross'),
+                'payout_type' => $type, 'payout_batch_id' => $batchId, 'batch_status' => $status,
+                'amount_minor' => $amountMinor, 'gross_minor' => $quote['gross_minor'], 'fee_minor' => $quote['fee_minor'], 'net_minor' => $quote['net_minor'],
+                'receipt_email_sent' => $receipt['sent'], 'receipt_email_to' => $receipt['to'] ? $this->maskEmail($receipt['to']) : null,
+                'receipt_email_error' => $receipt['error'] ?? null, 'receipt' => $receiptPayload, 'currency' => $currency,
+                'receiver_display' => $this->maskEmail($receiver),
             ], 201);
         } catch (Throwable $e) {
-            Log::error('paypal.payout.failed', [
-                'type' => $type,
-                'merchant_id' => $merchantId,
-                'error' => $e->getMessage(),
-            ]);
+            DB::table('transactions')->where('id', $ledgerId)->where('status', 'pending')->update(['status' => 'failed', 'updated_at' => now()]);   // release the reservation
+            Log::error('paypal.payout.failed', ['merchant_id' => $merchantId, 'error' => $e->getMessage()]);
 
             return response()->json([
                 'ok' => false,
-                'error' => 'PayPal Payouts failed: '.$this->explainPayPalError($e->getMessage()),
+                'error' => 'PayPal Payouts failed: '.$this->explainPayPalError($e->getMessage()).'. Your balance was not changed.',
                 'hint' => 'Check PAYPAL_CLIENT_ID/SECRET, that Payouts is enabled on the PayPal app, that the sender sandbox account has funds, and set PAYPAL_MODE=sandbox',
             ], 502);
         }

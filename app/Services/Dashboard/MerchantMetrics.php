@@ -8,22 +8,21 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * Single source of truth for every number the merchant console shows
- * (Overview KPIs, Wallet balance, Analytics). One pass over the ledger.
+ * (Overview KPIs, Wallet balance, Analytics). One pass over the ledger, integers only.
  *
- * Money semantics (all minor units):
- *  - charge_volume   : completed `charge` rows
- *  - refunded        : partial refunds the merchant gave to keep the subscriber (meta.smart_convert.refund_minor)
- *  - charity         : completed `charity_payout` rows (ABS: some writers store negatives)
- *  - resale_volume   : completed `resale_sale` rows (buyer payments, flows through the platform)
- *  - resale_fees     : (resale_sale - resale_payout) + listing `resale_fee` rows = what the merchant keeps
- *  - revenue_saved   : partial-refund cash kept + chargeback fee avoided (charity path) + resale fees + smart-convert retained
- *  - wallet          : charge_volume - refunded - charity + resale_fees - withdrawn   (never below 0)
+ * Money semantics (minor units):
+ *  - charge_volume   : completed `charge` rows + completed `installment` rows of plans still open/defaulted
+ *                      (a held charge is NOT in the wallet yet; a completed split plan swaps its instalments for the charge)
+ *  - refunded        : partial refunds the subscriber took (meta.smart_convert.refund_minor)
+ *  - charity         : completed `charity_payout` rows (ABS: legacy writers stored negatives)
+ *  - resale_volume   : completed `resale_sale` rows (buyer payments; they pass through the platform, NOT merchant revenue)
+ *  - platform_fee    : resale_sale - resale_payout. LuvuPay's fee, never merchant revenue, never in the wallet
+ *  - revenue_saved   : cash the merchant kept that would otherwise have been lost to a refund, chargeback or churn:
+ *                      partial-refund retained + charity retained + split collected + resold charges + smart-convert
+ *  - wallet          : charge_volume - refunded - charity - withdrawn   (shown floored at 0; `wallet_raw_minor` exposes the real figure)
  */
 final class MerchantMetrics
 {
-    /** Typical PayPal dispute/chargeback fee avoided when the user donates instead of disputing. */
-    public const CHARGEBACK_FEE_MINOR = 1500;
-
     /** @return array<string,mixed> */
     public function compute(string $merchantId, ?int $days = null): array
     {
@@ -65,10 +64,11 @@ final class MerchantMetrics
         }
 
         $subs = $this->subscribers($merchantId);
-        $wallet = max(0, $all['charge_volume'] - $all['refunded'] - $all['charity'] - $all['withdrawn']);
+        $walletRaw = $all['charge_volume'] - $all['refunded'] - $all['charity'] - $all['withdrawn'];
+        $wallet = max(0, $walletRaw);
         $k = $rng;
         $resaleFees = $this->resaleFees($k);
-        $saved = $k['saved_partial'] + $k['saved_charity'] + $k['saved_smart'];
+        $saved = $k['saved_partial'] + $k['saved_charity'] + $k['saved_smart'] + $k['saved_split'] + $k['saved_resale'];
 
         $totalSubs = max(1, $subs['total']);
         $out = [
@@ -82,12 +82,14 @@ final class MerchantMetrics
             'resale_volume_minor' => $k['resale_volume'],
             'marketplace_volume_minor' => $k['resale_volume'],
             'resale_fees_minor' => $resaleFees,
+            'platform_fee_minor' => $resaleFees,
             'revenue_saved_minor' => $saved,
             'total_revenue_saved_minor' => $saved,
             'saved_breakdown' => [
                 'partial_refund_minor' => $k['saved_partial'],
                 'charity_minor' => $k['saved_charity'],
-                'resale_fees_minor' => $resaleFees,
+                'split_minor' => $k['saved_split'],
+                'resale_minor' => $k['saved_resale'],
                 'smart_convert_minor' => $k['saved_smart'],
             ],
             'transaction_count' => $k['charges'],
@@ -100,13 +102,16 @@ final class MerchantMetrics
             'at_risk_minor' => $k['at_risk'],
             'withdrawn_minor' => $all['withdrawn'],
             'wallet_balance_minor' => $wallet,
+            'wallet_raw_minor' => $walletRaw,
+            'wallet_inconsistent' => $walletRaw < 0,
             'available_balance_minor' => $wallet,
             'wallet' => [
                 'balance_minor' => $wallet,
                 'charges_minor' => $all['charge_volume'],
                 'refunded_minor' => $all['refunded'],
                 'charity_minor' => $all['charity'],
-                'resale_fees_minor' => $this->resaleFees($all),
+                'platform_fee_minor' => $this->resaleFees($all),
+                'installments_minor' => $all['installments'],
                 'withdrawn_minor' => $all['withdrawn'],
             ],
             'active_listings' => (int) DB::table('resale_listings')->where('merchant_id', $merchantId)
@@ -126,16 +131,16 @@ final class MerchantMetrics
     {
         return [
             'charge_volume' => 0, 'charges' => 0, 'refunded' => 0, 'charity' => 0, 'resale_volume' => 0,
-            'resale_payouts' => 0, 'resale_listing_fees' => 0, 'withdrawn' => 0, 'prevented' => 0, 'at_risk' => 0,
-            'saved_partial' => 0, 'saved_charity' => 0, 'saved_smart' => 0,
+            'resale_payouts' => 0, 'installments' => 0, 'withdrawn' => 0, 'prevented' => 0, 'at_risk' => 0,
+            'saved_partial' => 0, 'saved_charity' => 0, 'saved_smart' => 0, 'saved_split' => 0, 'saved_resale' => 0,
             'outcomes' => ['active' => 0, 'renewed' => 0, 'grace' => 0, 'partial_refund' => 0, 'charity' => 0,
-                'resale' => 0, 'resale_pending' => 0, 'smart_convert' => 0, 'churned' => 0],
+                'resale' => 0, 'resale_pending' => 0, 'smart_convert' => 0, 'split_pay' => 0, 'churned' => 0],
         ];
     }
 
     private function resaleFees(array $b): int
     {
-        return max(0, $b['resale_volume'] - $b['resale_payouts']) + $b['resale_listing_fees'];
+        return max(0, $b['resale_volume'] - $b['resale_payouts']);   // the platform's share of buyer payments
     }
 
     /** Applies one ledger row to a bucket; returns the per-day deltas for the chart. */
@@ -148,12 +153,20 @@ final class MerchantMetrics
                 $life = strtoupper(str_replace('_', ' ', (string) ($meta['lifecycle'] ?? '')));
                 $decision = (string) ($meta['decision'] ?? '');
                 if ($r->status === 'held') {
+                    if ($decision === 'split_pay') {
+                        $b['at_risk'] += max(0, $amt - (int) ($meta['split']['paid_minor'] ?? 0));   // only the unpaid remainder is at stake
+                        $b['outcomes']['split_pay']++;
+                        break;
+                    }
                     $b['at_risk'] += $amt;
                     $b['outcomes'][$life === 'PENDING RESALE' ? 'resale_pending' : 'grace']++;
                     break;
                 }
                 if (in_array($r->status, ['cancelled', 'failed', 'expired'], true)) {
                     $b['outcomes']['churned']++;
+                    if ($decision === 'split_defaulted') {
+                        $b['saved_split'] += (int) ($meta['split']['paid_minor'] ?? 0);   // cash collected before the plan defaulted
+                    }
                     break;
                 }
                 if (! $done) {
@@ -171,19 +184,27 @@ final class MerchantMetrics
                     $d['refunded'] = $refund;
                     $d['saved'] = $amt - $refund;
                 } elseif ($decision === 'charity_donate') {
-                    $b['saved_charity'] += self::CHARGEBACK_FEE_MINOR;
+                    $donated = min($amt, abs((int) ($meta['charity']['donated_minor'] ?? $amt)));
+                    $b['saved_charity'] += $amt - $donated;   // cash kept; the donation itself is the charity_payout row
                     $b['prevented']++;
                     $b['outcomes']['charity']++;
-                    $d['saved'] = self::CHARGEBACK_FEE_MINOR;
+                    $d['saved'] = $amt - $donated;
+                } elseif ($decision === 'split_paid') {
+                    $b['saved_split'] += $amt;
+                    $b['prevented']++;
+                    $b['outcomes']['split_pay']++;
+                    $d['saved'] = $amt;
+                } elseif (str_starts_with($life, 'RESOLD') || $decision === 'marketplace_resale') {
+                    $b['saved_resale'] += $amt;   // merchant kept 100% of a charge that would otherwise be refunded or charged back
+                    $b['prevented']++;
+                    $b['outcomes']['resale']++;
+                    $d['saved'] = $amt;
                 } elseif ($life === 'SMART-CONVERTED' || ! empty($sc['chargeback_prevented'])) {
                     $kept = abs((int) ($sc['revenue_retained_minor'] ?? 0));
                     $b['saved_smart'] += $kept;
                     $b['prevented']++;
                     $b['outcomes']['smart_convert']++;
                     $d['saved'] = $kept;
-                } elseif ($life === 'RESOLD') {
-                    $b['prevented']++;
-                    $b['outcomes']['resale']++;
                 } elseif ($decision === 'user_renewed') {
                     $b['outcomes']['renewed']++;
                 } else {
@@ -202,8 +223,12 @@ final class MerchantMetrics
                 }
                 break;
             case 'resale_fee':
-                if ($done) {
-                    $b['resale_listing_fees'] += $amt;
+                break;   // informational ledger line of the platform's cut; the fee is derived as sale - payout (never counted twice)
+            case 'installment':
+                if ($r->status === 'completed') {
+                    $b['charge_volume'] += $amt;
+                    $b['installments'] += $amt;
+                    $d['revenue'] = $amt;
                 }
                 break;
             case 'charity_payout':
@@ -260,7 +285,7 @@ final class MerchantMetrics
             $out[] = ['icon' => 'heart', 'text' => 'Subscribers donated '.$fmt($m['charity_minor']).' to charity through your project.'];
         }
         if ($m['resale_volume_minor'] > 0) {
-            $out[] = ['icon' => 'refresh', 'text' => 'Marketplace resale moved '.$fmt($m['resale_volume_minor']).'. Original cycle charges stay with you; platform fee was '.$fmt($m['resale_fees_minor']).'.'];
+            $out[] = ['icon' => 'refresh', 'text' => 'Marketplace resale moved '.$fmt($m['resale_volume_minor']).'. You keep the original cycle charges; the LuvuPay platform fee ('.$fmt($m['platform_fee_minor']).') is not deducted from your wallet.'];
         }
         $p = MerchantProject::current();
         if ($p->isSet()) {

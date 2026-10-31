@@ -21,6 +21,35 @@
             </div>
         </div>
 
+        {{-- Step 1: choose WHO and WHEN on the missed-cancellation timeline --}}
+        <div x-show="journeyStep === 'setup'" x-cloak class="rounded-xl border border-slate-200 bg-slate-50 p-5 space-y-4">
+            <div>
+                <p class="text-sm font-semibold text-slate-800">1. Choose the subscriber</p>
+                <select class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+                        x-bind:value="journeySetup && journeySetup.rowId" x-on:change="pickJourneyUser($event.target.value)" aria-label="Subscriber">
+                    <template x-for="r in (journeySetup ? journeySetup.rows : [])" x-bind:key="r.id">
+                        <option x-bind:value="r.id" x-bind:selected="journeySetup.rowId === r.id" x-text="r.label"></option>
+                    </template>
+                </select>
+            </div>
+            <div>
+                <p class="text-sm font-semibold text-slate-800">2. How much time is left before the subscription expires?</p>
+                <div class="mt-2 flex flex-wrap gap-2" role="radiogroup" aria-label="Time before expiry">
+                    <template x-for="o in [{h:168,l:'7 days'},{h:72,l:'3 days'},{h:48,l:'48 hours'},{h:6,l:'6 hours'}]" x-bind:key="o.h">
+                        <button type="button" role="radio" x-bind:aria-checked="journeySetup && journeySetup.hours === o.h"
+                                x-on:click="journeySetup.hours = o.h"
+                                class="rounded-full border px-4 py-1.5 text-xs font-semibold"
+                                x-bind:class="journeySetup && journeySetup.hours === o.h ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'"
+                                x-text="o.l"></button>
+                    </template>
+                </div>
+                <p class="mt-2 text-xs text-slate-500">Sandbox: the deadline of this charge is set to that moment. Each stage opens or closes options, exactly as in production. You can move along the timeline afterwards.</p>
+            </div>
+            <div class="flex justify-end">
+                <button type="button" class="rounded-lg bg-slate-900 px-5 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-40" x-on:click="startJourney()" x-bind:disabled="decisionBusy">Start simulation</button>
+            </div>
+        </div>
+
         {{-- Feature 1: AI Processing Animation --}}
         <div x-show="journeyStep === 'loading'" x-cloak
              class="bg-slate-50 rounded-xl p-8 flex flex-col items-center justify-center h-64 border border-slate-100">
@@ -44,6 +73,22 @@
         </div>
 
         {{-- Dual view (after thinking) --}}
+        {{-- Timeline: where this charge is, and the ability to move along it --}}
+        <div x-show="journeyStep === 'ready' && journey.stage" x-cloak class="rounded-xl border p-3 space-y-2"
+             x-bind:class="{'border-emerald-200 bg-emerald-50': journey.stage && journey.stage.tone === 'calm', 'border-sky-200 bg-sky-50': journey.stage && journey.stage.tone === 'nudge', 'border-amber-300 bg-amber-50': journey.stage && journey.stage.tone === 'urgent', 'border-rose-300 bg-rose-50': journey.stage && journey.stage.tone === 'critical'}">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+                <p class="text-sm font-semibold text-slate-900"><span x-text="journey.stage && journey.stage.label"></span>
+                    <span class="font-normal text-slate-600" x-text="journey.stage && journey.stage.expires_at ? ' · expires ' + new Date(journey.stage.expires_at).toLocaleString() : ''"></span></p>
+                <div class="flex flex-wrap gap-1.5" role="group" aria-label="Move along the timeline">
+                    <template x-for="o in [{h:168,l:'7d'},{h:72,l:'3d'},{h:48,l:'48h'},{h:6,l:'6h'},{h:0,l:'Expire now'}]" x-bind:key="o.h">
+                        <button type="button" x-on:click="setJourneyStage(o.h)" x-bind:disabled="decisionBusy || phoneView === 'done'"
+                                class="rounded-full border border-slate-300 bg-white px-3 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-40" x-text="o.l"></button>
+                    </template>
+                </div>
+            </div>
+            <p class="text-xs text-slate-700" x-text="journey.stage && journey.stage.message"></p>
+        </div>
+
         <div x-show="journeyStep === 'ready'" x-cloak class="grid grid-cols-2 gap-6 max-md:grid-cols-1">
             {{-- LEFT: backend logs --}}
             <section aria-label="Backend logs">
@@ -94,18 +139,21 @@
                                     </p>
                                 </div>
                                 <div class="flex flex-col gap-2">
-                                    <button type="button" x-on:click="choose('renew')" x-bind:disabled="!decisionReady || decisionBusy"
+                                    <button type="button" x-on:click="choose('renew')" x-bind:title="optWhy('renew')" x-bind:disabled="!optOk('renew') || !decisionReady || decisionBusy"
                                             class="bg-slate-900 text-white py-2 rounded-lg text-xs font-medium hover:bg-slate-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                                             x-text="'Retry Payment (' + journey.amount + ')'"></button>
-                                    <button type="button" x-on:click="choose('partial_refund')" x-bind:disabled="!decisionReady || decisionBusy"
+                                    <button type="button" x-on:click="choose('split_pay')" x-bind:title="optWhy('split_pay')" x-bind:disabled="!optOk('split_pay') || !decisionReady || decisionBusy"
+                                            class="bg-emerald-600 text-white py-2 rounded-lg text-xs font-medium hover:bg-emerald-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                            x-text="'Split pay (' + journey.splitFirst + ' now, rest in 7 days)'"></button>
+                                    <button type="button" x-on:click="choose('partial_refund')" x-bind:title="optWhy('partial_refund')" x-bind:disabled="!optOk('partial_refund') || !decisionReady || decisionBusy"
                                             class="bg-sky-600 text-white py-2 rounded-lg text-xs font-medium hover:bg-sky-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                                             x-text="'Partial refund (' + journey.refundPct + '%)'"></button>
-                                    <button type="button" x-on:click="choose('resale')" x-bind:disabled="!decisionReady || decisionBusy || !journey.features.resale"
+                                    <button type="button" x-on:click="choose('resale')" x-bind:title="optWhy('resale')" x-bind:disabled="!optOk('resale') || !decisionReady || decisionBusy || !journey.features.resale"
                                             x-bind:title="journey.features.resale ? '' : 'Enable Marketplace Resale in Settings'"
                                             class="bg-purple-600 text-white py-2 rounded-lg text-xs font-medium hover:bg-purple-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">Resell Remaining Access</button>
-                                    <button type="button" x-on:click="choose('donate')" x-bind:disabled="!decisionReady || decisionBusy || !journey.features.charity"
+                                    <button type="button" x-on:click="choose('donate')" x-bind:title="optWhy('donate')" x-bind:disabled="!optOk('donate') || !decisionReady || decisionBusy || !journey.features.charity"
                                             class="bg-pink-500 text-white py-2 rounded-lg text-xs font-medium hover:bg-pink-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">Donate residual</button>
-                                    <button type="button" x-on:click="choose('cancel')" x-bind:disabled="!decisionReady || decisionBusy"
+                                    <button type="button" x-on:click="choose('cancel')" x-bind:title="optWhy('expire')" x-bind:disabled="!optOk('expire') || !decisionReady || decisionBusy"
                                             class="border border-slate-300 bg-white text-slate-700 py-2 rounded-lg text-xs font-medium hover:bg-slate-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">Let it expire</button>
                                 </div>
                             </div>
@@ -163,11 +211,13 @@
                 <p class="text-xs font-semibold text-emerald-600" x-show="phoneView === 'done'" x-cloak>✓ Completed — ledger, KPIs and wallet are updated</p>
             </div>
             <div class="flex flex-wrap gap-2 mt-2">
-                <button type="button" x-on:click="choose('renew')" x-bind:disabled="!decisionReady || decisionBusy || phoneView === 'done'" class="rounded-lg bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed">Retry payment</button>
-                <button type="button" x-on:click="choose('partial_refund')" x-bind:disabled="!decisionReady || decisionBusy || phoneView === 'done'" class="rounded-lg bg-sky-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-sky-700 disabled:opacity-40 disabled:cursor-not-allowed" x-text="'Partial refund (' + journey.refundPct + '%)'"></button>
-                <button type="button" x-on:click="choose('resale')" x-bind:disabled="!decisionReady || decisionBusy || phoneView === 'done' || !journey.features.resale" class="rounded-lg bg-purple-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-purple-700 disabled:opacity-40 disabled:cursor-not-allowed">Resell remaining</button>
-                <button type="button" x-on:click="choose('donate')" x-bind:disabled="!decisionReady || decisionBusy || phoneView === 'done' || !journey.features.charity" class="rounded-lg bg-pink-500 px-3.5 py-2 text-xs font-semibold text-white hover:bg-pink-600 disabled:opacity-40 disabled:cursor-not-allowed">Donate residual</button>
-                <button type="button" x-on:click="choose('cancel')" x-bind:disabled="!decisionReady || decisionBusy || phoneView === 'done'" class="rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed">Let it expire</button>
+                <button type="button" x-on:click="choose('renew')" x-bind:title="optWhy('renew')" x-bind:disabled="!optOk('renew') || !decisionReady || decisionBusy || phoneView === 'done'" class="rounded-lg bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed">Retry payment</button>
+                <button type="button" x-on:click="choose('split_pay')" x-bind:title="optWhy('split_pay')" x-bind:disabled="!optOk('split_pay') || !decisionReady || decisionBusy || phoneView === 'done'" class="rounded-lg bg-emerald-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed">Split pay</button>
+                <button type="button" x-on:click="choose('partial_refund')" x-bind:title="optWhy('partial_refund')" x-bind:disabled="!optOk('partial_refund') || !decisionReady || decisionBusy || phoneView === 'done'" class="rounded-lg bg-sky-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-sky-700 disabled:opacity-40 disabled:cursor-not-allowed" x-text="'Partial refund (' + journey.refundPct + '%)'"></button>
+                <button type="button" x-on:click="choose('resale')" x-bind:title="optWhy('resale')" x-bind:disabled="!optOk('resale') || !decisionReady || decisionBusy || phoneView === 'done' || !journey.features.resale" class="rounded-lg bg-purple-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-purple-700 disabled:opacity-40 disabled:cursor-not-allowed">Resell remaining</button>
+                <button type="button" x-on:click="choose('donate')" x-bind:title="optWhy('donate')" x-bind:disabled="!optOk('donate') || !decisionReady || decisionBusy || phoneView === 'done' || !journey.features.charity" class="rounded-lg bg-pink-500 px-3.5 py-2 text-xs font-semibold text-white hover:bg-pink-600 disabled:opacity-40 disabled:cursor-not-allowed">Donate residual</button>
+                <button type="button" x-on:click="choose('cancel')" x-bind:title="optWhy('expire')" x-bind:disabled="!optOk('expire') || !decisionReady || decisionBusy || phoneView === 'done'" class="rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed">Let it expire</button>
+                <button type="button" x-show="journey.splitPlan && journey.splitPlan.status === 'active'" x-cloak x-on:click="collectInstallment(decisionRow)" x-bind:disabled="decisionBusy" class="rounded-lg bg-emerald-700 px-3.5 py-2 text-xs font-semibold text-white hover:bg-emerald-800 disabled:opacity-40">Subscriber pays next instalment now</button>
             </div>
         </div>
     </div>

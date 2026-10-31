@@ -376,7 +376,7 @@ final class DemoCheckoutController
                     }
                     $this->logWebhookEvent('paypal', 'BILLING.SUBSCRIPTION.APPROVED', ['transaction_id' => $txId, 'status' => $status ?: 'UNKNOWN']);
 
-                    return ['state' => 'processing', 'message' => 'Approved. Waiting for PayPal to confirm the first payment'];
+                    return ['state' => 'processing', 'retryable' => true, 'stage' => 'confirming', 'message' => 'Approved. PayPal is finalizing the first payment'];
                 }
                 $capture = $sub['billing_info']['last_payment'] ?? [];
                 $this->activate($merchantId, $row, $meta, [
@@ -419,79 +419,158 @@ final class DemoCheckoutController
                 ]);
             }
             if ($capStatus === 'PENDING') {
-                return ['state' => 'processing', 'message' => 'Payment is pending at PayPal'];
+                return ['state' => 'processing', 'retryable' => true, 'stage' => 'confirming', 'message' => 'Payment is pending at PayPal'];
             }
             if ($capStatus !== 'COMPLETED' && $orderStatus !== 'COMPLETED') {
                 // Not a hard failure — buyer may still finish or capture is lagging
-                return ['state' => 'processing', 'message' => 'PayPal is still confirming the payment ('.($capStatus ?: $orderStatus).')'];
+                return ['state' => 'processing', 'retryable' => true, 'stage' => 'confirming', 'message' => 'Approved. PayPal is finalizing the payment'];
             }
             $this->activate($merchantId, $row, $meta, ['reference' => $captureId ?: $orderId]);
 
             return ['state' => 'captured', 'message' => 'Payment captured. Funds are in your PayPal sandbox business balance'];
         } catch (\Throwable $e) {
             $err = $e->getMessage();
-            Log::warning('demo.checkout.settle_failed', ['tx' => $txId, 'err' => $err]);
+            $c = $this->classifyProviderError($e);
+            Log::warning('demo.checkout.settle_failed', ['tx' => $txId, 'type' => $c['type'], 'issue' => $c['issue'], 'debug_id' => $c['debug_id'], 'err' => $err]);
 
-            // Race / idempotency: payment often already succeeded on PayPal while our capture call raced.
-            // Re-read status before declaring failure so the UI does not flash a false error.
-            try {
-                $client = PayPalClient::fromConfig();
-                $kind = (string) ($meta['paypal_kind'] ?? '');
-                if ($kind === 'subscription') {
-                    $paypalSubId = (string) ($meta['paypal_subscription_id'] ?? '');
-                    if ($paypalSubId !== '') {
-                        $sub = $client->getSubscription($paypalSubId);
-                        $status = strtoupper((string) ($sub['status'] ?? ''));
-                        if ($status === 'ACTIVE') {
-                            $this->activate($merchantId, $row, $meta, [
-                                'reference' => $paypalSubId,
-                                'provider_subscription_id' => $paypalSubId,
-                                'next_billing' => data_get($sub, 'billing_info.next_billing_time'),
-                            ]);
-
-                            return ['state' => 'captured', 'message' => 'Subscription active. Funds are in your PayPal sandbox business balance'];
-                        }
-                        if (in_array($status, ['APPROVED', 'APPROVAL_PENDING'], true)) {
-                            return ['state' => 'processing', 'message' => 'Approved. Waiting for PayPal to confirm the first payment', 'error' => Str::limit($err, 160)];
-                        }
-                    }
-                } else {
-                    $orderId = (string) ($meta['paypal_order_id'] ?? $row->provider_reference ?? '');
-                    if ($orderId !== '') {
-                        $order = $client->getOrder($orderId);
-                        $orderStatus = strtoupper((string) ($order['status'] ?? ''));
-                        $unit = $order['purchase_units'][0] ?? [];
-                        $captureId = $unit['payments']['captures'][0]['id'] ?? null;
-                        $capStatus = strtoupper((string) ($unit['payments']['captures'][0]['status'] ?? ''));
-                        if ($orderStatus === 'COMPLETED' || $capStatus === 'COMPLETED') {
-                            $this->activate($merchantId, $row, $meta, ['reference' => $captureId ?: $orderId]);
-
-                            return ['state' => 'captured', 'message' => 'Payment captured. Funds are in your PayPal sandbox business balance'];
-                        }
-                        if (in_array($orderStatus, ['APPROVED', 'CREATED', 'PAYER_ACTION_REQUIRED'], true) || $capStatus === 'PENDING') {
-                            return ['state' => 'processing', 'message' => 'PayPal is still confirming the payment', 'error' => Str::limit($err, 160)];
-                        }
-                    }
+            // Race / idempotency: the payment may already have succeeded while our capture call raced.
+            // Re-read PayPal before saying anything, so the UI never flashes a false error.
+            if (in_array($c['type'], ['already_done', 'transient', 'unknown'], true)) {
+                $re = $this->recheckWithPayPal($merchantId, $row, $meta);
+                if ($re !== null) {
+                    return $re;
                 }
-            } catch (\Throwable $inner) {
-                Log::warning('demo.checkout.settle_recovery_failed', ['tx' => $txId, 'err' => $inner->getMessage()]);
             }
 
-            // Soft-fail: almost every capture race/API glitch is still recoverable while the order is open.
-            // Only hard-fail on explicit buyer/instrument declines.
-            $hardFail = (bool) preg_match('/INSTRUMENT_DECLINED|PAYER_CANNOT_PAY|PAYMENT_DENIED|CARD_GENERIC_ERROR|INVALID_RESOURCE_ID|ORDER_NOT_APPROVED|PERMISSION_DENIED|UNAUTHORIZED/i', $err);
+            switch ($c['type']) {
+                case 'awaiting_buyer':
+                    return ['state' => 'processing', 'awaiting_buyer' => true, 'retryable' => true, 'message' => 'The buyer has not approved the payment on PayPal yet'];
 
-            if (! $hardFail) {
-                $this->logWebhookEvent('paypal', 'PAYMENT.CAPTURE.PENDING', ['transaction_id' => $txId, 'error' => $err], 'pending');
+                case 'already_done':
+                case 'transient':
+                    // Our call failed or PayPal is slow; the money state is unknown, never declare failure here.
+                    return ['state' => 'processing', 'retryable' => true, 'stage' => 'confirming',
+                        'message' => 'PayPal is taking longer than usual to answer. Nothing has been lost, we keep checking.',
+                        'issue' => $c['issue'], 'debug_id' => $c['debug_id']];
 
-                return ['state' => 'processing', 'message' => 'PayPal is still confirming the payment', 'error' => Str::limit($err, 160)];
+                case 'declined':
+                    $this->logWebhookEvent('paypal', 'PAYMENT.CAPTURE.DECLINED', ['transaction_id' => $txId, 'issue' => $c['issue']], 'failed');
+                    $this->discard($merchantId, $txId);
+
+                    return ['state' => 'failed', 'retryable' => false, 'message' => 'PayPal declined this payment method. Nothing was charged. Try another PayPal account or card.', 'issue' => $c['issue'], 'debug_id' => $c['debug_id']];
+
+                case 'expired':
+                    $this->logWebhookEvent('paypal', 'CHECKOUT.ORDER.EXPIRED', ['transaction_id' => $txId, 'issue' => $c['issue']], 'failed');
+                    $this->discard($merchantId, $txId);
+
+                    return ['state' => 'failed', 'retryable' => false, 'message' => 'This PayPal checkout expired or no longer exists. Nothing was charged. Start a new checkout.', 'issue' => $c['issue'], 'debug_id' => $c['debug_id']];
+
+                case 'config':
+                    $this->logWebhookEvent('paypal', 'PAYMENT.CAPTURE.FAILED', ['transaction_id' => $txId, 'issue' => $c['issue'], 'reason' => 'merchant_credentials'], 'failed');
+                    $this->discard($merchantId, $txId);
+
+                    return ['state' => 'failed', 'retryable' => false, 'message' => 'PayPal rejected our API credentials or permissions ('.($c['issue'] ?: 'HTTP '.$c['status']).'). Check PAYPAL_CLIENT_ID / PAYPAL_SECRET and that the REST app has Orders/Subscriptions enabled.', 'issue' => $c['issue'], 'debug_id' => $c['debug_id']];
+
+                default:
+                    $this->logWebhookEvent('paypal', 'PAYMENT.CAPTURE.FAILED', ['transaction_id' => $txId, 'issue' => $c['issue'], 'error' => Str::limit($err, 160)], 'failed');
+                    $this->discard($merchantId, $txId);
+
+                    return ['state' => 'failed', 'retryable' => false,
+                        'message' => 'PayPal could not complete the payment'.($c['issue'] ? ' ('.$c['issue'].')' : '').'. Nothing was charged.'.($c['debug_id'] ? ' Reference: '.$c['debug_id'] : ''),
+                        'issue' => $c['issue'], 'debug_id' => $c['debug_id']];
             }
-
-            $this->logWebhookEvent('paypal', 'PAYMENT.CAPTURE.FAILED', ['transaction_id' => $txId, 'error' => $err], 'failed');
-            $this->discard($merchantId, $txId);   // declined: nothing was paid, do not leave a ghost row behind
-
-            return ['state' => 'failed', 'message' => 'Could not confirm the payment with PayPal', 'error' => Str::limit($err, 160)];
         }
+    }
+
+    /**
+     * Maps a provider failure to what the UI should do. Only DEFINITIVE PayPal answers become "failed";
+     * network errors, 429 and 5xx stay "processing" because the money state is unknown.
+     *
+     * @return array{type:string,issue:string,status:int,debug_id:?string}
+     */
+    private function classifyProviderError(\Throwable $e): array
+    {
+        $ctx = $e instanceof \App\Exceptions\PaymentProviderException ? ($e->context ?? []) : [];
+        $issue = strtoupper((string) ($ctx['issue'] ?? ''));
+        $status = (int) ($ctx['status'] ?? 0);
+        $debug = isset($ctx['debug_id']) ? (string) $ctx['debug_id'] : null;
+        $msg = $e->getMessage();
+        if ($issue === '' && preg_match('/\b([A-Z][A-Z_]{5,})\b/', $msg, $m)) {
+            $issue = $m[1];
+        }
+        if ($status === 0 && preg_match('/HTTP (\d{3})/', $msg, $m)) {
+            $status = (int) $m[1];
+        }
+
+        $type = match (true) {
+            in_array($issue, ['ORDER_ALREADY_CAPTURED', 'DUPLICATE_REQUEST_ID', 'DUPLICATE_INVOICE_ID'], true) => 'already_done',
+            in_array($issue, ['ORDER_NOT_APPROVED', 'PAYER_ACTION_REQUIRED'], true) => 'awaiting_buyer',
+            in_array($issue, ['INSTRUMENT_DECLINED', 'PAYER_CANNOT_PAY', 'PAYMENT_DENIED', 'CARD_GENERIC_ERROR', 'TRANSACTION_REFUSED', 'TRANSACTION_LIMIT_EXCEEDED', 'PAYER_ACCOUNT_RESTRICTED', 'PAYER_ACCOUNT_LOCKED_OR_CLOSED'], true) => 'declined',
+            in_array($issue, ['INVALID_RESOURCE_ID', 'RESOURCE_NOT_FOUND', 'ORDER_EXPIRED'], true) || $status === 404 => 'expired',
+            in_array($status, [401, 403], true) || in_array($issue, ['PERMISSION_DENIED', 'AUTHENTICATION_FAILURE', 'NOT_AUTHORIZED', 'INVALID_CLIENT', 'NOT_CONFIGURED'], true) || str_contains($msg, 'PayPal is not configured') => 'config',
+            ($e instanceof \App\Exceptions\PaymentProviderException && $e->retryable) || $status === 429 || $status >= 500 || $status === 0 => 'transient',
+            default => 'unknown',
+        };
+
+        return ['type' => $type, 'issue' => $issue, 'status' => $status, 'debug_id' => $debug];
+    }
+
+    /** Re-reads the subscription/order on PayPal and activates when it is in fact paid. Null = still unknown. */
+    private function recheckWithPayPal(string $merchantId, object $row, array $meta): ?array
+    {
+        try {
+            $client = PayPalClient::fromConfig();
+            if (($meta['paypal_kind'] ?? '') === 'subscription') {
+                $subId = (string) ($meta['paypal_subscription_id'] ?? '');
+                if ($subId === '') {
+                    return null;
+                }
+                $sub = $client->getSubscription($subId);
+                $status = strtoupper((string) ($sub['status'] ?? ''));
+                if ($status === 'ACTIVE') {
+                    $this->activate($merchantId, $row, $meta, [
+                        'reference' => $subId, 'provider_subscription_id' => $subId,
+                        'next_billing' => data_get($sub, 'billing_info.next_billing_time'),
+                    ]);
+
+                    return ['state' => 'captured', 'message' => 'Subscription active. Funds are in your PayPal sandbox business balance'];
+                }
+                if (in_array($status, ['APPROVED', 'APPROVAL_PENDING'], true)) {
+                    return ['state' => 'processing', 'retryable' => true, 'awaiting_buyer' => $status === 'APPROVAL_PENDING', 'stage' => 'confirming',
+                        'message' => $status === 'APPROVAL_PENDING' ? 'The buyer has not approved the payment on PayPal yet' : 'Approved. PayPal is finalizing the first payment'];
+                }
+                if (in_array($status, ['SUSPENDED', 'CANCELLED', 'EXPIRED'], true)) {
+                    return $this->fail($merchantId, (string) $row->id, 'PayPal subscription is '.$status.'.');
+                }
+
+                return null;
+            }
+
+            $orderId = (string) ($meta['paypal_order_id'] ?? $row->provider_reference ?? '');
+            if ($orderId === '') {
+                return null;
+            }
+            $order = $client->getOrder($orderId);
+            $orderStatus = strtoupper((string) ($order['status'] ?? ''));
+            $unit = $order['purchase_units'][0] ?? [];
+            $cap = $unit['payments']['captures'][0] ?? [];
+            $capStatus = strtoupper((string) ($cap['status'] ?? ''));
+            if ($orderStatus === 'COMPLETED' && $capStatus === 'COMPLETED') {
+                $this->activate($merchantId, $row, $meta, ['reference' => $cap['id'] ?? $orderId]);
+
+                return ['state' => 'captured', 'message' => 'Payment captured. Funds are in your PayPal sandbox business balance'];
+            }
+            if (in_array($orderStatus, ['CREATED', 'PAYER_ACTION_REQUIRED'], true)) {
+                return ['state' => 'processing', 'awaiting_buyer' => true, 'retryable' => true, 'message' => 'The buyer has not approved the payment on PayPal yet'];
+            }
+            if ($orderStatus === 'APPROVED' || $capStatus === 'PENDING') {
+                return ['state' => 'processing', 'retryable' => true, 'stage' => 'confirming', 'message' => 'Approved. PayPal is finalizing the payment'];
+            }
+        } catch (\Throwable $inner) {
+            Log::warning('demo.checkout.settle_recovery_failed', ['tx' => $row->id, 'err' => $inner->getMessage()]);
+        }
+
+        return null;
     }
 
     /** Pending -> active, once. The conditional UPDATE is the lock: a refresh or the popup watcher cannot activate twice. */

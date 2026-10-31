@@ -29,10 +29,43 @@ return [
     ],
 
     'resale' => [
-        // How the BUYER'S payment is split. ASSUMPTION (confirm!): seller receives 100%, merchant keeps the original charge.
+        // How the BUYER'S payment is split: seller gets seller_bps, the rest is the LuvuPay platform fee.
+        // The merchant keeps the original cycle charge and is NOT paid from the buyer's payment.
         'seller_bps' => 9000, 'merchant_bps' => 0,
         'min_price_minor' => 100,
         'reservation_minutes' => 15,
+        // Asking price = original charge x (remaining days / period days) x this share (so unused time is never sold above value).
+        'price_bps_of_remaining' => (int) env('LUVUPAY_RESALE_PRICE_BPS', 8000),
+        'period_days' => 30,
+    ],
+
+    // Missed-cancellation timeline. The stage is derived from the hours left before the grace window closes;
+    // it decides which options exist (enforced server-side) and what the subscriber is told.
+    'grace_stages' => [
+        'd7' => ['label' => '7 days left', 'hours' => 168, 'tone' => 'calm',
+            'choices' => ['renew', 'split_pay', 'expire'],
+            'message' => 'Friendly reminder, {name}: your {amount} charge is still unpaid and you have 7 days. Pay now, or spread it over two payments. No pressure.'],
+        'd3' => ['label' => '3 days left', 'hours' => 72, 'tone' => 'nudge',
+            'choices' => ['renew', 'split_pay', 'partial_refund', 'donate', 'resale', 'expire'],
+            'message' => '{name}, 3 days left on your {amount} charge. You can still pay, split it, take a partial refund, donate, or resell the unused time.'],
+        'h48' => ['label' => '48 hours left', 'hours' => 48, 'tone' => 'urgent',
+            'choices' => ['renew', 'split_pay', 'partial_refund', 'donate', 'resale', 'expire'],
+            'message' => '{name}, only {time} left to decide about your {amount} charge. After that the subscription ends.'],
+        'h6' => ['label' => '6 hours left', 'hours' => 6, 'tone' => 'critical',
+            'choices' => ['renew', 'split_pay', 'expire'],
+            'message' => 'Last chance, {name}: {time} left. Resale and refund are closed. Pay {amount} now or split it to keep your access.'],
+        'expired' => ['label' => 'Window closed', 'hours' => 0, 'tone' => 'closed',
+            'choices' => ['expire'],
+            'message' => 'The grace window closed. The subscription ended and the {amount} charge was voided.'],
+    ],
+
+    // Split pay: a subscriber who cannot pay the whole charge pays a down payment now and the rest in instalments.
+    'split_pay' => [
+        'parts' => (int) env('LUVUPAY_SPLIT_PARTS', 2),                       // 2..4
+        'down_payment_bps' => (int) env('LUVUPAY_SPLIT_DOWN_BPS', 5000),      // share collected immediately
+        'interval_days' => (int) env('LUVUPAY_SPLIT_INTERVAL_DAYS', 7),       // spacing between instalments
+        'default_after_days' => (int) env('LUVUPAY_SPLIT_DEFAULT_AFTER_DAYS', 3), // overdue this long => plan defaults, access ends
+        'min_total_minor' => 200,
     ],
 
     // The merchant's "project" the sandbox dashboard operates on. Single source of truth for plan name/price in demos;
@@ -70,8 +103,8 @@ return [
     // Console roles. "*" = everything. Keep least-privilege: add permissions here, never widen a role ad hoc.
     'rbac' => [
         'owner' => ['*'],
-        'admin' => ['settings.read', 'analytics.read', 'exports.read', 'keys.rotate', 'webhooks.write', 'payouts.write', 'team.manage'],
-        'finance' => ['settings.read', 'analytics.read', 'exports.read', 'payouts.write'],
+        'admin' => ['settings.read', 'analytics.read', 'exports.read', 'keys.rotate', 'webhooks.write', 'payouts.write', 'billing.write', 'team.manage'],
+        'finance' => ['settings.read', 'analytics.read', 'exports.read', 'payouts.write', 'billing.write'],
         'developer' => ['settings.read', 'analytics.read', 'webhooks.write'],
         'viewer' => ['settings.read', 'analytics.read'],
     ],

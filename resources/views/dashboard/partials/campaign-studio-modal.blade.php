@@ -100,7 +100,7 @@
                     <button type="button" class="c-btn c-btn-sm" x-on:click="regenerateCopy()" x-bind:disabled="generating">
                         <span x-text="generating ? 'Generating…' : 'Generate text'"></span>
                     </button>
-                    <button type="button" class="c-btn c-btn-sm text-white"
+                    <button type="button" class="c-btn c-btn-sm c-btn-cta"
                             x-bind:style="'background:' + brandColor"
                             x-on:click="approveAndSend()" x-bind:disabled="sending || sent">
                         <span x-text="sent ? 'Queued' : (sending ? 'Sending…' : 'Approve and send')"></span>

@@ -18,8 +18,8 @@ Route::get('/checkout/{merchant}', [\App\Http\Controllers\HostedController::clas
 Route::post('/checkout/{merchant}/pay', [\App\Http\Controllers\HostedController::class, 'payCheckout'])->middleware('throttle:10,1,web17')->name('hosted.checkout.pay');
 Route::get('/redeem/{token}', [\App\Http\Controllers\HostedController::class, 'redeem'])->middleware('throttle:120,1,web18')->name('hosted.redeem');
 Route::post('/redeem/{token}/pay', [\App\Http\Controllers\HostedController::class, 'payRedeem'])->middleware('throttle:10,1,web19')->name('hosted.redeem.pay');
-Route::get('/pay/return', [\App\Http\Controllers\HostedController::class, 'paypalReturn'])->name('hosted.paypal.return');
-Route::get('/pay/cancel', [\App\Http\Controllers\HostedController::class, 'paypalCancel'])->name('hosted.paypal.cancel');
+Route::get('/pay/return', [\App\Http\Controllers\HostedController::class, 'paypalReturn'])->middleware('throttle:30,1,payreturn')->name('hosted.paypal.return');
+Route::get('/pay/cancel', [\App\Http\Controllers\HostedController::class, 'paypalCancel'])->middleware('throttle:30,1,paycancel')->name('hosted.paypal.cancel');
 Route::get('/marketplace', fn () => view('marketplace'))->name('marketplace');
 Route::get('/api/marketplace/listings', [MarketplaceController::class, 'index']);
 Route::post('/api/marketplace/sell', [MarketplaceController::class, 'sell'])->middleware('throttle:10,1,web24');

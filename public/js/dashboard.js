@@ -173,6 +173,7 @@
     if (s === 'GRACE_PERIOD' || s === 'GRACE PERIOD') return 'Grace period (48h hold)';
     if (s === 'PENDING_RESALE' || s === 'PENDING RESALE') return 'Resale listed (awaiting buyer)';
     if (s === 'RESOLD') return 'Resold (original charge kept)';
+    if (s === 'SPLIT PAY') return 'Split pay (instalments)';
     if (s === 'AI_RETAINED' || s === 'AI-RETAINED') return 'Settled (AI retained)';
     if (s === 'ACTIVE') return 'Settled';
     if (s === 'COMPLETED' || s === 'SETTLED') return 'Settled';
@@ -288,6 +289,7 @@
       usage: { used: 0, limit: 1000 },
       kpi: { revenueSaved: '$0.00', chargebacks: '0', subscriptions: '0', charity: '$0.00', resaleVolume: '$0.00' },
       rowData: [],
+      journeySetup: null,
       resaleRows: [],
       grids: {},
       webhookLogs: [],
@@ -777,9 +779,10 @@
         window.__luvuNegotiatorTx = row && row.id ? row.id : this.selectedId;
       },
 pushToast: function (message, icon) {
-        var tones = { '\u274c': 'error', '\ud83d\udeab': 'error', '\u26a0\ufe0f': 'warning', '!': 'warning', '\u2139\ufe0f': 'info', '\u23f3': 'info', '\ud83d\udd17': 'info', '\ud83d\udd14': 'info', '\ud83d\udcb3': 'info', '\u27a1\ufe0f': 'info' };
+        var tones = { '\u274c': 'error', '\ud83d\udeab': 'error', '\u26a0\ufe0f': 'warning', '!': 'warning', '\u2139\ufe0f': 'info', '\u23f3': 'info', '\ud83d\udd17': 'info', '\ud83d\udd14': 'info', '\ud83d\udcb3': 'info', '\u27a1\ufe0f': 'info',
+          err: 'error', error: 'error', warn: 'warning', warning: 'warning', info: 'info', ok: 'success', success: 'success' };
         if (!global.LuvuToast) return;
-        global.LuvuToast.notify({ type: tones[icon] || 'success', title: message });
+        global.LuvuToast.notify({ type: tones[icon] || 'success', title: String(message == null ? '' : message) });
       },
 
       // ---- Merchant Wallet · PayPal Payouts (real sandbox)
@@ -945,7 +948,7 @@ pushToast: function (message, icon) {
         var EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         var todo = [];
         (this.checkoutRows || []).forEach(function (r) {
-          if (!r.selected || r.status === 'done') return;
+          if (!r.selected || r.status === 'done' || r.status === 'awaiting' || r.status === 'working') return;
           r.email = (r.email || '').trim();
           r.name = (r.name || '').trim();
           if (!EMAIL.test(r.email)) { r.status = 'failed'; r.note = 'Enter a valid email'; return; }
@@ -1061,14 +1064,12 @@ pushToast: function (message, icon) {
         pop.location.href = paypalApproveUrl(pp.approve_url, pp.buyer_email);
         var txId = j.transaction_id;
         row.txId = txId;
+        row.approveUrl = paypalApproveUrl(pp.approve_url, pp.buyer_email);
         var msg = await waitForPopup(pop, txId, function () {
           return request('GET', 'demo/checkout/' + txId + '/status').then(function (r) {
             var d = r.data || {};
-            // Do not stop early on transient "failed" confirm errors — keep polling until settle.
-            if (!r.ok) return null;
-            if (d.state === 'captured' || d.state === 'gone' || d.state === 'cancelled') return d;
-            if (d.state === 'failed' && !/could not confirm|still confirming/i.test(String(d.message || ''))) return d;
-            return null;
+            if (!r.ok) return null;                       // transient transport problem: keep watching
+            return (['captured', 'gone', 'cancelled', 'failed'].indexOf(d.state) !== -1) ? d : null;
           });
         });
         var res = await this._checkoutResolve(msg, j.transaction_id);
@@ -1088,69 +1089,96 @@ pushToast: function (message, icon) {
         }
       },
 
-      /** The popup said something (or was closed): confirm with the server, which asks PayPal. */
+      /**
+       * The popup said something (or reported closed). Closing is NOT proof of abandonment (COOP makes `closed`
+       * unreliable and buyers often finish in another tab), so nothing is discarded here: we only ask the server.
+       */
       _checkoutResolve: async function (msg, tx) {
-        var abandoned = !msg || msg.state === 'closed';
-        var r, d, i;
-        if (msg && !abandoned && msg.state === 'cancelled') return { state: 'cancelled', message: msg.message };
-        if (msg && !abandoned && msg.state === 'failed') return { state: 'failed', message: msg.message || msg.error || 'Payment failed' };
-
-        if (abandoned) {
-          // Popup reported closed — but user may still be logging in on PayPal (COOP false-close).
-          // Poll WITHOUT abandon for up to ~45s; only cancel if still unpaid after that.
-          for (i = 0; i < 30; i++) {
-            r = await request('GET', 'demo/checkout/' + tx + '/status');
-            d = r.data || {};
-            if (r.ok) {
-              if (d.state === 'captured') return d;
-              if (d.state === 'failed' || d.state === 'cancelled' || d.state === 'gone') return d;
-              if (d.state === 'processing' && !d.awaiting_buyer) {
-                // approved, waiting capture — keep waiting
-              }
-            }
-            await sleep(1500);
-          }
-          // Final check once more before discard
+        if (msg && msg.state === 'cancelled') return { state: 'cancelled', message: msg.message };
+        if (msg && msg.state === 'failed') return { state: 'failed', message: msg.message || msg.error || 'Payment failed' };
+        var last = null, i, r, d;
+        for (i = 0; i < 18; i++) {
           r = await request('GET', 'demo/checkout/' + tx + '/status');
           d = r.data || {};
-          if (r.ok && d.state === 'captured') return d;
-          if (r.ok && d.state && d.state !== 'processing') return d;
-          r = await request('GET', 'demo/checkout/' + tx + '/status?abandon=1');
-          return r.ok ? (r.data || { state: 'cancelled' }) : { state: 'failed', message: (r.data && r.data.message) || 'Could not cancel the checkout' };
+          if (r.ok) {
+            last = d;
+            if (['captured', 'failed', 'cancelled', 'gone'].indexOf(d.state) !== -1) return d;
+          }
+          await sleep(i < 5 ? 1500 : 2500);
         }
+        return last || { state: 'processing', retryable: true, message: 'PayPal has not answered yet' };
+      },
 
-        // Poll longer: PayPal often activates several seconds after the popup closes.
-        // "Could not confirm" is treated as processing, not a final failure.
-        for (i = 0; i < 24; i++) {
-          r = await request('GET', 'demo/checkout/' + tx + '/status');
-          d = r.data || {};
-          if (!r.ok) {
-            if (i < 23) { await sleep(1000); continue; }
-            return { state: 'processing', message: d.message || 'Still checking PayPal…' };
-          }
-          if (d.state === 'captured' || d.state === 'cancelled' || d.state === 'gone') return d;
-          if (d.state === 'failed') {
-            var msg = String(d.message || d.error || '');
-            // Soft errors → keep polling
-            if (/could not confirm|still confirming|pending|timeout|network|try again/i.test(msg) && i < 23) {
-              await sleep(1000);
-              continue;
+      _checkoutStopWatch: function (row) {
+        if (row && row._watch) { clearTimeout(row._watch); row._watch = null; }
+      },
+
+      /** Background re-check with back-off. Never turns a pending payment into a failure by itself. */
+      _checkoutWatch: function (row, attempt) {
+        var self = this;
+        this._checkoutStopWatch(row);
+        var tx = row.txId || row.id;
+        if (!tx) return;
+        attempt = attempt || 0;
+        var delays = [3000, 3000, 5000, 5000, 8000, 8000, 12000, 12000, 15000, 15000];
+        var wait = delays[Math.min(attempt, delays.length - 1)];
+        row._watch = setTimeout(function () {
+          request('GET', 'demo/checkout/' + encodeURIComponent(tx) + '/status').then(function (r) {
+            var d = (r && r.data) || {};
+            if (r.ok && ['captured', 'failed', 'cancelled', 'gone'].indexOf(d.state) !== -1) {
+              self._checkoutApplyResult(row, d);
+              self.load();
+              return;
             }
-            // Real declines only
-            if (/declined|denied|instrument|cannot pay/i.test(msg)) return d;
-            if (i < 23) { await sleep(1000); continue; }
-            return { state: 'processing', message: 'PayPal is still confirming the payment' };
-          }
-          // processing
-          if (i < 23) { await sleep(1000); continue; }
-          return d;
+            if (attempt >= 28) {            // ~5 min: stop polling, the PayPal webhook will still activate it
+              row.note = 'Still pending at PayPal. Use "Check again", or leave it: it activates automatically when PayPal confirms.';
+              return;
+            }
+            self._checkoutWatch(row, attempt + 1);
+          }).catch(function () { self._checkoutWatch(row, attempt + 1); });
+        }, wait);
+      },
+
+      checkoutRecheck: async function (row) {
+        var tx = row && (row.txId || row.id);
+        if (!tx || row._checking) return;
+        row._checking = true;
+        try {
+          var r = await request('GET', 'demo/checkout/' + encodeURIComponent(tx) + '/status');
+          var d = (r && r.data) || {};
+          if (r.ok) { await this._checkoutApplyResult(row, d); if (d.state !== 'processing') await this.load(); }
+          else this.pushToast('Could not reach the server, try again in a moment', 'warning');
+        } finally { row._checking = false; }
+      },
+
+      checkoutReopen: function (row) {
+        if (!row || !row.approveUrl || !isPayPalUrl(row.approveUrl)) return;
+        var w = global.open(row.approveUrl, 'luvupay_paypal', 'popup=yes,width=500,height=740');
+        if (!w) { global.open(row.approveUrl, '_blank', 'noopener'); }
+        row.note = 'Waiting for approval on PayPal…';
+        this._checkoutWatch(row, 0);
+      },
+
+      checkoutCancel: async function (row) {
+        var tx = row && (row.txId || row.id);
+        if (!tx) return;
+        this._checkoutStopWatch(row);
+        var r = await request('GET', 'demo/checkout/' + encodeURIComponent(tx) + '/status?abandon=1');
+        var d = (r && r.data) || {};
+        if (d.state === 'captured') { this._checkoutApplyResult(row, d); this.load(); return; }
+        if (d.state === 'processing' && !d.awaiting_buyer) {
+          this.pushToast('The buyer already approved this payment, so it cannot be cancelled here. It will complete shortly.', 'warning');
+          this._checkoutWatch(row, 0);
+          return;
         }
-        return { state: 'processing', message: 'PayPal is still confirming the payment' };
+        this._checkoutApplyResult(row, d.state ? d : { state: 'cancelled' });
       },
 
       _checkoutApplyResult: async function (row, res) {
+        res = res || {};
         if (res.state === 'captured') {
-          row.status = 'done';
+          this._checkoutStopWatch(row);
+          row.status = 'done'; row.awaitingBuyer = false;
           var inv = res.row && res.row.invoice_number;
           row.note = inv ? ('Paid · invoice ' + inv) : 'Paid via PayPal';
           if (res.row) this.applyRow(res.row, true);
@@ -1158,47 +1186,27 @@ pushToast: function (message, icon) {
           if (inv) this.pushToast('Invoice generated: ' + inv, '🧾');
           this.preview = { phase: 'checkout', name: row.name, email: row.email, product: PROJECT.product, status: 'ACTIVE', trust_score: res.row && res.row.trust_score, churn_risk: res.row && res.row.churn_risk, ai_nudge: null, spinning: false, certificate_code: null };
         } else if (res.state === 'processing') {
-          row.status = 'awaiting'; row.note = 'Approved, waiting for PayPal to confirm…';
-          this.pushToast(res.message || 'PayPal is still confirming the payment', '⏳');
-          // Quiet background recheck — avoids false "failed" while PayPal settles
-          var self = this;
-          setTimeout(function () {
-            request('GET', 'demo/checkout/' + encodeURIComponent(row.txId || row.id || '') + '/status').then(function (r) {
-              var d = (r && r.data) || {};
-              if (d.state === 'captured') {
-                self._checkoutApplyResult(row, d);
-              }
-            }).catch(function () {});
-          }, 4000);
-        } else if (res.state === 'cancelled' || res.state === 'gone') {
-          row.status = 'idle'; row.note = 'Cancelled on PayPal, nothing was charged';
-          this.removeRow(res.removed_id || row.txId);
-          this.pushToast('PayPal checkout cancelled. No money moved', '⚠️');
-        } else {
-          var soft = /could not confirm|still confirming|pending|timeout|network/i.test(String(res.message || res.error || ''));
-          if (soft || res.state === 'processing') {
-            row.status = 'awaiting'; row.note = 'PayPal is still confirming…';
-            this.pushToast('PayPal is still confirming the payment — hang tight', '⏳');
-            var self2 = this;
-            var tx = row.txId || row.id || '';
-            var tries = 0;
-            var timer = setInterval(function () {
-              tries++;
-              request('GET', 'demo/checkout/' + encodeURIComponent(tx) + '/status').then(function (r) {
-                var d = (r && r.data) || {};
-                if (d.state === 'captured') {
-                  clearInterval(timer);
-                  self2._checkoutApplyResult(row, d);
-                } else if (tries >= 15) {
-                  clearInterval(timer);
-                }
-              }).catch(function () {});
-            }, 2000);
-          } else {
-            row.status = 'failed'; row.note = res.message || 'Payment failed';
-            if (res.removed_id) this.removeRow(res.removed_id);
-            this.pushToast(row.note, 'err');
+          row.status = 'awaiting';
+          row.awaitingBuyer = !!res.awaiting_buyer;
+          row.note = res.awaiting_buyer
+            ? 'Waiting for the buyer to approve on PayPal. Closed the window by accident? Reopen it below.'
+            : 'Approved. PayPal is finalizing the payment, usually under a minute. You can leave this open, it updates by itself.';
+          if (!row._toastedPending) {
+            row._toastedPending = true;
+            this.pushToast(res.awaiting_buyer ? 'Waiting for approval on PayPal' : 'Payment approved. PayPal is finalizing it…', 'info');
           }
+          this._checkoutWatch(row, 0);
+        } else if (res.state === 'cancelled' || res.state === 'gone') {
+          this._checkoutStopWatch(row);
+          row.status = 'idle'; row.awaitingBuyer = false; row.note = 'Cancelled on PayPal, nothing was charged';
+          this.removeRow(res.removed_id || row.txId);
+          this.pushToast('PayPal checkout cancelled. No money moved', 'warning');
+        } else {
+          this._checkoutStopWatch(row);
+          row.status = 'failed'; row.awaitingBuyer = false;
+          row.note = (res.message || 'Payment failed') + (res.debug_id && String(res.message || '').indexOf(res.debug_id) === -1 ? ' (ref ' + res.debug_id + ')' : '');
+          if (res.removed_id) this.removeRow(res.removed_id);
+          this.pushToast(row.note, 'err');
         }
       },
 
@@ -1248,6 +1256,12 @@ pushToast: function (message, icon) {
         }
       },
 
+      get selectedRow() {
+        var id = this.selectedId;
+        if (!id) return null;
+        return (this.rowData || []).find(function (r) { return r.id === id; }) || null;
+      },
+
       openDecision: async function () {
         if (this.decisionBusy || this.decisionOpen) return;
         var UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -1279,6 +1293,51 @@ pushToast: function (message, icon) {
           return;
         }
 
+        // Step 1: choose WHO and WHEN on the missed-cancellation timeline, then start.
+        var self0 = this;
+        var rowsForPick = (this.rowData || []).filter(isEligible).slice(0, 50);
+        var cur0 = row.currency || PROJECT.currency || 'USD';
+        this.journeySetup = {
+          rowId: row.id, hours: 48,
+          rows: rowsForPick.map(function (r) {
+            return { id: r.id, label: (r.display_name || String(r.email || 'Member').split('@')[0]) + ' · ' + (r.email || '') + ' · ' + money(r.amount_minor, r.currency || cur0) };
+          })
+        };
+        this.decisionRow = row;
+        this.decisionCustomer = row.display_name || String(row.email || 'Member').split('@')[0];
+        this.decisionLogs = [];
+        this.decisionOutcome = null;
+        this.decisionReady = false;
+        this.decisionBusy = false;
+        this.phoneView = 'options';
+        this.selectedAction = null;
+        this.journey = {
+          brand: PROJECT.name || 'Your product', name: this.decisionCustomer, first: String(this.decisionCustomer).split(' ')[0], email: row.email || '',
+          amount: money(row.amount_minor, cur0), amountMinor: row.amount_minor, currency: cur0, hours: 48, refundPct: 20, nudge: '', sandbox: false, nebius: false,
+          features: { resale: PROJECT.marketplace_resale !== false, charity: PROJECT.charity_split !== false }, doneMessage: '', listingUrl: '', splitPlan: null, splitFirst: money(Math.round((Number(row.amount_minor) || 0) / 2), cur0), stage: null
+        };
+        this.journeyStep = 'setup';
+        this.decisionOpen = true;
+      },
+
+      pickJourneyUser: function (id) {
+        var r = (this.rowData || []).find(function (x) { return x.id === id; });
+        if (!r || !this.journeySetup) return;
+        var cur = r.currency || PROJECT.currency || 'USD';
+        var name = r.display_name || String(r.email || 'Member').split('@')[0];
+        this.journeySetup.rowId = id;
+        this.decisionRow = r; this.decisionCustomer = name;
+        this.journey.name = name; this.journey.first = String(name).split(' ')[0]; this.journey.email = r.email || '';
+        this.journey.amount = money(r.amount_minor, cur); this.journey.amountMinor = r.amount_minor; this.journey.currency = cur;
+        this.journey.splitFirst = money(Math.round((Number(r.amount_minor) || 0) / 2), cur);
+      },
+
+      startJourney: async function () {
+        if (this.decisionBusy || !this.journeySetup) return;
+        var rid = this.journeySetup.rowId;
+        var row = (this.rowData || []).find(function (x) { return x.id === rid; });
+        if (!row) return;
+        var hoursBefore = [168, 72, 48, 6].indexOf(Number(this.journeySetup.hours)) !== -1 ? Number(this.journeySetup.hours) : 48;
         var cur = row.currency || PROJECT.currency || 'USD';
         var name = row.display_name || String(row.email || 'Member').split('@')[0];
         this.decisionRow = row;
@@ -1301,7 +1360,8 @@ pushToast: function (message, icon) {
           amount: money(row.amount_minor, cur), amountMinor: row.amount_minor, currency: cur, hours: 48,
           refundPct: Math.round(((PROJECT.partial_refund_bps != null ? PROJECT.partial_refund_bps : 2000)) / 100),
           nudge: '', sandbox: false, nebius: false, features: { resale: PROJECT.marketplace_resale !== false, charity: PROJECT.charity_split !== false },
-          doneMessage: '', listingUrl: ''
+          doneMessage: '', listingUrl: '', splitPlan: null, stage: null,
+          splitFirst: money(Math.round((Number(row.amount_minor) || 0) / 2), cur)
         };
         this.decisionOpen = true;
         this._journeyStart = Date.now();
@@ -1330,7 +1390,7 @@ pushToast: function (message, icon) {
         this.logDecision('[H-7 Days · ' + this.journeyDate(h7) + '] Reminder for ' + (row.email || name) + ': ' + (row.product || PROJECT.name || 'subscription') + ' renews ' + this.journeyDate(renew) + ' (' + this.journey.amount + ').', 'green');
         await sleep(450);
 
-        var j = await this.sim('forgot', { transaction_id: row.id }, 'forgot');
+        var j = await this.sim('forgot', { transaction_id: row.id, hours_before: hoursBefore }, 'forgot');
         if (!j) {
           this.logDecision('[Error] ' + (this.simMsg || 'Could not start the missed-cancellation flow'), 'warn');
           this.decisionBusy = false;
@@ -1347,6 +1407,8 @@ pushToast: function (message, icon) {
         this.journey.sandbox = !!integ.paypal;
         this.journey.nebius = !!integ.nebius;
         this.journey.nudge = g.ai_nudge || '';
+        this.journey.stage = j.stage || null;
+        if (j.row) this.applyRow(j.row, false);
 
         this.logDecision('[Day H] Payment Failed. Missed cancellation detected → charge ' + String(row.id).slice(0, 8) + ' (' + this.journey.amount + ') held for ' + hours + 'h. [Webhook] subscription.grace_period_started', 'warn');
         this.journeyEvents(j.recent_events, seen, 'warn');
@@ -1359,15 +1421,18 @@ pushToast: function (message, icon) {
         if (g.ai_nudge) this.logDecision('[Nebius AI] Nudge: "' + g.ai_nudge + '"', 'gold');
         await sleep(300);
         // Feature 2 & 3: Safe Refund + Micro-Payment (demo logs for dual-view)
-        this.logDecision('[Nebius AI] Calculating Safe Refund… Tagihan $50. Fee PayPal $2.50. Max Safe Refund: $47.50.', 'green');
+        var st = this.journey.stage || { options: [] };
+        var by = {};
+        (st.options || []).forEach(function (o) { by[o.id] = o; });
+        var curJ = this.journey.currency;
+        if (st.message) this.logDecision('[Timeline · ' + st.label + '] ' + st.message, st.tone === 'critical' ? 'warn' : 'gold');
+        if (by.partial_refund && by.partial_refund.available) this.logDecision('[Nebius AI] Safe refund: charge ' + this.journey.amount + ', refund ' + money(by.partial_refund.effect.refund_minor, curJ) + ', you keep ' + money(by.partial_refund.effect.wallet_delta_minor, curJ) + '.', 'green');
         await sleep(280);
-        this.logDecision('[Nebius AI] Generating Micro-Payment Offer: Pay $25 now, $25 next week.', 'gold');
+        if (by.split_pay && by.split_pay.available) this.logDecision('[Nebius AI] Micro-payment offer: pay ' + money(by.split_pay.effect.wallet_delta_minor, curJ) + ' now, ' + money(by.split_pay.effect.later_minor, curJ) + ' later.', 'gold');
         await sleep(280);
-        var opts = ['Retry payment (' + this.journey.amount + ')', 'Partial refund ' + this.journey.refundPct + '%'];
-        opts.push(this.journey.features.resale ? 'Resell on marketplace' : 'Resell (off in Settings)');
-        opts.push(this.journey.features.charity ? 'Donate to charity' : 'Donate (off in Settings)');
-        opts.push('Expire in ' + hours + 'h');
-        this.logDecision('[AI Agent] Options ready: ' + opts.join(' · '), 'green');
+        var opts = (st.options || []).filter(function (o) { return o.available; }).map(function (o) { return o.label; });
+        var closed = (st.options || []).filter(function (o) { return !o.available; }).map(function (o) { return o.label + ' (' + o.reason + ')'; });
+        this.logDecision('[AI Agent] Options at this stage: ' + (opts.join(' · ') || 'none') + (closed.length ? '. Not available: ' + closed.join(', ') : ''), 'green');
         this.logDecision(this.journey.sandbox
           ? '[PayPal Sandbox] Connected - refunds are sent to the sandbox API when the charge has a capture id.'
           : '[Ledger] PayPal keys not set - running on the mock ledger (same real database rows).', this.journey.sandbox ? 'blue' : '');
@@ -1378,7 +1443,7 @@ pushToast: function (message, icon) {
 
       choose: async function (choice) {
         if (!this.decisionRow || !this.decisionReady || this.decisionBusy) return;
-        var labels = { renew: 'Retry Payment', partial_refund: 'Partial Refund', resale: 'Resell Remaining Access', donate: 'Donate to Charity', cancel: 'Let it expire' };
+        var labels = { renew: 'Retry Payment', split_pay: 'Split pay', partial_refund: 'Partial Refund', resale: 'Resell Remaining Access', donate: 'Donate to Charity', cancel: 'Let it expire' };
         var label = labels[choice] || choice;
         this.selectedAction = label;
         this.decisionBusy = true;
@@ -1394,6 +1459,10 @@ pushToast: function (message, icon) {
         this.journeyEvents(j.recent_events, this._journeySeen || {}, 'green');
         this.logDecision('[System] ✓ ' + (j.message || (label + ' completed')), 'green');
         if (j.row && j.row.lifecycle) this.logDecision('[Ledger] Charge is now ' + j.row.lifecycle + ' · status ' + (j.row.status || ''), 'green');
+        if (j.plan) {
+          this.journey.splitPlan = j.plan;
+          this.logDecision('[Split pay] ' + money(j.plan.paid_minor, this.journey.currency) + ' collected now · ' + money(j.plan.remaining_minor, this.journey.currency) + ' due ' + (j.plan.next_due_at ? new Date(j.plan.next_due_at).toLocaleDateString() : ''), 'green');
+        }
         if (j.listing && j.listing.url) {
           this.journey.listingUrl = j.listing.url;
           this.logDecision('[Marketplace] Listed for ' + money(j.listing.price_minor, this.journey.currency) + ' · token ' + j.listing.token + ' · live on /marketplace', 'purple');
@@ -1405,6 +1474,54 @@ pushToast: function (message, icon) {
         await this.load();
       },
 
+
+      /** Is this option open at the current point of the timeline? (the server enforces the same rule) */
+      optOk: function (id) {
+        var st = this.journey && this.journey.stage;
+        if (!st || !st.options) return true;
+        var o = st.options.find(function (x) { return x.id === id; });
+        return !!(o && o.available);
+      },
+
+      optWhy: function (id) {
+        var st = this.journey && this.journey.stage;
+        var o = st && st.options && st.options.find(function (x) { return x.id === id; });
+        return o && !o.available ? (o.reason || 'Not available') : '';
+      },
+
+      /** Sandbox time travel: move this charge's deadline to N hours from now (0 = close the window). */
+      setJourneyStage: async function (hours) {
+        var row = this.decisionRow;
+        if (!row || this.decisionBusy || !this.decisionReady || this.phoneView === 'done') return;
+        this.decisionBusy = true;
+        var j = await this.sim('grace/stage', { transaction_id: row.id, hours_before: hours }, 'stage');
+        this.decisionBusy = false;
+        if (!j) { this.logDecision('[Error] ' + (this.simMsg || 'Could not move the timeline'), 'warn'); return; }
+        if (j.row) this.applyRow(j.row, false);
+        this.journeyEvents(j.recent_events, this._journeySeen || {}, 'warn');
+        if (j.closed) {
+          this.logDecision('[Timeline · Window closed] ' + (j.message || 'Subscription expired'), 'warn');
+          this.journey.doneMessage = j.message || 'Window closed';
+          this.phoneView = 'done'; this.decisionOutcome = 'Window closed (expired)';
+          await this.load();
+          return;
+        }
+        this.journey.stage = j.stage;
+        this.journey.hours = Math.max(1, Math.round(Number(j.stage.hours_left) || 1));
+        this.logDecision('[Timeline · ' + j.stage.label + '] ' + j.stage.message, j.stage.tone === 'critical' ? 'warn' : 'gold');
+        this.selectedAction = null;
+      },
+
+      /** The subscriber pays the next instalment of a split-pay plan (strictly in order, idempotent on the server). */
+      collectInstallment: async function (row) {
+        if (!row || !row.id || this.simBusy) return;
+        var j = await this.sim('split/collect', { transaction_id: row.id }, 'split');
+        if (!j) return;
+        if (j.row) this.applyRow(j.row, false);
+        if (this.journey) this.journey.splitPlan = j.plan || null;
+        this.pushToast(j.message || 'Instalment collected', 'ok');
+        await this.load();
+      },
 
       patchRow: function (lifecycle, status) {
         var row = this.rowData.find(function (r) { return r.id === this.selectedId; }.bind(this));

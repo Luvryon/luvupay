@@ -153,6 +153,7 @@
 
 <script src="/js/dom-safe.js?v={{ @filemtime(public_path('js/dom-safe.js')) }}" defer></script>
 <script src="/js/console-search.js" defer></script>
+<script src="/js/ajax-nav.js?v={{ @filemtime(public_path('js/ajax-nav.js')) }}" defer></script>
 <script src="/js/alpine.min.js" defer></script>
 </body>
 </html>

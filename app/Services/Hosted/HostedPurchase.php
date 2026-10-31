@@ -144,8 +144,22 @@ final class HostedPurchase
             return null;
         }
         Cache::forget('hosted:pay:'.$key);
+        $captureId = (string) ($cap['id'] ?? 'PAYPAL-'.$key);
 
-        return $this->complete($ctx, 'paypal', (string) ($cap['id'] ?? 'PAYPAL-'.$key));
+        try {
+            return $this->complete($ctx, 'paypal', $captureId);
+        } catch (\Throwable $e) {
+            // Money was captured but we could not deliver (listing sold to someone else, token expired...). Never keep it:
+            // refund in full, idempotently, then tell the buyer.
+            Log::error('hosted.delivery_failed_refunding', ['key' => substr($key, 0, 8), 'capture' => $captureId, 'err' => $e->getMessage()]);
+            try {
+                PayPalClient::fromConfig()->refundPayment($captureId, null, 'hosted-refund-'.$key, 'LuvuPay automatic refund: purchase could not be delivered');
+            } catch (\Throwable $re) {
+                Log::critical('hosted.refund_failed_MANUAL_ACTION', ['capture' => $captureId, 'err' => $re->getMessage()]);
+            }
+
+            return null;
+        }
     }
 
     /** @param array<string,mixed> $ctx */
@@ -215,79 +229,31 @@ final class HostedPurchase
     {
         $buyerEmail = strtolower($email);
         $out = DB::transaction(function () use ($token, $buyerEmail, $provider, $ref) {
-            $l = DB::table('resale_listings')->where('redeem_token', $token)->lockForUpdate()->first();
-            if (! $l || $l->status !== 'active' || Carbon::parse($l->access_expires_at)->isPast()) {
+            $l = DB::table('resale_listings')->where('redeem_token', $token)->first();
+            if (! $l) {
                 throw new \RuntimeException('This token is no longer available.');
-            }
-            if (strtolower((string) $l->seller_email) === $buyerEmail) {
-                throw new \RuntimeException('You cannot redeem your own listing.');
             }
             $m = (string) $l->merchant_id;
             $cur = trim((string) $l->currency) ?: 'USD';
-            $project = MerchantProject::forMerchant($m);
-            $product = $project->product() ?: 'Subscription';
-            $asking = (int) $l->asking_price_minor;
+            $product = MerchantProject::forMerchant($m)->product() ?: 'Subscription';
             $now = now();
-            $buyerId = 'redeem_'.Str::lower(Str::random(8));
-            $sellerPayout = (int) round($asking * (int) config('luvupay.resale.seller_bps', 9000) / 10000);
             $days = max(1, (int) ceil(Carbon::parse($l->access_expires_at)->floatDiffInDays($now, false) * -1));
-            $parent = $l->subscription_id ? DB::table('transactions')->where('subscription_id', $l->subscription_id)->where('type', 'charge')->orderBy('created_at')->first() : null;
             $this->scopedMerchant = $m;
 
-            DB::table('resale_listings')->where('id', $l->id)->update([
-                'status' => 'sold', 'buyer_merchant_user_id' => $buyerId, 'buyer_email' => $buyerEmail, 'sold_at' => $now,
-                'entitlement_status' => 'transferred', 'entitlement_sent_at' => $now, 'buyer_payment_reference' => $ref, 'updated_at' => $now,
-            ]);
-
-            $sale = (string) Str::uuid();
-            DB::table('transactions')->insert([
-                'id' => $sale, 'merchant_id' => $m, 'subscription_id' => $l->subscription_id, 'parent_transaction_id' => $parent->id ?? null,
-                'type' => 'resale_sale', 'status' => 'completed', 'idempotency_key' => 'redeem-sale-'.$sale, 'merchant_user_id' => $buyerId,
-                'email' => $buyerEmail, 'amount_minor' => $asking, 'currency' => $cur, 'provider' => $provider, 'provider_reference' => $ref,
-                'processed_at' => $now, 'trust_score' => 88, 'churn_risk' => 'low',
-                'metadata' => json_encode(['lifecycle' => 'RESOLD', 'listing_id' => $l->id, 'redeem_token' => $token, 'source' => 'hosted_redeem']),
-                'created_at' => $now, 'updated_at' => $now,
-            ]);
-            $payout = (string) Str::uuid();
-            DB::table('transactions')->insert([
-                'id' => $payout, 'merchant_id' => $m, 'subscription_id' => $l->subscription_id, 'parent_transaction_id' => $sale,
-                'type' => 'resale_payout', 'status' => 'completed', 'idempotency_key' => 'redeem-payout-'.$payout, 'merchant_user_id' => $l->seller_merchant_user_id,
-                'email' => $l->seller_email, 'amount_minor' => $sellerPayout, 'currency' => $cur, 'provider' => $provider,
-                'provider_reference' => 'PAYOUT-'.strtoupper(Str::random(8)), 'processed_at' => $now,
-                'metadata' => json_encode(['listing_id' => $l->id, 'buyer_email' => $buyerEmail]), 'created_at' => $now, 'updated_at' => $now,
-            ]);
-
-            if ($parent) {
-                $pm = json_decode((string) $parent->metadata, true) ?: [];
-                $pm['lifecycle'] = 'RESOLD';
-                $pm['buyer_email'] = $buyerEmail;
-                $pm['listing_id'] = $l->id;
-                DB::table('transactions')->where('id', $parent->id)->update(['status' => 'completed', 'metadata' => json_encode($pm), 'updated_at' => $now]);
-            }
-            // The listing-time fee is superseded: the fee is now recognised as (sale - seller payout).
-            DB::table('transactions')->where('subscription_id', $l->subscription_id)->where('type', 'resale_fee')->where('status', 'completed')->update(['status' => 'superseded', 'updated_at' => $now]);
-            DB::table('subscriptions')->where('id', $l->subscription_id)->update(['status' => 'resold', 'merchant_user_id' => $buyerId, 'email' => $buyerEmail, 'updated_at' => $now]);
+            // One shared routine: compare-and-set on the listing, sale + seller payout + platform fee, release of the
+            // original charge to the merchant, subscription moves to the buyer.
+            $s = app(\App\Services\Resale\ResaleSettlement::class)->settle($l, $buyerEmail, 'redeem_'.Str::lower(Str::random(8)), $provider, $ref, 'hosted_redeem');
 
             $accessCode = strtoupper(Str::random(4).'-'.Str::random(4).'-'.Str::random(4));
             $invoice = app(InvoiceIssuer::class)->issueForTransaction($m, (object) [
-                'id' => $sale, 'amount_minor' => $asking, 'currency' => $cur, 'provider_reference' => $ref, 'email' => $buyerEmail,
+                'id' => $s['sale_id'], 'amount_minor' => $s['sale_minor'], 'currency' => $cur, 'provider_reference' => $ref, 'email' => $buyerEmail,
             ], [
-                'customer_name' => ucfirst(explode('@', $buyerEmail)[0]),
-                'product' => $product,
-                'kind' => 'resale',
-                'access_code' => $accessCode,
-                'access_days' => $days,
-                'line_items' => [['description' => $days.' days of '.$product.' (resale access)', 'quantity' => 1, 'unit_amount_minor' => $asking, 'amount_minor' => $asking]],
+                'customer_name' => ucfirst(explode('@', $buyerEmail)[0]), 'product' => $product, 'kind' => 'resale', 'access_code' => $accessCode, 'access_days' => $days,
+                'line_items' => [['description' => $days.' days of '.$product.' (resale access)', 'quantity' => 1, 'unit_amount_minor' => $s['sale_minor'], 'amount_minor' => $s['sale_minor']]],
             ]);
-            // Persist code on the listing for merchant support lookups
-            DB::table('resale_listings')->where('id', $l->id)->update([
-                'updated_at' => $now,
-            ]);
-            $this->logWebhookEvent('luvupay', 'marketplace.listing_sold', ['listing_id' => $l->id, 'buyer' => $buyerEmail, 'access_code' => $accessCode]);
-            $this->logWebhookEvent('luvupay', 'entitlement.transfer', ['listing_id' => $l->id, 'seller' => $l->seller_email, 'buyer' => $buyerEmail, 'access_code' => $accessCode]);
             $this->recordOutboundDelivery($m, 'entitlement.transfer', ['listing_id' => $l->id, 'invoice_number' => $invoice['invoice_number'] ?? null, 'access_code' => $accessCode], success: true);
 
-            return ['sale' => $sale, 'invoice' => $invoice, 'seller_email' => $l->seller_email, 'payout' => $sellerPayout, 'cur' => $cur, 'product' => $product, 'merchant' => $m, 'access_code' => $accessCode, 'days' => $days, 'buyer_email' => $buyerEmail];
+            return ['sale' => $s['sale_id'], 'invoice' => $invoice, 'seller_email' => $l->seller_email, 'payout' => $s['seller_minor'], 'cur' => $cur, 'product' => $product, 'merchant' => $m, 'access_code' => $accessCode, 'days' => $days, 'buyer_email' => $buyerEmail];
         });
 
         // Defer email so the buyer is redirected to the invoice immediately (PDF+SMTP was blocking PayPal return).

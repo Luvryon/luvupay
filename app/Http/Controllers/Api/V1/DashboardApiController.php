@@ -46,6 +46,7 @@ final class DashboardApiController
             'charity_split' => ['sometimes', 'boolean'],
             'grace_period' => ['sometimes', 'boolean'],
             'partial_refund_bps' => ['sometimes', 'integer', 'min:0', 'max:10000'],
+            'charity_bps' => ['sometimes', 'integer', 'min:100', 'max:5000'],
         ]);
 
         $current = MerchantProject::current();
@@ -54,7 +55,7 @@ final class DashboardApiController
         }
 
         $payload = [];
-        foreach (['name', 'plan', 'description', 'environment', 'interval', 'price_minor', 'currency', 'partial_refund_bps'] as $k) {
+        foreach (['name', 'plan', 'description', 'environment', 'interval', 'price_minor', 'currency', 'partial_refund_bps', 'charity_bps'] as $k) {
             if (array_key_exists($k, $data) && $data[$k] !== null) {
                 $payload[$k] = $data[$k];
             }
@@ -247,6 +248,8 @@ final class DashboardApiController
                 'invoice_number' => $inv->invoice_number ?? null,
                 'breakdown' => $meta['breakdown'] ?? null,
                 'smart_convert' => $meta['smart_convert'] ?? null,
+                'split' => $meta['split'] ?? null,
+                'decision' => $meta['decision'] ?? null,
             ];
         })->values()]);
     }
@@ -370,6 +373,18 @@ final class DashboardApiController
         $decision = (string) ($meta['decision'] ?? '');
 
         if ($type === 'charge') {
+            if ($decision === 'split_pay' || $life === 'SPLIT PAY') {
+                return 'Split pay ('.(int) round(((int) ($meta['split']['paid_minor'] ?? 0)) * 100 / max(1, (int) ($meta['split']['total_minor'] ?? 1))).'% paid)';
+            }
+            if ($decision === 'split_paid') {
+                return 'Settled (split pay completed)';
+            }
+            if ($decision === 'split_defaulted') {
+                return 'Split pay defaulted';
+            }
+            if ($status === 'held' && ($life === 'PENDING RESALE' || $decision === 'marketplace_resale')) {
+                return 'Listed for resale (awaiting buyer)';
+            }
             if ($status === 'held' || $life === 'GRACE PERIOD') {
                 return 'Grace period (48h hold)';
             }

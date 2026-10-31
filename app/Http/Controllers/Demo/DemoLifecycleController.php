@@ -5,6 +5,9 @@ namespace App\Http\Controllers\Demo;
 use App\Contracts\NebiusAIContract;
 use App\Http\Controllers\Demo\Concerns\DemoSupport;
 use App\Services\Nebius\ChurnPredictionService;
+use App\Services\Luvu\GraceDecisionService;
+use App\Services\Luvu\GraceStagePlanner;
+use App\Services\Luvu\SplitPayService;
 use App\Support\MerchantProject;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -24,7 +27,7 @@ final class DemoLifecycleController
     public function simulateForgot(Request $request): JsonResponse
     {
         $merchantId = $this->merchantId($request);
-        $data = $request->validate(['transaction_id' => ['required', 'uuid']]);
+        $data = $request->validate(['transaction_id' => ['required', 'uuid'], 'hours_before' => ['nullable', 'integer', 'in:168,72,48,6']]);
         $project = MerchantProject::current();
 
         $aiBundle = ['nudge' => '', 'source' => 'local_template'];
@@ -48,7 +51,7 @@ final class DemoLifecycleController
             );
 
             $amount = (int) $tx->amount_minor;
-            $windowHours = (int) config('luvupay.defaults.second_chance_window_hours', 48);
+            $windowHours = (int) ($data['hours_before'] ?? config('luvupay.defaults.second_chance_window_hours', 48));
             $refundBps = $project->partialRefundBps;
             $refundMinor = (int) round($amount * $refundBps / 10000);
 
@@ -132,8 +135,9 @@ final class DemoLifecycleController
 
         return response()->json([
             'ok' => true,
-            'message' => 'Missed cancellation - 48h GRACE PERIOD opened. Partial refund offered. Default if no response: expire (churn)',
+            'message' => 'Missed cancellation - GRACE PERIOD opened with '.((int) ($data['hours_before'] ?? 48)).'h left. Default if no response: expire (churn)',
             'grace' => $result,
+            'stage' => $this->stagePlan($merchantId, $result['transaction_id']),
             'row' => $this->formatRow($result['transaction_id']),
             'project_features' => [
                 'marketplace_resale' => $project->marketplaceResale,
@@ -147,221 +151,127 @@ final class DemoLifecycleController
         ]);
     }
 
-    public function decision(Request $request): JsonResponse
+    public function decision(Request $request, GraceDecisionService $decisions): JsonResponse
     {
         $merchantId = $this->merchantId($request);
         $project = MerchantProject::current();
         $data = $request->validate([
             'transaction_id' => ['required', 'uuid'],
-            'choice' => ['required', 'in:renew,partial_refund,expire,cancel,resale,donate,retain'],
+            'choice' => ['required', 'in:renew,split_pay,partial_refund,expire,cancel,resale,donate,retain'],
         ]);
 
-        if ($data['choice'] === 'cancel') {
-            $data['choice'] = 'expire';
+        try {
+            $r = $decisions->decide($merchantId, $data['transaction_id'], $data['choice'], $project);
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpExceptionInterface $e) {
+            return response()->json(['ok' => false, 'error' => 'decision_rejected', 'message' => $e->getMessage() ?: 'Not found'], $e->getStatusCode());
+        } catch (\RuntimeException $e) {
+            return response()->json(['ok' => false, 'error' => 'decision_rejected', 'message' => $e->getMessage()], 409);
         }
-        if ($data['choice'] === 'retain') {
-            $data['choice'] = 'partial_refund';
-        }
-
-        if ($data['choice'] === 'resale' && ! $project->marketplaceResale) {
-            abort(422, 'Marketplace Resale is not enabled for this project. Enable it in project settings.');
-        }
-        if ($data['choice'] === 'donate' && ! $project->charitySplit) {
-            abort(422, 'Charity Split is not enabled for this project. Enable it in project settings.');
-        }
-
-        $tx = DB::table('transactions')
-            ->where('merchant_id', $merchantId)
-            ->where('id', $data['transaction_id'])
-            ->first();
-        abort_unless($tx, 404);
-
-        $meta = json_decode($tx->metadata ?? '{}', true) ?: [];
-        $amount = (int) $tx->amount_minor;
-        $refundBps = (int) ($meta['grace']['partial_refund_bps'] ?? $project->partialRefundBps);
-        $refundMinor = (int) ($meta['grace']['partial_refund_minor'] ?? round($amount * $refundBps / 10000));
-        $now = now();
-        $choice = $data['choice'];
-        $msg = '';
-
-        DB::transaction(function () use ($tx, &$meta, $choice, $amount, $refundMinor, $refundBps, $now, $merchantId, &$msg) {
-            if ($choice === 'renew') {
-                $meta['lifecycle'] = 'ACTIVE';
-                $meta['decision'] = 'user_renewed';
-                unset($meta['grace']);
-                DB::table('transactions')->where('id', $tx->id)->update([
-                    'status' => 'completed',
-                    'second_chance_expires_at' => null,
-                    'metadata' => json_encode($meta),
-                    'updated_at' => $now,
-                ]);
-                if ($tx->subscription_id) {
-                    DB::table('subscriptions')->where('id', $tx->subscription_id)->update([
-                        'status' => 'active',
-                        'updated_at' => $now,
-                    ]);
-                }
-                $this->logWebhookEvent('paypal', 'BILLING.SUBSCRIPTION.PAYMENT.COMPLETED', [
-                    'transaction_id' => $tx->id,
-                    'event' => 'payment_retry_success',
-                ]);
-                $msg = 'Payment retry successful - ACTIVE';
-            } elseif ($choice === 'partial_refund') {
-                $meta['lifecycle'] = 'AI-RETAINED';
-                $meta['decision'] = 'partial_refund_accepted';
-                $meta['smart_convert'] = [
-                    'type' => 'partial_refund',
-                    'refund_bps' => $refundBps,
-                    'refund_minor' => $refundMinor,
-                    'chargeback_prevented' => true,
-                ];
-                DB::table('transactions')->where('id', $tx->id)->update([
-                    'status' => 'completed',
-                    'second_chance_expires_at' => null,
-                    'metadata' => json_encode($meta),
-                    'updated_at' => $now,
-                ]);
-                if ($tx->subscription_id) {
-                    DB::table('subscriptions')->where('id', $tx->subscription_id)->update([
-                        'status' => 'active',
-                        'updated_at' => $now,
-                    ]);
-                }
-                // Real PayPal refund when capture id exists + driver is paypal
-                $this->tryPayPalRefund($tx, $refundMinor, $meta);
-                $this->logWebhookEvent('luvupay', 'subscription.partial_refund', [
-                    'transaction_id' => $tx->id,
-                    'refund_minor' => $refundMinor,
-                ]);
-                $msg = 'Partial refund accepted - AI-RETAINED (chargeback avoided)';
-            } elseif ($choice === 'resale') {
-                // List remaining access. Merchant original charge stays held until sale completes
-                // (DemoResaleController settles it as completed - full amount still merchant's).
-                // Platform fee is taken from the BUYER resale payment later, never from this charge.
-                $asking = max(100, (int) round($amount * 0.5));
-                $meta['lifecycle'] = 'Resale listed (awaiting buyer)';
-                $meta['decision'] = 'marketplace_resale';
-                $meta['resale'] = [
-                    'listed_at' => $now->toIso8601String(),
-                    'asking_price_minor' => $asking,
-                    'path' => 'marketplace_resale',
-                    'note' => 'Original charge remains with merchant after sale; seller payout funded by buyer',
-                ];
-                DB::table('transactions')->where('id', $tx->id)->update([
-                    'status' => 'held',
-                    'metadata' => json_encode($meta),
-                    'updated_at' => $now,
-                ]);
-                try {
-                    if (\Illuminate\Support\Facades\Schema::hasTable('resale_listings') && $tx->subscription_id) {
-                        DB::table('resale_listings')->insert([
-                            'id' => (string) Str::uuid(),
-                            'merchant_id' => $merchantId,
-                            'subscription_id' => $tx->subscription_id,
-                            'seller_merchant_user_id' => $tx->merchant_user_id ?? 'demo',
-                            'seller_email' => $tx->email ?? 'seller@example.com',
-                            'status' => 'active',
-                            'entitlement_status' => 'pending',
-                            'asking_price_minor' => $asking,
-                            'currency' => $tx->currency ?? 'USD',
-                            'access_expires_at' => $now->copy()->addDays(15),
-                            'listed_at' => $now,
-                            'redeem_token' => \App\Services\Hosted\HostedPurchase::token((string) ($meta['display_name'] ?? $tx->email ?? 'user'), 15),
-                            'metadata' => json_encode([
-                                'seller_name' => $meta['display_name'] ?? null,
-                                'source' => 'decision',
-                                'parent_charge_id' => $tx->id,
-                            ]),
-                            'created_at' => $now,
-                            'updated_at' => $now,
-                        ]);
-                    }
-                } catch (\Throwable $e) {
-                    \Illuminate\Support\Facades\Log::warning('demo.resale_listing_failed', ['err' => $e->getMessage()]);
-                }
-                $this->logWebhookEvent('luvupay', 'marketplace.listing_created', [
-                    'transaction_id' => $tx->id,
-                    'asking_price_minor' => $asking,
-                ]);
-                $msg = 'Remaining access listed on marketplace. Merchant charge unchanged until sale settles.';
-            } elseif ($choice === 'donate') {
-                $meta['lifecycle'] = 'AI-RETAINED';
-                $meta['decision'] = 'charity_donate';
-                $meta['charity'] = [
-                    'donated_minor' => $amount,
-                    'at' => $now->toIso8601String(),
-                ];
-                DB::table('transactions')->where('id', $tx->id)->update([
-                    'status' => 'completed',
-                    'second_chance_expires_at' => null,
-                    'metadata' => json_encode($meta),
-                    'updated_at' => $now,
-                ]);
-                DB::table('transactions')->insert([
-                    'id' => (string) Str::uuid(),
-                    'merchant_id' => $merchantId,
-                    'subscription_id' => $tx->subscription_id,
-                    'type' => 'charity_payout',
-                    'status' => 'completed',
-                    'idempotency_key' => 'charity-'.$tx->id,
-                    'merchant_user_id' => $tx->merchant_user_id,
-                    'email' => $tx->email,
-                    'amount_minor' => $amount,
-                    'currency' => $tx->currency,
-                    'provider' => 'luvupay',
-                    'provider_reference' => 'CHARITY-'.$tx->id,
-                    'processed_at' => $now,
-                    'metadata' => json_encode([
-                        'lifecycle' => 'AI-RETAINED',
-                        'parent_transaction_id' => $tx->id,
-                        'path' => 'charity_donate',
-                    ]),
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ]);
-                $this->logWebhookEvent('luvupay', 'charity.donation', [
-                    'transaction_id' => $tx->id,
-                    'amount_minor' => $amount,
-                ]);
-                $msg = 'Remaining value donated - AI-RETAINED (charity split)';
-            } else {
-                $meta['lifecycle'] = 'CHURNED';
-                $meta['decision'] = 'expired_no_response';
-                $meta['grace']['closed_at'] = $now->toIso8601String();
-                $meta['grace']['outcome'] = 'expire';
-                DB::table('transactions')->where('id', $tx->id)->update([
-                    'status' => 'cancelled',
-                    'second_chance_expires_at' => null,
-                    'metadata' => json_encode($meta),
-                    'updated_at' => $now,
-                ]);
-                if ($tx->subscription_id) {
-                    DB::table('subscriptions')->where('id', $tx->subscription_id)->update([
-                        'status' => 'expired',
-                        'updated_at' => $now,
-                    ]);
-                }
-                $this->logWebhookEvent('paypal', 'BILLING.SUBSCRIPTION.EXPIRED', [
-                    'transaction_id' => $tx->id,
-                ]);
-                $msg = 'No response in grace window - subscription EXPIRED (churn). No force.';
-            }
-        });
 
         return response()->json([
             'ok' => true,
-            'message' => $msg,
-            'choice' => $choice,
-            'listing' => $choice === 'resale' ? $this->activeListingPayload($tx->subscription_id ?? null) : null,
-            'row' => $this->formatRow($tx->id),
-            'project_features' => [
-                'marketplace_resale' => $project->marketplaceResale,
-                'charity_split' => $project->charitySplit,
-            ],
-            'integrations' => [
-                'nebius' => $this->nebiusConfigured(),
-                'paypal' => $this->paypalConfigured(),
-            ],
+            'message' => $r['message'],
+            'choice' => $r['choice'],
+            'listing' => $r['choice'] === 'resale' ? $this->activeListingPayload($r['subscription_id']) : null,
+            'plan' => $r['plan'] ?? null,
+            'stage' => $r['choice'] === 'resale' ? $this->stagePlan($merchantId, $data['transaction_id']) : null,
+            'row' => $this->formatRow($data['transaction_id']),
+            'project_features' => ['marketplace_resale' => $project->marketplaceResale, 'charity_split' => $project->charitySplit],
+            'integrations' => ['nebius' => $this->nebiusConfigured(), 'paypal' => $this->paypalConfigured()],
+            'recent_events' => $this->recentWebhookEvents(10),
+        ]);
+    }
+
+    /** @return array<string,mixed>|null */
+    private function stagePlan(string $merchantId, string $txId): ?array
+    {
+        $tx = DB::table('transactions')->where('merchant_id', $merchantId)->where('id', $txId)->first();
+        if (! $tx) {
+            return null;
+        }
+        $sub = $tx->subscription_id ? DB::table('subscriptions')->where('id', $tx->subscription_id)->first() : null;
+        $meta = json_decode((string) ($tx->metadata ?? '{}'), true) ?: [];
+
+        return app(GraceStagePlanner::class)->plan($tx, $sub, MerchantProject::current(), $meta['display_name'] ?? null);
+    }
+
+    /**
+     * POST demo/grace/stage: sandbox time travel for ONE held charge. Moves its grace deadline so it has
+     * {hours_before} left (168 / 72 / 48 / 6), or closes the window now (0). Everything downstream (sweeper,
+     * stage rules, resale price) then behaves exactly as it would in real life at that moment.
+     */
+    public function setStage(Request $request, GraceDecisionService $decisions): JsonResponse
+    {
+        $merchantId = $this->merchantId($request);
+        $data = $request->validate(['transaction_id' => ['required', 'uuid'], 'hours_before' => ['required', 'integer', 'in:168,72,48,6,0']]);
+        $hours = (int) $data['hours_before'];
+
+        try {
+            if ($hours === 0) {
+                $r = $decisions->decide($merchantId, $data['transaction_id'], 'expire', MerchantProject::current(), 'timer');
+
+                return response()->json(['ok' => true, 'message' => $r['message'], 'closed' => true, 'stage' => null, 'row' => $this->formatRow($data['transaction_id']), 'recent_events' => $this->recentWebhookEvents(10)]);
+            }
+
+            DB::transaction(function () use ($merchantId, $data, $hours) {
+                $tx = DB::table('transactions')->where('merchant_id', $merchantId)->where('id', $data['transaction_id'])->lockForUpdate()->first();
+                abort_unless($tx, 404, 'Transaction not found');
+                $meta = json_decode((string) ($tx->metadata ?? '{}'), true) ?: [];
+                if ($tx->type !== 'charge' || $tx->status !== 'held' || ($meta['decision'] ?? '') === 'split_pay') {
+                    throw new \RuntimeException('Only a charge that is still in its grace period can be moved on the timeline.');
+                }
+                $now = now();
+                $expires = $now->copy()->addHours($hours);
+                $meta['grace'] = ($meta['grace'] ?? []) + [];
+                $meta['grace']['expires_at'] = $expires->toIso8601String();
+                $meta['grace']['window_hours'] = $hours;
+                $meta['simulated_stage'] = ['hours_before' => $hours, 'at' => $now->toIso8601String()];
+                $stage = GraceStagePlanner::keyForRemaining($hours - 0.0001);
+                // A listing that this stage no longer allows is withdrawn and the charge goes back to its grace state.
+                if (($meta['decision'] ?? '') === 'marketplace_resale' && ! in_array('resale', GraceStagePlanner::allowedChoices($stage), true)) {
+                    if ($tx->subscription_id) {
+                        \App\Services\Resale\ResaleSettlement::cancelOpenListings($tx->subscription_id);
+                    }
+                    $meta['lifecycle'] = 'GRACE PERIOD';
+                    unset($meta['decision'], $meta['resale']);
+                }
+                DB::table('transactions')->where('id', $tx->id)->update(['second_chance_expires_at' => $expires, 'metadata' => json_encode($meta), 'updated_at' => $now]);
+                $this->scopedMerchant = $merchantId;
+                $this->logWebhookEvent('luvupay', 'subscription.grace_stage_changed', ['transaction_id' => $tx->id, 'hours_left' => $hours, 'stage' => $stage, 'simulated' => true]);
+            });
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpExceptionInterface $e) {
+            return response()->json(['ok' => false, 'message' => $e->getMessage() ?: 'Not found'], $e->getStatusCode());
+        } catch (\RuntimeException $e) {
+            return response()->json(['ok' => false, 'message' => $e->getMessage()], 409);
+        }
+
+        $plan = $this->stagePlan($merchantId, $data['transaction_id']);
+
+        return response()->json(['ok' => true, 'message' => 'Timeline moved: '.($plan['label'] ?? ''), 'stage' => $plan, 'row' => $this->formatRow($data['transaction_id']), 'recent_events' => $this->recentWebhookEvents(10)]);
+    }
+
+    /** POST demo/split/collect: the subscriber pays the next instalment (simulated "pay now" from the console). */
+    public function collectInstallment(Request $request, SplitPayService $split): JsonResponse
+    {
+        $merchantId = $this->merchantId($request);
+        $data = $request->validate(['transaction_id' => ['required', 'uuid']]);
+        $plan = $split->forCharge($merchantId, $data['transaction_id']);
+        if (! $plan) {
+            return response()->json(['ok' => false, 'message' => 'This charge has no instalment plan.'], 404);
+        }
+        try {
+            $r = $split->payInstallment($merchantId, $plan['plan_id'], null, 'merchant_console');
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpExceptionInterface $e) {
+            return response()->json(['ok' => false, 'message' => $e->getMessage() ?: 'Not found'], $e->getStatusCode());
+        } catch (\RuntimeException $e) {
+            return response()->json(['ok' => false, 'message' => $e->getMessage()], 409);
+        }
+
+        return response()->json([
+            'ok' => true,
+            'message' => $r['completed'] ? 'Final instalment collected - plan completed, charge settled in full' : 'Instalment collected',
+            'plan' => $r,
+            'row' => $this->formatRow($data['transaction_id']),
             'recent_events' => $this->recentWebhookEvents(10),
         ]);
     }
@@ -374,6 +284,11 @@ final class DemoLifecycleController
                 'id' => 'renew',
                 'label' => 'Retry payment & stay Active',
                 'description' => 'User pays the outstanding charge and continues the subscription.',
+            ],
+            [
+                'id' => 'split_pay',
+                'label' => 'Split pay (down payment now, rest in 7 days)',
+                'description' => 'Subscriber pays part now and the rest later; access stays active while the plan is current.',
             ],
             [
                 'id' => 'partial_refund',
