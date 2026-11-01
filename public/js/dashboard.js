@@ -174,6 +174,7 @@
     if (s === 'PENDING_RESALE' || s === 'PENDING RESALE') return 'Resale listed (awaiting buyer)';
     if (s === 'RESOLD') return 'Resold (original charge kept)';
     if (s === 'SPLIT PAY') return 'Split pay (instalments)';
+    if (s === 'UPCOMING RENEWAL') return 'Upcoming renewal';
     if (s === 'AI_RETAINED' || s === 'AI-RETAINED') return 'Settled (AI retained)';
     if (s === 'ACTIVE') return 'Settled';
     if (s === 'COMPLETED' || s === 'SETTLED') return 'Settled';
@@ -710,10 +711,11 @@
         row.lifecycle = normalizeLifecycle(row.lifecycle);
         row._flash = true;
         var i = this.rowData.findIndex(function (r) { return r.id === row.id; });
-        if (i >= 0) this.rowData[i] = row; else this.rowData.unshift(row);
+        var existed = i >= 0;
+        if (existed) this.rowData[i] = row; else this.rowData.unshift(row);
         var g = this.grids.tx;
         if (g) {
-          if (isNew) g.applyTransaction({ add: [row], addIndex: 0 }); else g.applyTransaction({ update: [row] });
+          if (isNew && !existed) g.applyTransaction({ add: [row], addIndex: 0 }); else g.applyTransaction({ update: [row] });
           setTimeout(function () {
             row._flash = false;
             try { var n = g.getRowNode(row.id); if (n) g.redrawRows({ rowNodes: [n] }); } catch (e) { /* grid destroyed */ }
@@ -1337,7 +1339,7 @@ pushToast: function (message, icon) {
         var rid = this.journeySetup.rowId;
         var row = (this.rowData || []).find(function (x) { return x.id === rid; });
         if (!row) return;
-        var hoursBefore = [168, 72, 48, 6].indexOf(Number(this.journeySetup.hours)) !== -1 ? Number(this.journeySetup.hours) : 48;
+        var hoursBefore = [168, 72, 48, 6, -25].indexOf(Number(this.journeySetup.hours)) !== -1 ? Number(this.journeySetup.hours) : 48;
         var cur = row.currency || PROJECT.currency || 'USD';
         var name = row.display_name || String(row.email || 'Member').split('@')[0];
         this.decisionRow = row;
@@ -1385,20 +1387,20 @@ pushToast: function (message, icon) {
         }, 2000);
 
         var seen = {};
-        var renew = new Date(new Date(row.created_at || Date.now()).getTime() + 30 * 86400000);
-        var h7 = new Date(renew.getTime() - 7 * 86400000);
-        this.logDecision('[H-7 Days · ' + this.journeyDate(h7) + '] Reminder for ' + (row.email || name) + ': ' + (row.product || PROJECT.name || 'subscription') + ' renews ' + this.journeyDate(renew) + ' (' + this.journey.amount + ').', 'green');
+        this.logDecision('[Paid] ' + name + ' already paid ' + this.journey.amount + ' for the current period. That money stays in your wallet. This journey is about the NEXT subscription charge.', 'green');
         await sleep(450);
 
         var j = await this.sim('forgot', { transaction_id: row.id, hours_before: hoursBefore }, 'forgot');
         if (!j) {
-          this.logDecision('[Error] ' + (this.simMsg || 'Could not start the missed-cancellation flow'), 'warn');
+          this.logDecision('[Error] ' + (this.simMsg || 'Could not start the renewal journey'), 'warn');
           this.decisionBusy = false;
           return;
         }
         var g = j.grace || {};
-        var hours = g.expires_at ? Math.max(1, Math.round((new Date(g.expires_at).getTime() - Date.now()) / 3600000)) : 48;
-        this.journey.hours = hours;
+        // From here on every action targets the RENEWAL (next-cycle charge), never the paid charge.
+        if (j.row) { this.decisionRow = j.row; this.journey.renewalId = j.row.id; this.applyRow(j.row, true); }
+        var stg0 = j.stage || {};
+        this.journey.hours = Math.max(1, Math.round(Math.abs(Number(stg0.hours_left != null ? stg0.hours_left : stg0.hours_to_expiry) || 48)));
         if (g.partial_refund_pct != null) this.journey.refundPct = Number(g.partial_refund_pct);
         if (j.project_features) {
           this.journey.features = { resale: !!j.project_features.marketplace_resale, charity: !!j.project_features.charity_split };
@@ -1408,19 +1410,16 @@ pushToast: function (message, icon) {
         this.journey.nebius = !!integ.nebius;
         this.journey.nudge = g.ai_nudge || '';
         this.journey.stage = j.stage || null;
-        if (j.row) this.applyRow(j.row, false);
 
-        this.logDecision('[Day H] Payment Failed. Missed cancellation detected → charge ' + String(row.id).slice(0, 8) + ' (' + this.journey.amount + ') held for ' + hours + 'h. [Webhook] subscription.grace_period_started', 'warn');
+        this.logDecision('[Timeline · ' + (stg0.label || '') + '] Next charge ' + this.journey.amount + ' · current period ends ' + (stg0.expires_at ? new Date(stg0.expires_at).toLocaleString() : '') + '. [Webhook] subscription.renewal_scheduled', 'warn');
         this.journeyEvents(j.recent_events, seen, 'warn');
         await sleep(350);
-        this.preview.spinning = true; this.logDecision('[Nebius AI] Analyzing ' + name + "'s usage of " + (row.product || PROJECT.name || 'the product') + '…', 'gold');
-        await sleep(450);
-        var src = g.ai_source === 'nebius' ? 'Nebius model' : 'local template (set NEBIUS_API_KEY for live AI)';
-        var risk = g.ai_churn && (g.ai_churn.risk || g.ai_churn.level || (typeof g.ai_churn === 'string' ? g.ai_churn : ''));
-        this.logDecision('[Nebius AI] Source: ' + src + (risk ? ' · churn risk ' + risk : '') + '.', 'gold');
-        if (g.ai_nudge) this.logDecision('[Nebius AI] Nudge: "' + g.ai_nudge + '"', 'gold');
+        var rem = stg0.reminder;
+        var emailNote = { sent: 'Reminder email sent to ', skipped_demo_address: 'Email not sent: demo address ', throttled: 'Email held back (hourly limit) for ', failed: 'Email could not be sent to ', disabled: 'Email is turned off for ' };
+        if (rem && rem.email) this.logDecision('[Email] ' + (emailNote[rem.email.status] || (rem.email.status + ' · ')) + (rem.email.to || ''), rem.email.status === 'sent' ? 'green' : 'warn');
+        this.preview.spinning = true;
+        this.logDecision('[Nebius AI] Reminder written by ' + (stg0.message_source === 'nebius' ? 'Nebius model' : 'local template (set NEBIUS_API_KEY for live AI)') + '. It appears on the phone as a notification.', 'gold');
         await sleep(300);
-        // Feature 2 & 3: Safe Refund + Micro-Payment (demo logs for dual-view)
         var st = this.journey.stage || { options: [] };
         var by = {};
         (st.options || []).forEach(function (o) { by[o.id] = o; });
@@ -1499,6 +1498,7 @@ pushToast: function (message, icon) {
         if (!j) { this.logDecision('[Error] ' + (this.simMsg || 'Could not move the timeline'), 'warn'); return; }
         if (j.row) this.applyRow(j.row, false);
         this.journeyEvents(j.recent_events, this._journeySeen || {}, 'warn');
+        if (j.stage && j.stage.reminder && j.stage.reminder.email) this.logDecision('[Email] ' + (j.stage.reminder.email.status === 'sent' ? 'Reminder emailed to ' + (j.stage.reminder.email.to || '') : 'Email ' + j.stage.reminder.email.status), j.stage.reminder.email.status === 'sent' ? 'green' : 'warn');
         if (j.closed) {
           this.logDecision('[Timeline · Window closed] ' + (j.message || 'Subscription expired'), 'warn');
           this.journey.doneMessage = j.message || 'Window closed';

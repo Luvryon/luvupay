@@ -7,6 +7,7 @@ use App\Http\Controllers\Demo\Concerns\DemoSupport;
 use App\Services\Nebius\ChurnPredictionService;
 use App\Services\Luvu\GraceDecisionService;
 use App\Services\Luvu\GraceStagePlanner;
+use App\Services\Luvu\RenewalJourney;
 use App\Services\Luvu\SplitPayService;
 use App\Support\MerchantProject;
 use Illuminate\Http\JsonResponse;
@@ -24,129 +25,39 @@ final class DemoLifecycleController
 {
     use DemoSupport;
 
-    public function simulateForgot(Request $request): JsonResponse
+    /**
+     * POST demo/forgot: start the renewal journey for a subscriber who already paid. The paid period is untouched; the
+     * NEXT charge (renewal) is created and placed at {hours_before} on the timeline (168/72/48/6 before expiry, -25 = +1 day after).
+     */
+    public function simulateForgot(Request $request, RenewalJourney $journey): JsonResponse
     {
         $merchantId = $this->merchantId($request);
-        $data = $request->validate(['transaction_id' => ['required', 'uuid'], 'hours_before' => ['nullable', 'integer', 'in:168,72,48,6']]);
+        $data = $request->validate(['transaction_id' => ['required', 'uuid'], 'hours_before' => ['nullable', 'integer', 'in:168,72,48,6,-25']]);
         $project = MerchantProject::current();
+        $position = (int) ($data['hours_before'] ?? 48);
 
-        $aiBundle = ['nudge' => '', 'source' => 'local_template'];
-
-        $result = DB::transaction(function () use ($merchantId, $data, $project, &$aiBundle) {
-            $tx = DB::table('transactions')
-                ->where('merchant_id', $merchantId)
-                ->where('id', $data['transaction_id'])
-                ->lockForUpdate()
-                ->first();
-
-            abort_unless($tx, 404, 'Transaction not found');
-            abort_unless($tx->type === 'charge', 422, 'Only charge rows can enter grace period');
-
-            $meta = json_decode($tx->metadata ?? '{}', true) ?: [];
-            $lifecycle = strtoupper((string) ($meta['lifecycle'] ?? ''));
-            abort_unless(
-                $lifecycle === 'ACTIVE' || $lifecycle === '' || in_array($tx->status, ['completed', 'settled'], true),
-                422,
-                'Row must be ACTIVE before missed-cancellation test'
-            );
-
-            $amount = (int) $tx->amount_minor;
-            $windowHours = (int) ($data['hours_before'] ?? config('luvupay.defaults.second_chance_window_hours', 48));
-            $refundBps = $project->partialRefundBps;
-            $refundMinor = (int) round($amount * $refundBps / 10000);
-
-            $name = $meta['display_name'] ?? Str::before($tx->email ?? 'Member', '@');
-            $product = $meta['product'] ?? ($project->product() ?: 'Subscription');
-            $usage = $meta['usage_pattern'] ?? 'regular viewer';
-
-            $aiBundle = $this->generateAiNudge(
-                $name,
-                $product,
-                $usage,
-                $refundBps,
-                $merchantId,
-                $tx->email ?? null
-            );
-            $aiNudge = $aiBundle['nudge'];
-
-            $now = now();
-            $expires = $now->copy()->addHours($windowHours);
-
-            $meta['lifecycle'] = 'GRACE PERIOD';
-            $meta['demo'] = true;
-            $meta['display_name'] = $name;
-            $meta['product'] = $product;
-            $meta['missed_cancellation'] = true;
-            $meta['grace'] = [
-                'started_at' => $now->toIso8601String(),
-                'expires_at' => $expires->toIso8601String(),
-                'window_hours' => $windowHours,
-                'partial_refund_bps' => $refundBps,
-                'partial_refund_minor' => $refundMinor,
-                'default_if_no_response' => 'expire',
-            ];
-            $meta['ai_nudge'] = $aiNudge;
-            $meta['ai_source'] = $aiBundle['source'] ?? 'local_template';
-            $meta['ai_churn'] = $aiBundle['churn'] ?? null;
-            $meta['offers'] = $this->availableOffers($project, $refundMinor, $amount);
-
-            DB::table('transactions')->where('id', $tx->id)->update([
-                'status' => 'held',
-                'second_chance_expires_at' => $expires,
-                'second_chance_triggered_at' => $now,
-                'metadata' => json_encode($meta),
-                'updated_at' => $now,
-            ]);
-
-            if ($tx->subscription_id) {
-                DB::table('subscriptions')->where('id', $tx->subscription_id)->update([
-                    'status' => 'past_due',
-                    'updated_at' => $now,
-                ]);
-            }
-
-            $this->logWebhookEvent('luvupay', 'subscription.grace_period_started', [
-                'transaction_id' => $tx->id,
-                'expires_at' => $expires->toIso8601String(),
-                'partial_refund_bps' => $refundBps,
-                'ai_source' => $meta['ai_source'],
-            ]);
-
-            if (($meta['ai_source'] ?? '') === 'nebius') {
-                $this->logWebhookEvent('nebius', 'ai.grace_period_nudge', [
-                    'transaction_id' => $tx->id,
-                    'tokens_used' => $aiBundle['tokens_used'] ?? null,
-                    'risk_level' => $aiBundle['churn']['risk_level'] ?? null,
-                ]);
-            }
-
-            return [
-                'transaction_id' => $tx->id,
-                'lifecycle' => 'GRACE PERIOD',
-                'expires_at' => $expires->toIso8601String(),
-                'partial_refund_minor' => $refundMinor,
-                'partial_refund_pct' => (int) round($refundBps / 100),
-                'offers' => $meta['offers'],
-                'ai_nudge' => $aiNudge,
-                'ai_source' => $meta['ai_source'],
-                'ai_churn' => $meta['ai_churn'],
-            ];
-        });
+        try {
+            $renewal = $journey->ensureRenewal($merchantId, $data['transaction_id']);
+            $moved = $journey->moveTo($merchantId, $renewal->id, $position, $project);
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpExceptionInterface $e) {
+            return response()->json(['ok' => false, 'message' => $e->getMessage() ?: 'Not found'], $e->getStatusCode());
+        } catch (\RuntimeException $e) {
+            return response()->json(['ok' => false, 'message' => $e->getMessage()], 409);
+        }
+        $plan = $moved['plan'];
 
         return response()->json([
             'ok' => true,
-            'message' => 'Missed cancellation - GRACE PERIOD opened with '.((int) ($data['hours_before'] ?? 48)).'h left. Default if no response: expire (churn)',
-            'grace' => $result,
-            'stage' => $this->stagePlan($merchantId, $result['transaction_id']),
-            'row' => $this->formatRow($result['transaction_id']),
-            'project_features' => [
-                'marketplace_resale' => $project->marketplaceResale,
-                'charity_split' => $project->charitySplit,
+            'message' => 'Renewal journey started: '.($plan['label'] ?? ''),
+            'grace' => [
+                'transaction_id' => $renewal->id, 'paid_transaction_id' => $data['transaction_id'], 'lifecycle' => 'GRACE PERIOD',
+                'expires_at' => $plan['deadline_at'] ?? null, 'partial_refund_pct' => (int) round($project->partialRefundBps / 100),
+                'ai_nudge' => $plan['message'] ?? '', 'ai_source' => $plan['message_source'] ?? 'template',
             ],
-            'integrations' => [
-                'nebius' => ($result['ai_source'] ?? '') === 'nebius',
-                'paypal' => $this->paypalConfigured(),
-            ],
+            'stage' => $plan,
+            'row' => $this->formatRow($renewal->id),
+            'project_features' => ['marketplace_resale' => $project->marketplaceResale, 'charity_split' => $project->charitySplit],
+            'integrations' => ['nebius' => ($plan['message_source'] ?? '') === 'nebius' || $this->nebiusConfigured(), 'paypal' => $this->paypalConfigured()],
             'recent_events' => $this->recentWebhookEvents(10),
         ]);
     }
@@ -196,58 +107,27 @@ final class DemoLifecycleController
     }
 
     /**
-     * POST demo/grace/stage: sandbox time travel for ONE held charge. Moves its grace deadline so it has
-     * {hours_before} left (168 / 72 / 48 / 6), or closes the window now (0). Everything downstream (sweeper,
-     * stage rules, resale price) then behaves exactly as it would in real life at that moment.
+     * POST demo/grace/stage: sandbox time travel for ONE renewal. Moves the expiry T of the current period so the renewal
+     * sits at the chosen point (168 / 72 / 48 / 6 hours before, -25 = +1 day after expiry, -49 = window closed).
+     * The stage's reminder (email + phone notification) is generated and sent once per stage.
      */
-    public function setStage(Request $request, GraceDecisionService $decisions): JsonResponse
+    public function setStage(Request $request, RenewalJourney $journey): JsonResponse
     {
         $merchantId = $this->merchantId($request);
-        $data = $request->validate(['transaction_id' => ['required', 'uuid'], 'hours_before' => ['required', 'integer', 'in:168,72,48,6,0']]);
-        $hours = (int) $data['hours_before'];
+        $data = $request->validate(['transaction_id' => ['required', 'uuid'], 'hours_before' => ['required', 'integer', 'in:168,72,48,6,-25,-49']]);
 
         try {
-            if ($hours === 0) {
-                $r = $decisions->decide($merchantId, $data['transaction_id'], 'expire', MerchantProject::current(), 'timer');
-
-                return response()->json(['ok' => true, 'message' => $r['message'], 'closed' => true, 'stage' => null, 'row' => $this->formatRow($data['transaction_id']), 'recent_events' => $this->recentWebhookEvents(10)]);
-            }
-
-            DB::transaction(function () use ($merchantId, $data, $hours) {
-                $tx = DB::table('transactions')->where('merchant_id', $merchantId)->where('id', $data['transaction_id'])->lockForUpdate()->first();
-                abort_unless($tx, 404, 'Transaction not found');
-                $meta = json_decode((string) ($tx->metadata ?? '{}'), true) ?: [];
-                if ($tx->type !== 'charge' || $tx->status !== 'held' || ($meta['decision'] ?? '') === 'split_pay') {
-                    throw new \RuntimeException('Only a charge that is still in its grace period can be moved on the timeline.');
-                }
-                $now = now();
-                $expires = $now->copy()->addHours($hours);
-                $meta['grace'] = ($meta['grace'] ?? []) + [];
-                $meta['grace']['expires_at'] = $expires->toIso8601String();
-                $meta['grace']['window_hours'] = $hours;
-                $meta['simulated_stage'] = ['hours_before' => $hours, 'at' => $now->toIso8601String()];
-                $stage = GraceStagePlanner::keyForRemaining($hours - 0.0001);
-                // A listing that this stage no longer allows is withdrawn and the charge goes back to its grace state.
-                if (($meta['decision'] ?? '') === 'marketplace_resale' && ! in_array('resale', GraceStagePlanner::allowedChoices($stage), true)) {
-                    if ($tx->subscription_id) {
-                        \App\Services\Resale\ResaleSettlement::cancelOpenListings($tx->subscription_id);
-                    }
-                    $meta['lifecycle'] = 'GRACE PERIOD';
-                    unset($meta['decision'], $meta['resale']);
-                }
-                DB::table('transactions')->where('id', $tx->id)->update(['second_chance_expires_at' => $expires, 'metadata' => json_encode($meta), 'updated_at' => $now]);
-                $this->scopedMerchant = $merchantId;
-                $this->logWebhookEvent('luvupay', 'subscription.grace_stage_changed', ['transaction_id' => $tx->id, 'hours_left' => $hours, 'stage' => $stage, 'simulated' => true]);
-            });
+            $r = $journey->moveTo($merchantId, $data['transaction_id'], (int) $data['hours_before'], MerchantProject::current());
         } catch (\Symfony\Component\HttpKernel\Exception\HttpExceptionInterface $e) {
             return response()->json(['ok' => false, 'message' => $e->getMessage() ?: 'Not found'], $e->getStatusCode());
         } catch (\RuntimeException $e) {
             return response()->json(['ok' => false, 'message' => $e->getMessage()], 409);
         }
 
-        $plan = $this->stagePlan($merchantId, $data['transaction_id']);
-
-        return response()->json(['ok' => true, 'message' => 'Timeline moved: '.($plan['label'] ?? ''), 'stage' => $plan, 'row' => $this->formatRow($data['transaction_id']), 'recent_events' => $this->recentWebhookEvents(10)]);
+        return response()->json([
+            'ok' => true, 'message' => $r['closed'] ? $r['message'] : 'Timeline moved: '.($r['plan']['label'] ?? ''),
+            'closed' => $r['closed'], 'stage' => $r['plan'], 'row' => $this->formatRow($data['transaction_id']), 'recent_events' => $this->recentWebhookEvents(10),
+        ]);
     }
 
     /** POST demo/split/collect: the subscriber pays the next instalment (simulated "pay now" from the console). */

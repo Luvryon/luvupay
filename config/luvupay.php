@@ -39,24 +39,36 @@ return [
         'period_days' => 30,
     ],
 
-    // Missed-cancellation timeline. The stage is derived from the hours left before the grace window closes;
-    // it decides which options exist (enforced server-side) and what the subscriber is told.
+    // Renewal timeline of the NEXT subscription charge. Reference point is the expiry T of the current paid period
+    // (subscriptions.current_period_end). The current period stays paid and in the wallet; only the next cycle's
+    // charge (a separate ledger row) moves through these stages.
+    //   before T : reminders (email + phone notification, written by Nebius AI, template fallback)
+    //   T .. +1d : renewal payment failed, retries run, options still locked
+    //   +1d .. +2d : ALL options open (retry, split, partial refund, resale, donate, expire)
+    //   after +2d : window closed, the subscription ends
     'grace_stages' => [
-        'd7' => ['label' => '7 days left', 'hours' => 168, 'tone' => 'calm',
-            'choices' => ['renew', 'split_pay', 'expire'],
-            'message' => 'Friendly reminder, {name}: your {amount} charge is still unpaid and you have 7 days. Pay now, or spread it over two payments. No pressure.'],
-        'd3' => ['label' => '3 days left', 'hours' => 72, 'tone' => 'nudge',
+        'd7' => ['label' => '7 days before expiry', 'hours' => 168, 'tone' => 'calm', 'reminder' => true, 'choices' => [],
+            'message' => 'Hi {name}, your {product} renews in {time}. Your next payment of {amount} will be charged on {date}. Want to change or cancel? Do it before then.'],
+        'd3' => ['label' => '3 days before expiry', 'hours' => 72, 'tone' => 'nudge', 'reminder' => true, 'choices' => [],
+            'message' => '{name}, 3 days left. {amount} will be charged for your next {product} period on {date}. If you no longer need it, cancel now.'],
+        'h48' => ['label' => '48 hours before expiry', 'hours' => 48, 'tone' => 'urgent', 'reminder' => true, 'choices' => [],
+            'message' => '{name}, only {time} until your {product} renews and {amount} is charged. This is your 48 hour reminder.'],
+        'h6' => ['label' => '6 hours before expiry', 'hours' => 6, 'tone' => 'critical', 'reminder' => true, 'choices' => [],
+            'message' => 'Last reminder, {name}: {time} until {amount} is charged for your next {product} period.'],
+        'lapsed' => ['label' => 'Expired, payment failed', 'hours' => -1, 'tone' => 'critical', 'reminder' => true, 'choices' => [],
+            'message' => '{name}, your {product} renewal payment of {amount} did not go through. We keep retrying; your recovery options unlock {time} from now.'],
+        'grace_open' => ['label' => '+1 day after expiry: all options open', 'hours' => -25, 'tone' => 'urgent', 'reminder' => true,
             'choices' => ['renew', 'split_pay', 'partial_refund', 'donate', 'resale', 'expire'],
-            'message' => '{name}, 3 days left on your {amount} charge. You can still pay, split it, take a partial refund, donate, or resell the unused time.'],
-        'h48' => ['label' => '48 hours left', 'hours' => 48, 'tone' => 'urgent',
-            'choices' => ['renew', 'split_pay', 'partial_refund', 'donate', 'resale', 'expire'],
-            'message' => '{name}, only {time} left to decide about your {amount} charge. After that the subscription ends.'],
-        'h6' => ['label' => '6 hours left', 'hours' => 6, 'tone' => 'critical',
-            'choices' => ['renew', 'split_pay', 'expire'],
-            'message' => 'Last chance, {name}: {time} left. Resale and refund are closed. Pay {amount} now or split it to keep your access.'],
-        'expired' => ['label' => 'Window closed', 'hours' => 0, 'tone' => 'closed',
-            'choices' => ['expire'],
-            'message' => 'The grace window closed. The subscription ended and the {amount} charge was voided.'],
+            'message' => '{name}, you can now recover your {product} renewal of {amount}: retry the payment, split it, take a partial refund, resell the access, donate, or let it expire. {time} left to choose.'],
+        'expired' => ['label' => 'Window closed', 'hours' => -49, 'tone' => 'closed', 'reminder' => false, 'choices' => ['expire'],
+            'message' => 'The window closed. The subscription ended and the {amount} renewal was voided.'],
+    ],
+    // How long after expiry the options stay open (hours after T). Options unlock at +unlock_after_hours.
+    'renewal' => [
+        'window_hours' => 48,
+        'unlock_after_hours' => 24,
+        'reminder_email' => (bool) env('LUVUPAY_REMINDER_EMAIL', true),
+        'reminder_max_per_hour' => (int) env('LUVUPAY_REMINDER_MAX_PER_HOUR', 30),
     ],
 
     // Split pay: a subscriber who cannot pay the whole charge pays a down payment now and the rest in instalments.

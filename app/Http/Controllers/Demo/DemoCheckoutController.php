@@ -10,6 +10,7 @@ use App\Support\Money;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -431,6 +432,11 @@ final class DemoCheckoutController
         } catch (\Throwable $e) {
             $err = $e->getMessage();
             $c = $this->classifyProviderError($e);
+            // PayPal sandbox often answers 404 for a checkout it created seconds ago (eventual consistency).
+            // "Not found" is only believable once the checkout is old; until then it is a retryable delay, never a failure.
+            if ($c['type'] === 'expired' && isset($row->created_at) && Carbon::parse($row->created_at)->gt(now()->subMinutes(20))) {
+                $c['type'] = 'transient';
+            }
             Log::warning('demo.checkout.settle_failed', ['tx' => $txId, 'type' => $c['type'], 'issue' => $c['issue'], 'debug_id' => $c['debug_id'], 'err' => $err]);
 
             // Race / idempotency: the payment may already have succeeded while our capture call raced.

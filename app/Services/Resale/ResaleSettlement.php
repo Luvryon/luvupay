@@ -76,9 +76,14 @@ final class ResaleSettlement
             throw new RuntimeException('This listing is no longer available.');
         }
 
-        $parent = $locked->subscription_id
-            ? DB::table('transactions')->where('merchant_id', $m)->where('subscription_id', $locked->subscription_id)->where('type', 'charge')->orderByDesc('created_at')->lockForUpdate()->first()
-            : null;
+        // The charge being resold is the HELD one (the next-period renewal). Never guess by timestamp: two charges of
+        // one subscription can share a created_at second. Fall back to the newest charge only for legacy rows.
+        $parent = null;
+        if ($locked->subscription_id) {
+            $base = fn () => DB::table('transactions')->where('merchant_id', $m)->where('subscription_id', $locked->subscription_id)->where('type', 'charge');
+            $parent = $base()->where('status', 'held')->orderByDesc('created_at')->lockForUpdate()->first()
+                ?? $base()->orderByDesc('created_at')->lockForUpdate()->first();
+        }
         $saleId = (string) Str::uuid();
         $payoutId = (string) Str::uuid();
         $row = fn (string $id, string $type, int $amt, ?string $parentId, string $who, ?string $email, string $ref, array $meta, array $extra = []) => DB::table('transactions')->insert([
@@ -105,7 +110,7 @@ final class ResaleSettlement
             DB::table('transactions')->where('id', $parent->id)->update(['status' => 'completed', 'second_chance_expires_at' => null, 'metadata' => json_encode($pm), 'updated_at' => $now]);
         }
         if ($locked->subscription_id) {
-            DB::table('subscriptions')->where('id', $locked->subscription_id)->update(['status' => 'resold', 'merchant_user_id' => $buyerUserId, 'email' => strtolower($buyerEmail), 'updated_at' => $now]);
+            DB::table('subscriptions')->where('id', $locked->subscription_id)->update(['status' => 'resold', 'merchant_user_id' => $buyerUserId, 'email' => strtolower($buyerEmail), 'current_period_end' => $locked->access_expires_at, 'updated_at' => $now]);
         }
         // Any other open listing for the same subscription is now void.
         DB::table('resale_listings')->where('subscription_id', $locked->subscription_id)->where('id', '!=', $locked->id)->where('status', 'active')->update(['status' => 'cancelled', 'updated_at' => $now]);

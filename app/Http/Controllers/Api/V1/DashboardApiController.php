@@ -372,7 +372,19 @@ final class DashboardApiController
         $life = strtoupper(str_replace('_', ' ', (string) ($meta['lifecycle'] ?? '')));
         $decision = (string) ($meta['decision'] ?? '');
 
+        if ($type === 'installment') {
+            $n = (int) ($meta['installment'] ?? 0);
+            $of = (int) ($meta['of'] ?? 0);
+
+            return 'Instalment '.$n.' of '.$of.($status === 'superseded' ? ' (settled into the renewal charge)' : ' (paid)');
+        }
         if ($type === 'charge') {
+            if (! empty($meta['renewal_of']) && $status === 'pending') {
+                return 'Upcoming renewal (due '.(isset($meta['renews_at']) ? \Illuminate\Support\Carbon::parse($meta['renews_at'])->format('d M') : 'soon').')';
+            }
+            if (! empty($meta['renewal_of']) && $status === 'held' && $decision === '') {
+                return 'Renewal payment failed (recovery window)';
+            }
             if ($decision === 'split_pay' || $life === 'SPLIT PAY') {
                 return 'Split pay ('.(int) round(((int) ($meta['split']['paid_minor'] ?? 0)) * 100 / max(1, (int) ($meta['split']['total_minor'] ?? 1))).'% paid)';
             }

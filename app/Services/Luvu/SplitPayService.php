@@ -217,7 +217,7 @@ final class SplitPayService
                 DB::table('transactions')->where('id', $charge->id)->update(['status' => 'cancelled', 'metadata' => json_encode($meta), 'updated_at' => $now]);
             }
             if ($plan->subscription_id) {
-                DB::table('subscriptions')->where('id', $plan->subscription_id)->update(['status' => 'expired', 'updated_at' => $now]);
+                DB::table('subscriptions')->where('id', $plan->subscription_id)->update(['status' => 'expired', 'current_period_end' => $now, 'updated_at' => $now]);
             }
             $this->logWebhookEvent('luvupay', 'split.defaulted', ['plan_id' => $planId, 'paid_minor' => (int) $plan->paid_minor, 'written_off_minor' => (int) $plan->total_minor - (int) $plan->paid_minor, 'reason' => $reason]);
 

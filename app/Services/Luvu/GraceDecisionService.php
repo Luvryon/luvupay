@@ -53,6 +53,12 @@ final class GraceDecisionService
             abort_unless($tx->type === 'charge', 422, 'Only charge rows can be decided');
 
             $meta = json_decode((string) ($tx->metadata ?? '{}'), true) ?: [];
+            $isRenewal = ! empty($meta['renewal_of']);
+            $subId = $tx->subscription_id;
+            $sub = $subId ? DB::table('subscriptions')->where('id', $subId)->lockForUpdate()->first() : null;
+            if ($tx->status === 'pending' && $isRenewal) {
+                throw new RuntimeException('This renewal is not due yet. Recovery options open 1 day after the subscription expires; until then the subscriber only receives reminders.');
+            }
             if ($tx->status !== 'held') {
                 throw new RuntimeException('This charge is already resolved ('.($meta['lifecycle'] ?? $tx->status).'). Nothing was changed.');
             }
@@ -62,18 +68,17 @@ final class GraceDecisionService
             if ($choice !== 'expire' && $tx->second_chance_expires_at && Carbon::parse($tx->second_chance_expires_at)->isPast()) {
                 throw new RuntimeException('The grace window has closed for this charge.');
             }
-            // Stage rules (7 days / 3 days / 48h / 6h): an option that is closed at this moment cannot be forced through the API either.
-            if ($source !== 'timer' && $choice !== 'expire' && $tx->second_chance_expires_at) {
-                $stage = GraceStagePlanner::keyForRemaining((float) GraceStagePlanner::remainingHours((string) $tx->second_chance_expires_at));
+            // Stage rules, enforced here and not only in the UI: options exist only from +1 day after expiry.
+            if ($isRenewal && $source !== 'timer') {
+                $h = GraceStagePlanner::hoursToExpiry($sub->current_period_end ?? null);
+                $stage = $h === null ? 'grace_open' : GraceStagePlanner::keyForHoursToExpiry($h);
                 if (! in_array($choice, GraceStagePlanner::allowedChoices($stage), true)) {
-                    throw new RuntimeException('That option is closed at this stage ('.config('luvupay.grace_stages.'.$stage.'.label').'). Available: '.implode(', ', GraceStagePlanner::allowedChoices($stage)).'.');
+                    throw new RuntimeException('That option is not available at this stage ('.config('luvupay.grace_stages.'.$stage.'.label').'). Options open 1 day after the subscription expires.');
                 }
             }
 
             $now = now();
             $amount = (int) $tx->amount_minor;
-            $subId = $tx->subscription_id;
-            $sub = $subId ? DB::table('subscriptions')->where('id', $subId)->lockForUpdate()->first() : null;
             $out = ['choice' => $choice, 'transaction_id' => $tx->id, 'subscription_id' => $subId, 'message' => ''];
 
             $closeListings = fn () => $subId ? ResaleSettlement::cancelOpenListings($subId) : 0;
@@ -83,6 +88,16 @@ final class GraceDecisionService
             ]);
             $setSub = fn (string $status) => $subId ? DB::table('subscriptions')->where('id', $subId)->update(['status' => $status, 'updated_at' => $now]) : null;
             unset($meta['offers']);
+            $periodDays = max(1, (int) config('luvupay.resale.period_days', 30));
+            // Paying for the next cycle (retry or split): the subscription moves one period past the old expiry T.
+            $extend = function () use ($isRenewal, $sub, $subId, $now, $periodDays, &$meta) {
+                if (! $isRenewal || ! $sub || ! $sub->current_period_end) {
+                    return;
+                }
+                $t = Carbon::parse($sub->current_period_end);
+                DB::table('subscriptions')->where('id', $subId)->update(['current_period_start' => $t, 'current_period_end' => $t->copy()->addDays($periodDays), 'status' => 'active', 'updated_at' => $now]);
+                $meta['renewal'] = ['period_start' => $t->toIso8601String(), 'period_end' => $t->copy()->addDays($periodDays)->toIso8601String()];
+            };
 
             switch ($choice) {
                 case 'renew':
@@ -90,6 +105,7 @@ final class GraceDecisionService
                     $meta['lifecycle'] = 'ACTIVE';
                     $meta['decision'] = 'user_renewed';
                     unset($meta['grace']);
+                    $extend();
                     $setTx('completed', $meta);
                     $setSub('active');
                     $this->logWebhookEvent('paypal', 'BILLING.SUBSCRIPTION.PAYMENT.COMPLETED', ['transaction_id' => $tx->id, 'event' => 'payment_retry_success']);
@@ -100,6 +116,10 @@ final class GraceDecisionService
                     $closeListings();
                     $plan = $this->split->open($merchantId, $tx, $now);
                     $out['plan'] = $plan;
+                    if ($isRenewal && $sub && $sub->current_period_end) {
+                        $t = Carbon::parse($sub->current_period_end);
+                        DB::table('subscriptions')->where('id', $subId)->update(['current_period_start' => $t, 'current_period_end' => $t->copy()->addDays($periodDays), 'status' => 'active', 'updated_at' => $now]);
+                    }
                     $out['message'] = sprintf('Split pay started: %s collected now, %s due %s', self::fmt($plan['collected_minor'], $plan['currency']), self::fmt($plan['remaining_minor'], $plan['currency']), Carbon::parse($plan['next_due_at'])->format('d M'));
                     break;
 
@@ -154,6 +174,9 @@ final class GraceDecisionService
                 case 'resale':
                     abort_unless($sub, 422, 'Charge has no subscription to resell');
                     $periodEnd = $sub->current_period_end ? Carbon::parse($sub->current_period_end) : null;
+                    if ($isRenewal && $periodEnd) {
+                        $periodEnd = $periodEnd->copy()->addDays($periodDays);   // what is resold is the NEXT period's access
+                    }
                     $asking = ResaleSettlement::askingPrice($amount, $periodEnd, $now);   // throws if nothing is left to resell
                     ResaleSettlement::cancelOpenListings($subId);
                     $meta['lifecycle'] = 'PENDING RESALE';

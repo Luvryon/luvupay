@@ -102,29 +102,36 @@ class ConsoleSmokeTest extends BaseTestCase
         $this->assertSame('expired', $type($ex('x', ['status' => 404])));
     }
 
-    public function test_time_travel_moves_the_deadline_and_the_stage_rules_follow(): void
+    public function test_renewal_journey_end_to_end_over_http(): void
     {
+        \Illuminate\Support\Facades\Mail::fake();
         $u = $this->user('owner');
         $s = ['mfa_passed' => true, 'mfa_verified_at' => time()];
         $sub = (string) Str::uuid();
-        $tx = (string) Str::uuid();
-        DB::table('subscriptions')->insert(['id' => $sub, 'merchant_id' => $u->merchant_id, 'merchant_user_id' => 'u1', 'email' => 'a@x.test', 'provider' => 'mock', 'provider_subscription_id' => 'I-1',
-            'status' => 'past_due', 'amount_minor' => 2000, 'currency' => 'USD', 'current_period_end' => now()->addDays(20), 'metadata' => '{}', 'created_at' => now(), 'updated_at' => now()]);
-        DB::table('transactions')->insert(['id' => $tx, 'merchant_id' => $u->merchant_id, 'subscription_id' => $sub, 'type' => 'charge', 'status' => 'held', 'idempotency_key' => 'k'.$tx,
-            'amount_minor' => 2000, 'currency' => 'USD', 'provider' => 'mock', 'second_chance_expires_at' => now()->addHours(48),
-            'metadata' => json_encode(['lifecycle' => 'GRACE PERIOD', 'display_name' => 'Ann']), 'created_at' => now(), 'updated_at' => now()]);
-        $call = fn (string $path, array $b) => $this->actingAs($u, 'merchant_web')->withSession($s)->postJson('/api/v1/dashboard/demo/'.$path, $b + ['transaction_id' => $tx]);
+        $paid = (string) Str::uuid();
+        DB::table('subscriptions')->insert(['id' => $sub, 'merchant_id' => $u->merchant_id, 'merchant_user_id' => 'u1', 'email' => 'ann@gmail.com', 'provider' => 'mock', 'provider_subscription_id' => 'I-1',
+            'status' => 'active', 'amount_minor' => 2000, 'currency' => 'USD', 'current_period_end' => now()->addDays(20), 'metadata' => '{}', 'created_at' => now(), 'updated_at' => now()]);
+        DB::table('transactions')->insert(['id' => $paid, 'merchant_id' => $u->merchant_id, 'subscription_id' => $sub, 'type' => 'charge', 'status' => 'completed', 'idempotency_key' => 'k'.$paid,
+            'email' => 'ann@gmail.com', 'amount_minor' => 2000, 'currency' => 'USD', 'provider' => 'mock', 'metadata' => json_encode(['lifecycle' => 'ACTIVE', 'display_name' => 'Ann']), 'created_at' => now(), 'updated_at' => now()]);
+        $post = fn (string $path, array $b) => $this->actingAs($u, 'merchant_web')->withSession($s)->postJson('/api/v1/dashboard/demo/'.$path, $b);
 
-        $call('grace/stage', ['hours_before' => 168])->assertOk()->assertJsonPath('stage.stage', 'd7');
-        $call('decision', ['choice' => 'resale'])->assertStatus(409);          // closed at 7 days
-        $r = $call('grace/stage', ['hours_before' => 72])->assertOk()->assertJsonPath('stage.stage', 'd3');
-        $call('decision', ['choice' => 'resale'])->assertOk();                  // open at 3 days
+        $r = $post('forgot', ['transaction_id' => $paid, 'hours_before' => 168])->assertOk()->assertJsonPath('stage.stage', 'd7');
+        $renewal = $r->json('row.id');
+        $this->assertNotSame($paid, $renewal, 'the journey acts on the NEXT charge, not the paid one');
+        $this->assertSame('completed', DB::table('transactions')->where('id', $paid)->value('status'));
+        $this->assertNotEmpty($r->json('stage.reminder.body'));
+
+        $post('decision', ['transaction_id' => $renewal, 'choice' => 'renew'])->assertStatus(409);            // reminders only
+        $post('grace/stage', ['transaction_id' => $renewal, 'hours_before' => 48])->assertOk()->assertJsonPath('stage.stage', 'h48');
+        $post('grace/stage', ['transaction_id' => $renewal, 'hours_before' => -25])->assertOk()->assertJsonPath('stage.stage', 'grace_open');
+        $post('decision', ['transaction_id' => $renewal, 'choice' => 'resale'])->assertOk();
         $this->assertSame(1, DB::table('resale_listings')->where('subscription_id', $sub)->where('status', 'active')->count());
-        $call('grace/stage', ['hours_before' => 6])->assertOk()->assertJsonPath('stage.stage', 'h6');   // resale closed again: listing withdrawn
+        $post('grace/stage', ['transaction_id' => $renewal, 'hours_before' => 6])->assertOk()->assertJsonPath('stage.stage', 'h6');   // back before expiry: listing withdrawn
         $this->assertSame(0, DB::table('resale_listings')->where('subscription_id', $sub)->where('status', 'active')->count());
-        $call('grace/stage', ['hours_before' => 5])->assertStatus(422);        // only the defined stages
-        $call('grace/stage', ['hours_before' => 0])->assertOk()->assertJsonPath('closed', true);
-        $this->assertSame('cancelled', DB::table('transactions')->where('id', $tx)->value('status'));
-        $call('grace/stage', ['hours_before' => 48])->assertStatus(409);       // a resolved charge cannot be moved
+        $post('grace/stage', ['transaction_id' => $renewal, 'hours_before' => 5])->assertStatus(422);
+        $post('grace/stage', ['transaction_id' => $renewal, 'hours_before' => -49])->assertOk()->assertJsonPath('closed', true);
+        $this->assertSame('cancelled', DB::table('transactions')->where('id', $renewal)->value('status'));
+        $this->assertSame('completed', DB::table('transactions')->where('id', $paid)->value('status'));
+        $post('grace/stage', ['transaction_id' => $renewal, 'hours_before' => 48])->assertStatus(409);
     }
 }

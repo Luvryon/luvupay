@@ -47,15 +47,20 @@ Settings/docs pages that need one-time wiring still load normally.
 - `charity_bps` has an API field but no input in Settings yet.
 - AJAX navigation was not exercised in a real browser here; please click through Overview / Wallet / Analytics / Subscriptions once.
 
-## Missed cancellation journey: pilih user + pilih sisa waktu (tambahan)
-- Langkah 1 modal: pilih subscriber dan sisa waktu (7 hari / 3 hari / 48 jam / 6 jam), lalu "Start simulation".
-- Tahap dihitung dari sisa waktu grace (`GraceStagePlanner`, aturan di `config/luvupay.php` -> `grace_stages`):
-  - 7 hari: bayar penuh, split pay, expire
-  - 3 hari: semua opsi
-  - 48 jam: semua opsi, nada mendesak
-  - 6 jam: bayar penuh, split pay, expire (resale/refund/donasi tutup)
-  - expired: otomatis churn
-- Bisa pindah tahap di tengah simulasi (`POST demo/grace/stage`): deadline baris sandbox itu benar-benar digeser,
-  jadi sweeper, aturan tahap dan harga resale ikut konsisten. Listing resale ditarik otomatis jika tahap baru menutup resale.
-- Aturan tahap dipaksa di server (`GraceDecisionService`), bukan hanya disembunyikan di UI.
-- Angka palsu di log journey ("$50, fee $2.50, $25 now") diganti angka nyata dari tagihan.
+## Missed cancellation journey: untuk LANGGANAN BERIKUTNYA (koreksi besar)
+Sebelumnya journey mengubah charge yang SUDAH dibayar (periode berjalan) menjadi "held", sehingga wallet merchant turun
+dan hitungannya salah. Sekarang:
+- Periode berjalan tetap lunas dan tetap di wallet. Journey membuat baris terpisah: charge renewal (periode berikutnya),
+  status `pending` sebelum expire, `held` setelah expire.
+- Posisi waktu = relatif terhadap expire T (`subscriptions.current_period_end`). Sandbox menggeser T, sehingga
+  scheduler, aturan tahap dan harga resale ikut konsisten.
+- Tahap: 7 hari / 3 hari / 48 jam / 6 jam sebelum expire = reminder saja (email + notifikasi phone, ditulis Nebius AI,
+  fallback template). Setelah expire = pembayaran gagal, opsi masih terkunci. +1 hari setelah expire = SEMUA opsi aktif
+  (Retry payment, Split pay, Partial refund, Resell remaining, Donate residual, Let it expire). Setelah +2 hari = window tutup, churn.
+- Aturan tahap dipaksa di server. Email: satu kali per tahap, batas per jam per merchant, alamat demo palsu dilewati.
+- Retry/split memperpanjang langganan satu periode; partial refund/donasi membatalkan; resale menjual akses periode berikutnya.
+- Scheduler (`luvupay:sweep`) menjalankan waktu sungguhan: renewal yang jatuh tempo masuk grace dan reminder terkirim sendiri.
+- Bug ditemukan lewat tes: resale memilih "charge terbaru" lewat timestamp, bisa salah jika dua charge dibuat di detik yang sama. Diperbaiki.
+- PayPal "checkout expired": HTTP 404 dari PayPal sandbox untuk checkout yang baru dibuat sekarang dianggap jeda (dicoba lagi),
+  baru dianggap kedaluwarsa setelah 20 menit.
+- Baris cicilan sekarang berlabel "Instalment 1 of 2 (paid)", bukan "Split pay (instalments)".

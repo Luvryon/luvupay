@@ -33,9 +33,9 @@
                 </select>
             </div>
             <div>
-                <p class="text-sm font-semibold text-slate-800">2. How much time is left before the subscription expires?</p>
+                <p class="text-sm font-semibold text-slate-800">2. Where are we on the timeline of the NEXT subscription charge?</p>
                 <div class="mt-2 flex flex-wrap gap-2" role="radiogroup" aria-label="Time before expiry">
-                    <template x-for="o in [{h:168,l:'7 days'},{h:72,l:'3 days'},{h:48,l:'48 hours'},{h:6,l:'6 hours'}]" x-bind:key="o.h">
+                    <template x-for="o in [{h:168,l:'7 days before'},{h:72,l:'3 days before'},{h:48,l:'48 hours before'},{h:6,l:'6 hours before'},{h:-25,l:'+1 day after expiry'}]" x-bind:key="o.h">
                         <button type="button" role="radio" x-bind:aria-checked="journeySetup && journeySetup.hours === o.h"
                                 x-on:click="journeySetup.hours = o.h"
                                 class="rounded-full border px-4 py-1.5 text-xs font-semibold"
@@ -43,7 +43,7 @@
                                 x-text="o.l"></button>
                     </template>
                 </div>
-                <p class="mt-2 text-xs text-slate-500">Sandbox: the deadline of this charge is set to that moment. Each stage opens or closes options, exactly as in production. You can move along the timeline afterwards.</p>
+                <p class="mt-2 text-xs text-slate-500">The current period stays paid and stays in your wallet. Before expiry the subscriber gets reminders (email and phone, written by Nebius AI). One day after expiry all recovery options open. You can move along the timeline afterwards.</p>
             </div>
             <div class="flex justify-end">
                 <button type="button" class="rounded-lg bg-slate-900 px-5 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-40" x-on:click="startJourney()" x-bind:disabled="decisionBusy">Start simulation</button>
@@ -80,7 +80,7 @@
                 <p class="text-sm font-semibold text-slate-900"><span x-text="journey.stage && journey.stage.label"></span>
                     <span class="font-normal text-slate-600" x-text="journey.stage && journey.stage.expires_at ? ' · expires ' + new Date(journey.stage.expires_at).toLocaleString() : ''"></span></p>
                 <div class="flex flex-wrap gap-1.5" role="group" aria-label="Move along the timeline">
-                    <template x-for="o in [{h:168,l:'7d'},{h:72,l:'3d'},{h:48,l:'48h'},{h:6,l:'6h'},{h:0,l:'Expire now'}]" x-bind:key="o.h">
+                    <template x-for="o in [{h:168,l:'7d'},{h:72,l:'3d'},{h:48,l:'48h'},{h:6,l:'6h'},{h:-25,l:'+1 day after expiry'},{h:-49,l:'Close window'}]" x-bind:key="o.h">
                         <button type="button" x-on:click="setJourneyStage(o.h)" x-bind:disabled="decisionBusy || phoneView === 'done'"
                                 class="rounded-full border border-slate-300 bg-white px-3 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-40" x-text="o.l"></button>
                     </template>
@@ -132,12 +132,22 @@
                         <div class="flex-1 overflow-y-auto p-3">
                             {{-- Options view --}}
                             <div x-show="phoneTab === 'options' && phoneView === 'options'">
-                                <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-3">
-                                    <p class="text-xs text-slate-700 leading-relaxed">
-                                        <span aria-hidden="true">🔔</span>
-                                        <span x-text="'Hi ' + journey.first + ', your payment of ' + journey.amount + ' failed. You have ' + journey.hours + ' hours to choose an option below:'"></span>
-                                    </p>
+                                {{-- Push notification for the current stage (same text that was emailed; written by Nebius AI, template fallback) --}}
+                                <div class="rounded-xl border p-3 mb-3 shadow-sm"
+                                     x-bind:class="{'bg-emerald-50 border-emerald-200': journey.stage && journey.stage.tone === 'calm', 'bg-sky-50 border-sky-200': journey.stage && journey.stage.tone === 'nudge', 'bg-amber-50 border-amber-300': !journey.stage || journey.stage.tone === 'urgent', 'bg-rose-50 border-rose-300': journey.stage && journey.stage.tone === 'critical'}">
+                                    <div class="flex items-center justify-between mb-1">
+                                        <p class="text-[10px] font-bold uppercase tracking-wide text-slate-500"><span aria-hidden="true">🔔</span> <span x-text="(journey.brand || 'LuvuPay') + ' · now'"></span></p>
+                                        <span class="text-[10px] font-semibold rounded-full px-2 py-0.5"
+                                              x-bind:class="journey.stage && journey.stage.message_source === 'nebius' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600'"
+                                              x-text="journey.stage && journey.stage.message_source === 'nebius' ? 'Nebius AI' : 'Template'"></span>
+                                    </div>
+                                    <p class="text-xs font-semibold text-slate-900" x-text="journey.stage && journey.stage.reminder ? journey.stage.reminder.subject : (journey.stage ? journey.stage.label : '')"></p>
+                                    <p class="text-xs text-slate-700 leading-relaxed mt-1" x-text="journey.stage ? journey.stage.message : ('Hi ' + journey.first + ', loading your renewal…')"></p>
+                                    <p class="text-[10px] text-slate-500 mt-2" x-show="journey.stage && journey.stage.reminder && journey.stage.reminder.email"
+                                       x-text="'Email: ' + (journey.stage && journey.stage.reminder && journey.stage.reminder.email ? ({sent:'sent to ' + (journey.stage.reminder.email.to || ''), skipped_demo_address:'not sent (demo address)', throttled:'held back (hourly limit)', failed:'could not be sent', disabled:'turned off'}[journey.stage.reminder.email.status] || journey.stage.reminder.email.status) : '')"></p>
                                 </div>
+                                <p class="text-[11px] text-slate-500 mb-2 px-1" x-show="journey.stage && !journey.stage.options.some(function (o) { return o.available; })"
+                                   x-text="journey.stage && journey.stage.is_reminder ? 'Reminder only. Recovery options open 1 day after the subscription expires.' : 'Recovery options are locked at this stage.'"></p>
                                 <div class="flex flex-col gap-2">
                                     <button type="button" x-on:click="choose('renew')" x-bind:title="optWhy('renew')" x-bind:disabled="!optOk('renew') || !decisionReady || decisionBusy"
                                             class="bg-slate-900 text-white py-2 rounded-lg text-xs font-medium hover:bg-slate-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"

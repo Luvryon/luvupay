@@ -12,12 +12,13 @@ final class SweepLifecycleCommand extends Command
     protected $signature = 'luvupay:sweep';
     protected $description = 'Expire grace windows, void stale listings and collect/default due split-pay instalments';
 
-    public function handle(GraceDecisionService $grace, SplitPayService $split): int
+    public function handle(GraceDecisionService $grace, SplitPayService $split, \App\Services\Luvu\RenewalJourney $renewals): int
     {
+        $reminders = $renewals->tick();
         $expired = $grace->sweepExpired();
         $plans = $split->sweep();
         $voided = \Illuminate\Support\Facades\DB::table('resale_listings')->where('status', 'active')->where('access_expires_at', '<=', now())->update(['status' => 'expired', 'updated_at' => now()]);
-        $this->info("expired={$expired} installments_collected={$plans['collected']} plans_defaulted={$plans['defaulted']} plans_overdue={$plans['overdue']} listings_voided={$voided}");
+        $this->info("renewals_checked={$reminders} expired={$expired} installments_collected={$plans['collected']} plans_defaulted={$plans['defaulted']} plans_overdue={$plans['overdue']} listings_voided={$voided}");
 
         return self::SUCCESS;
     }
