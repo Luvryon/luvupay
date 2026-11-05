@@ -100,3 +100,14 @@ No migration needed. After deploy: `php artisan config:clear && php artisan rout
 - New Postman collection (27 requests with assertions) + environment in `postman/` and `public/postman/`; guide in `docs/POSTMAN.md`.
 - README, DEMO.md, DEMO_FLOW.md, runbook, Devpost draft and evidence doc now tell one story.
 - Tests: `SmartConvertEvidenceTest` covers the donation stage (example label, awaiting approval, not sent when rejected).
+
+## Postman against the public site, tests and CI claims
+- Environments: `LuvuPay.postman_environment.json` (hosted, `https://luvupay.domainku.com`) and `LuvuPay.local.postman_environment.json`.
+- Fixed ordering bug: the "no session" check now runs before sign-in (step 0b), otherwise it would fail after login in a single Run.
+- README no longer claims CI that did not exist; added `.github/workflows/tests.yml` (SQLite, PHP 8.3) so GitHub can run `php artisan test`.
+
+## Tests on PostgreSQL
+- `phpunit.xml` now targets a dedicated PostgreSQL database (`luvupay_test`, forced env so `.env` / Neon URLs cannot leak in).
+- New `tests/bootstrap.php` safety net: refuses to run unless the database name ends in `_test` and `DB_URL` is empty.
+- GitHub Actions workflow now starts a PostgreSQL 16 service.
+- Not yet executed by the author of this change: first run may reveal PostgreSQL-specific differences.

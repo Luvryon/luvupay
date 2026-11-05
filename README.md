@@ -32,7 +32,19 @@ A subscriber forgot to cancel. A refund means a chargeback fee and a lost custom
 2. Click **Check readiness (live AI ping)**, tick **Require my approval**, then **Run AI Smart-Convert Protocol**.
 3. Lower the donation, **Approve**, then open the **AI Negotiation Evidence** page.
 
-**Test it for real in Postman** (no code): import `postman/LuvuPay.postman_collection.json` and `postman/LuvuPay.postman_environment.json`, pick the *LuvuPay · Local / Render* environment, set `base_url`, then **Run collection**. Folder 1 walks the whole story above with assertions (split adds up, donation lowered never raised, double-approve refused with 409, evidence matches the PayPal batch id, no email leaks). Folder 2 covers the API-key endpoints (idempotency, auth); folder 3 covers security checks. Set the variable `require_real=false` to run it against the mock driver. Details: [docs/POSTMAN.md](docs/POSTMAN.md).
+**Test it for real in Postman** (no code): import `postman/LuvuPay.postman_collection.json` plus one environment: `LuvuPay.postman_environment.json` (hosted, `https://luvupay.domainku.com`) or `LuvuPay.local.postman_environment.json` (`http://localhost:8000`). Select it and **Run collection**. Folder 1 walks the whole story above with assertions (split adds up, donation lowered never raised, double-approve refused with 409, evidence matches the PayPal batch id, no email leaks). Folder 2 covers the API-key endpoints (idempotency, auth); folder 3 covers security checks. Set the variable `require_real=false` to run it against the mock driver. Details: [docs/POSTMAN.md](docs/POSTMAN.md).
+
+**Automated tests** run on PostgreSQL, the same engine as production, so the database triggers that make the ledger append-only are exercised too:
+
+```bash
+# once: a dedicated database (the suite wipes every table, never use your app database)
+sudo -u postgres psql -c "CREATE USER luvu WITH PASSWORD 'luvu';"
+sudo -u postgres psql -c "CREATE DATABASE luvupay_test OWNER luvu;"
+
+php artisan test
+```
+
+`tests/bootstrap.php` refuses to start unless the database name ends in `_test` and `DB_URL` is empty, so a Neon URL in `.env` can never be wiped by accident. `.github/workflows/tests.yml` runs the same suite on every push using a PostgreSQL service container.
 
 ### Supporting features (not needed for the story above)
 
@@ -47,7 +59,7 @@ Built for judges, auditors and external developers: idempotency on every money r
 | Layer | Technology |
 |-------|------------|
 | Runtime | PHP 8.2+, Laravel 12 |
-| Database | **PostgreSQL** (CI + Docker) · SQLite for quick local runs · MySQL/MariaDB works but is not covered by CI |
+| Database | **PostgreSQL** (runtime and PHPUnit suite) · SQLite for quick local runs · MySQL/MariaDB should work but is not tested |
 | Queue / Cache | `sync`/`file` locally · Redis + Horizon in production |
 | Payments | Abstracted provider (Mock / PayPal) |
 | Observability | JSON Monolog, `/api/v1/health`, Telescope (dev), Horizon (prod) |
@@ -65,7 +77,7 @@ php artisan migrate:fresh --seed
 php artisan serve
 ```
 
-For PostgreSQL (what CI and `docker compose` use) set these in `.env` instead of `DB_CONNECTION=sqlite`:
+For PostgreSQL (what `docker compose` and production use) set these in `.env` instead of `DB_CONNECTION=sqlite`:
 
 ```env
 DB_CONNECTION=pgsql
@@ -258,7 +270,7 @@ If a user is a “serial forgetter” (forgotten cancel count ≥ threshold, def
 | Layer | Choice |
 |--------|--------|
 | Framework | Laravel 12 (PHP 8.2+) |
-| Database | PostgreSQL (primary) · SQLite (local) · MySQL/MariaDB (works, not in CI) |
+| Database | PostgreSQL (primary, also used by the test suite) · SQLite (quick local runs) · MySQL/MariaDB (should work, not tested) |
 | ORM | Eloquent |
 | Queue | `sync` (local) or Redis/database |
 | Cache | `file` (local) or Redis |
@@ -295,7 +307,7 @@ app/
 └── Traits/Auditable.php       # Auto-observe models into audit chain
 
 config/luvupay.php             # Split BPS, windows, webhook/idempotency settings
-database/migrations/           # Core tables (SQLite/PostgreSQL tested in CI)
+database/migrations/           # Core tables (PostgreSQL; SQLite also works for quick runs)
 routes/
 ├── luvupay-api.php            # Merchant API
 ├── paypal.php                 # Provider webhooks
@@ -675,11 +687,11 @@ End-users never register with LuvuPay; the merchant passes `merchant_user_id` + 
 
 ### Databases
 
-- **PostgreSQL** is the reference database: CI runs the full suite on it, and it is the only driver where the
+- **PostgreSQL** is the reference database: the PHPUnit suite runs on it too, and it is the only driver where the
   ledger and audit tables are *also* protected by database triggers (`UPDATE`/`DELETE` raise) plus `CHECK` constraints.
-- **SQLite** is for quick local runs and unit tests. Immutability there is enforced only by the Eloquent models.
+- **SQLite** is for quick local runs. Immutability there is enforced only by the Eloquent models. Immutability there is enforced only by the Eloquent models.
 - **MySQL/MariaDB** should work (no `jsonb`, no pgsql-only DDL outside `getDriverName() === 'pgsql'` guards) but is not
-  exercised in CI, and, like SQLite, has no database-level append-only protection. Do not run real money on it
+  tested, and, like SQLite, has no database-level append-only protection. Do not run real money on it
   without adding equivalent triggers or revoking `UPDATE`/`DELETE` on the `ledger_*` and `audit_logs` tables.
 
 ### Without Redis

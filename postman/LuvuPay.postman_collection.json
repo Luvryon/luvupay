@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "LuvuPay · Hero flow + API tests",
-    "description": "Import this file AND LuvuPay.postman_environment.json, pick the environment, then press Run on the collection.\n\n1) Hero flow (console session): sign in → AI proposes → human lowers the donation → PayPal Payouts → evidence → ledger. Folder order matters.\n2) Merchant API (API key): idempotency, auth and AI endpoints.\n3) Security checks: forged webhook, no-session access, unguessable evidence ids.\n\nThe donation recipient is an EXAMPLE and PayPal Sandbox moves test money only. Set the variable require_real=false to run against the mock driver.",
+    "description": "Import this file AND LuvuPay.postman_environment.json, pick the environment, then press Run on the collection.\n\n1) Hero flow (console session): sign in → AI proposes → human lowers the donation → PayPal Payouts → evidence → ledger. Folder order matters.\n2) Merchant API (API key): idempotency, auth and AI endpoints.\n3) Security checks: forged webhook, unguessable evidence ids (the no-session check is step 0b of folder 1).\n\nThe donation recipient is an EXAMPLE and PayPal Sandbox moves test money only. Set the variable require_real=false to run against the mock driver.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -34,6 +34,49 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('GET /up answers 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "0b · Console API refuses a request without a session",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/dashboard/summary",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "dashboard",
+                "summary"
+              ]
+            },
+            "description": "Runs before sign-in on purpose: it proves the console API is closed to anonymous callers.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('not 200 without a session', () => pm.expect(pm.response.code).to.be.oneOf([401, 302, 403]));"
                 ]
               }
             }
@@ -1394,50 +1437,7 @@
           ]
         },
         {
-          "name": "S2 · Console API without a session is refused",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Accept",
-                "value": "application/json"
-              },
-              {
-                "key": "X-Requested-With",
-                "value": "XMLHttpRequest"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/api/v1/dashboard/summary",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "dashboard",
-                "summary"
-              ]
-            },
-            "description": "Run this folder BEFORE signing in (or in a fresh cookie jar), because it expects no session.",
-            "auth": {
-              "type": "noauth"
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('not 200 without a session', () => pm.expect(pm.response.code).to.be.oneOf([401, 302, 403]));"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "S3 · Evidence for a random id returns 404",
+          "name": "S2 · Evidence for a random id returns 404",
           "request": {
             "method": "GET",
             "header": [

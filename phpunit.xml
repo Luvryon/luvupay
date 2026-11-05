@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
-         bootstrap="vendor/autoload.php"
+         bootstrap="tests/bootstrap.php"
          colors="true">
     <testsuites>
         <testsuite name="Unit">
@@ -15,8 +15,18 @@
         <env name="APP_ENV" value="testing"/>
         <env name="LUVUPAY_REQUIRE_MFA" value="true"/>
         <env name="APP_KEY" value="base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="/>
-        <env name="DB_CONNECTION" value="sqlite"/>
-        <env name="DB_DATABASE" value=":memory:"/>
+        <!-- Dedicated PostgreSQL test database. force="true" so .env (e.g. a Neon DB_URL) can never leak in.
+             Create it once:  CREATE USER luvu WITH PASSWORD 'luvu';  CREATE DATABASE luvupay_test OWNER luvu; -->
+        <env name="DB_CONNECTION" value="pgsql" force="true"/>
+        <env name="DB_URL" value="" force="true"/>
+        <env name="DATABASE_URL" value="" force="true"/>
+        <env name="DB_HOST" value="127.0.0.1" force="true"/>
+        <env name="DB_PORT" value="5432" force="true"/>
+        <env name="DB_DATABASE" value="luvupay_test" force="true"/>
+        <env name="DB_USERNAME" value="luvu" force="true"/>
+        <env name="DB_PASSWORD" value="luvu" force="true"/>
+        <env name="DB_SSLMODE" value="disable" force="true"/>
+        <env name="DB_ENDPOINT" value="" force="true"/>
         <env name="CACHE_STORE" value="array"/>
         <env name="SESSION_DRIVER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>

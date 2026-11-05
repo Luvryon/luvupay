@@ -16,20 +16,22 @@
 
     <section id="download">
         <h2>Download</h2>
-        <p>Import <strong>both</strong> files, then pick the <em>LuvuPay · Local / Render</em> environment:</p>
+        <p>Import the collection and <strong>one</strong> environment (hosted: <code>https://luvupay.domainku.com</code>, or local), then select it:</p>
         <p>
             <a class="c-btn c-btn-brand" href="{{ asset('postman/LuvuPay.postman_collection.json') }}" download
                style="display:inline-block;padding:10px 16px;border-radius:10px;background:#09027b;color:#fff;text-decoration:none;font-weight:600">Collection (JSON)</a>
             <a class="c-btn" href="{{ asset('postman/LuvuPay.postman_environment.json') }}" download
-               style="display:inline-block;padding:10px 16px;border-radius:10px;border:1px solid #09027b;color:#09027b;text-decoration:none;font-weight:600;margin-left:8px">Environment (JSON)</a>
+               style="display:inline-block;padding:10px 16px;border-radius:10px;border:1px solid #09027b;color:#09027b;text-decoration:none;font-weight:600;margin-left:8px">Environment · hosted (JSON)</a>
+            <a class="c-btn" href="{{ asset('postman/LuvuPay.local.postman_environment.json') }}" download
+               style="display:inline-block;padding:10px 16px;border-radius:10px;border:1px solid #09027b;color:#09027b;text-decoration:none;font-weight:600;margin-left:8px">Environment · local (JSON)</a>
         </p>
     </section>
 
     <section id="setup">
         <h2>Setup</h2>
         <ol>
-            <li>Postman → <strong>Import</strong> → select the collection and the environment</li>
-            <li>Set <code>base_url</code>, <code>email</code>, <code>password</code> (seeded owner: <code>owner@demomerchant.test</code> / <code>SecurePass1</code>, no 2FA) and <code>api_key</code> (printed once by <code>php artisan db:seed</code>)</li>
+            <li>Postman → <strong>Import</strong> → the collection and one environment</li>
+            <li>Set <code>base_url</code>, <code>email</code>, <code>password</code> (seeded owner: <code>owner@demomerchant.test</code> / <code>SecurePass1</code>, no 2FA) and <code>api_key</code> (Settings → Rotate key in the console; rotating invalidates the old key)</li>
             <li>Server needs <code>LUVUPAY_DEMO_SIMULATOR=true</code>. No Nebius/PayPal yet? Set collection variable <code>require_real</code> to <code>false</code></li>
             <li>Click the collection → <strong>Run</strong>. Keep the folder order</li>
         </ol>
@@ -40,7 +42,7 @@
         <ul>
             <li><strong>1 · Hero flow</strong>: login + CSRF, preflight with live AI ping, propose, approve with a lowered donation, double-approve refused (409), evidence JSON and page, ledger, reject path</li>
             <li><strong>2 · Merchant API</strong>: idempotency replay / mismatch / missing key, wrong key, resale list, AI health report, export</li>
-            <li><strong>3 · Security checks</strong>: forged webhook, no-session access, unguessable evidence ids</li>
+            <li><strong>3 · Security checks</strong>: forged webhook, unguessable evidence ids (the no-session check is step 0b of folder 1)</li>
         </ul>
         <p>The donation recipient is an <strong>example</strong>; PayPal Sandbox moves test money only.</p>
     </section>

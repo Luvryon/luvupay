@@ -31,7 +31,7 @@ The recipient is *Example Charity (sandbox)* with an **EXAMPLE · SANDBOX** tag 
 | 2:45 | Postman run, all green | "Everything I showed is also an automated test." |
 
 ## Before recording
-1. Import `postman/` files, run the collection, everything green (`docs/POSTMAN.md`).
+1. Import the `postman/` collection + the hosted environment (`https://luvupay.domainku.com`), run it, everything green (`docs/POSTMAN.md`).
 2. `php artisan luvupay:demo-check --live` prints GO.
 3. Full rehearsal list: `docs/DEMO_RUNBOOK_90S.md`.
 
