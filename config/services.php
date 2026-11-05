@@ -16,6 +16,11 @@ return [
         ],
     ],
 
+    'ag_grid' => [
+        // AG Grid Enterprise licence key (client-side by design). Quote the value in .env.
+        'license_key' => env('AG_GRID_LICENSE_KEY') ?: env('AG_GRID_LICENSE') ?: env('VITE_AG_GRID_LICENSE_KEY'),
+    ],
+
     'paypal' => [
         'mode' => env('PAYPAL_MODE', 'sandbox'),            // sandbox | live
         'client_id' => env('PAYPAL_CLIENT_ID') ?: env('PAYPAL_SANDBOX_CLIENT_ID') ?: env('PAYPAL_LIVE_CLIENT_ID'),

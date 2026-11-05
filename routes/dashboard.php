@@ -118,6 +118,9 @@ Route::middleware($console)->group(function () {
         Route::post('retention-campaign', [DemoRetentionCampaignController::class, 'send'])->middleware('merchant.can:billing.write')->name('retention-campaign');
         Route::get('dispute-evidence/{tx}', [DemoDisputeEvidenceController::class, 'show'])->whereUuid('tx')->name('dispute-evidence');
         Route::post('smart-convert', [DemoSmartConvertController::class, 'smartConvert'])->middleware('merchant.can:billing.write')->name('smart-convert');
+        Route::get('smart-convert/preflight', [DemoSmartConvertController::class, 'preflight'])->name('smart-convert.preflight');
+        Route::post('smart-convert/{run}/approve', [DemoSmartConvertController::class, 'approve'])->whereUuid('run')->middleware('merchant.can:billing.write')->name('smart-convert.approve');
+        Route::post('smart-convert/{run}/reject', [DemoSmartConvertController::class, 'reject'])->whereUuid('run')->middleware('merchant.can:billing.write')->name('smart-convert.reject');
         Route::get('webhook-logs', [DemoInsightsController::class, 'webhookLogs'])->name('webhooks');
         Route::get('receipts/{id}', [DemoInsightsController::class, 'charityReceipt'])->name('receipt');
     });

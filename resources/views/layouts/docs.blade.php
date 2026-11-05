@@ -10,6 +10,7 @@
     <meta name="description" content="@yield('meta_description', 'Developer documentation for LuvuPay')">
     @include('partials.assets')
     <link rel="stylesheet" href="/css/docs.css?v={{ @filemtime(public_path('css/docs.css')) }}">
+    @include('partials.ag-grid-head')
     @stack('head')
 </head>
 <body class="min-h-screen bg-white text-ink antialiased" x-data="{ mobile: false }">
@@ -52,7 +53,7 @@
     <div class="docs-right">
         <div class="docs-body-row">
             <main class="docs-content">
-                @yield('content')
+                <div data-ag-tables>@yield('content')</div>
             </main>
         </div>
     </div>
@@ -60,6 +61,7 @@
 
 @include('components.site.footer')
 
+@include('partials.ag-grid-scripts')
 @stack('scripts')
 <script src="/js/alpine.min.js" defer></script>
 <script src="/js/docs-toc.js" defer></script>

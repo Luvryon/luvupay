@@ -5,8 +5,10 @@
   var page = document.getElementById('team-page');
   if (!page) return;
 
-  var memberRows = document.getElementById('member-rows');
-  var inviteRows = document.getElementById('invite-rows');
+  var memberHost = document.getElementById('grid-members');
+  var inviteHost = document.getElementById('grid-invites');
+  var memberApi = null;
+  var inviteApi = null;
   var inviteCard = document.getElementById('invite-card');
   var memberCount = document.getElementById('member-count');
   var inviteCount = document.getElementById('invite-count');
@@ -40,12 +42,6 @@
     return node;
   }
 
-  function cell(child) {
-    var td = el('td');
-    if (child) td.appendChild(child);
-    return td;
-  }
-
   function tag(text, modifier) {
     return el('span', 'tag' + (modifier ? ' ' + modifier : ''), text);
   }
@@ -54,7 +50,7 @@
 
   function plural(n, one, many) { return n + ' ' + (n === 1 ? one : many); }
 
-  /** Runs an action, shows the result as a toast and reloads both tables */
+  /** Runs an action, shows the result as a toast and reloads both grids */
   function act(method, url, body, button) {
     var task = request(method, url, body).then(function (data) {
       if (toast) toast.success(data.message || 'Saved');
@@ -66,94 +62,106 @@
     return button ? window.LuvuLoader.busy(button, task) : task;
   }
 
-  function memberRow(m, roles) {
-    var tr = el('tr');
-
-    var info = el('div', 'member');
-    info.appendChild(el('span', 'avatar', m.initial));
-    var text = el('div');
-    text.appendChild(el('b', null, m.name));
-    text.appendChild(el('span', null, m.email));
-    info.appendChild(text);
-    tr.appendChild(cell(info));
-
-    if (!m.editable) {
-      tr.appendChild(cell(m.is_owner ? tag('Owner', 'dark') : tag(cap(m.role))));
-    } else {
-      var select = el('select', 'select-sm');
-      select.setAttribute('aria-label', 'Role for ' + m.name);
-      roles.forEach(function (r) {
-        var opt = el('option', null, cap(r));
-        opt.value = r;
-        opt.selected = r === m.role;
-        select.appendChild(opt);
-      });
-      select.addEventListener('change', function () {
-        select.disabled = true;
-        act('PATCH', base + '/members/' + m.id, { role: select.value });
-      });
-      tr.appendChild(cell(select));
-    }
-
-    tr.appendChild(cell(tag(m.mfa ? 'On' : 'Off', m.mfa ? 'ok' : '')));
-    tr.appendChild(cell(tag(m.is_active ? 'Active' : 'Removed', 'dot ' + (m.is_active ? 'ok' : 'bad'))));
-
-    var actions = cell();
-    actions.style.textAlign = 'right';
-    if (m.editable && m.is_active) {
-      var remove = el('button', 'link-bad', 'Remove');
-      remove.type = 'button';
-      remove.addEventListener('click', function () {
-        if (window.confirm('Remove ' + m.name + ' from the team?')) act('DELETE', base + '/members/' + m.id, null, remove);
-      });
-      actions.appendChild(remove);
-    }
-    tr.appendChild(actions);
-    return tr;
+  function memberColumns(roles) {
+    return [
+      { headerName: 'Member', field: 'name', flex: 2, minWidth: 220,
+        cellRenderer: function (p) {
+          var m = p.data;
+          var info = el('div', 'member');
+          info.appendChild(el('span', 'avatar', m.initial));
+          var text = el('div');
+          text.appendChild(el('b', null, m.name));
+          text.appendChild(el('span', null, m.email));
+          info.appendChild(text);
+          return info;
+        },
+        filterValueGetter: function (p) { return p.data.name + ' ' + p.data.email; } },
+      { headerName: 'Role', field: 'role', flex: 1, minWidth: 140,
+        cellRenderer: function (p) {
+          var m = p.data;
+          if (!m.editable) return m.is_owner ? tag('Owner', 'dark') : tag(cap(m.role));
+          var select = el('select', 'select-sm');
+          select.setAttribute('aria-label', 'Role for ' + m.name);
+          roles.forEach(function (r) {
+            var opt = el('option', null, cap(r));
+            opt.value = r;
+            opt.selected = r === m.role;
+            select.appendChild(opt);
+          });
+          select.addEventListener('change', function () {
+            select.disabled = true;
+            act('PATCH', base + '/members/' + m.id, { role: select.value });
+          });
+          return select;
+        } },
+      { headerName: 'Two-factor', field: 'mfa', width: 130,
+        valueGetter: function (p) { return p.data.mfa ? 'On' : 'Off'; },
+        cellRenderer: function (p) { return tag(p.value, p.data.mfa ? 'ok' : ''); } },
+      { headerName: 'Status', field: 'is_active', width: 130,
+        valueGetter: function (p) { return p.data.is_active ? 'Active' : 'Removed'; },
+        cellRenderer: function (p) { return tag(p.value, 'dot ' + (p.data.is_active ? 'ok' : 'bad')); } },
+      { headerName: '', colId: 'actions', width: 110, sortable: false, filter: false, resizable: false,
+        cellStyle: { justifyContent: 'flex-end' },
+        cellRenderer: function (p) {
+          var m = p.data;
+          var wrap = el('span');
+          if (m.editable && m.is_active) {
+            var remove = el('button', 'link-bad', 'Remove');
+            remove.type = 'button';
+            remove.addEventListener('click', function () {
+              if (window.confirm('Remove ' + m.name + ' from the team?')) act('DELETE', base + '/members/' + m.id, null, remove);
+            });
+            wrap.appendChild(remove);
+          }
+          return wrap;
+        } },
+    ];
   }
 
-  function inviteRow(i) {
-    var tr = el('tr');
-    var email = el('b', null, i.email);
-    email.style.fontWeight = '600';
-    tr.appendChild(cell(email));
-    tr.appendChild(cell(tag(cap(i.role))));
-    var expires = cell();
-    expires.textContent = 'Expires ' + i.expires;
-    expires.style.cssText = 'color:var(--muted);font-size:.82rem';
-    tr.appendChild(expires);
-
-    var actions = cell();
-    actions.style.textAlign = 'right';
-    var revoke = el('button', 'link-bad', 'Revoke');
-    revoke.type = 'button';
-    revoke.addEventListener('click', function () {
-      if (window.confirm('Revoke this invitation?')) act('DELETE', base + '/invitations/' + i.id, null, revoke);
-    });
-    actions.appendChild(revoke);
-    tr.appendChild(actions);
-    return tr;
+  function inviteColumns() {
+    return [
+      { headerName: 'Email', field: 'email', flex: 2, minWidth: 220, cellStyle: { fontWeight: '600' } },
+      { headerName: 'Role', field: 'role', width: 140, cellRenderer: function (p) { return tag(cap(p.value || '')); } },
+      { headerName: 'Expires', field: 'expires', flex: 1, minWidth: 150,
+        valueFormatter: function (p) { return 'Expires ' + p.value; }, cellStyle: { color: 'var(--muted)', fontSize: '.82rem' } },
+      { headerName: '', colId: 'actions', width: 110, sortable: false, filter: false, resizable: false,
+        cellStyle: { justifyContent: 'flex-end' },
+        cellRenderer: function (p) {
+          var i = p.data;
+          var revoke = el('button', 'link-bad', 'Revoke');
+          revoke.type = 'button';
+          revoke.addEventListener('click', function () {
+            if (window.confirm('Revoke this invitation?')) act('DELETE', base + '/invitations/' + i.id, null, revoke);
+          });
+          return revoke;
+        } },
+    ];
   }
 
   function render(data) {
-    memberRows.textContent = '';
-    data.members.forEach(function (m) { memberRows.appendChild(memberRow(m, data.roles)); });
+    memberApi = window.LuvuGrid.create(memberHost, {
+      columns: memberColumns(data.roles), rows: data.members, rowId: 'id', autoHeight: true, rowHeight: 60,
+      noRowsText: 'No members yet', statusBar: false,
+    });
     memberCount.textContent = plural(data.members.length, 'person', 'people') + ' on this merchant';
 
-    inviteRows.textContent = '';
-    data.invitations.forEach(function (i) { inviteRows.appendChild(inviteRow(i)); });
-    inviteCard.hidden = data.invitations.length === 0;
+    inviteCard.hidden = data.invitations.length === 0; // visible before the grid is measured
+    if (data.invitations.length) {
+      inviteApi = window.LuvuGrid.create(inviteHost, {
+        columns: inviteColumns(), rows: data.invitations, rowId: 'id', autoHeight: true, rowHeight: 52, headerHeight: 0, filter: false, statusBar: false,
+      });
+    }
     inviteCount.textContent = data.invitations.length + ' waiting to be accepted';
   }
 
   function load() {
-    var first = !memberRows.children.length;
-    if (first) window.LuvuLoader.table.loading(memberRows, 5, 'Loading members');
+    if (memberApi) { try { memberApi.setGridOption('loading', true); } catch (e) { /* destroyed */ } }
     return request('GET', page.getAttribute('data-url'))
       .then(render)
       .catch(function () {
-        window.LuvuLoader.table.error(memberRows, 5, 'Could not load the team', load);
         memberCount.textContent = 'Unavailable';
+        if (toast) toast.error('Could not load the team', 'Check your connection and try again');
+        if (memberApi) { try { memberApi.setGridOption('loading', false); } catch (e) { /* destroyed */ } }
       });
   }
 

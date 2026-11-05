@@ -42,18 +42,19 @@ return [
     // Renewal timeline of the NEXT subscription charge. Reference point is the expiry T of the current paid period
     // (subscriptions.current_period_end). The current period stays paid and in the wallet; only the next cycle's
     // charge (a separate ledger row) moves through these stages.
-    //   before T : reminders (email + phone notification, written by Nebius AI, template fallback)
+    //   before T : reminders (email + phone notification, written by Nebius AI, template fallback). The subscriber can already
+    //              pay now, split the next payment or cancel the renewal; refund / resale / donation stay locked.
     //   T .. +1d : renewal payment failed, retries run, options still locked
     //   +1d .. +2d : ALL options open (retry, split, partial refund, resale, donate, expire)
     //   after +2d : window closed, the subscription ends
     'grace_stages' => [
-        'd7' => ['label' => '7 days before expiry', 'hours' => 168, 'tone' => 'calm', 'reminder' => true, 'choices' => [],
+        'd7' => ['label' => '7 days before expiry', 'hours' => 168, 'tone' => 'calm', 'reminder' => true, 'choices' => ['renew', 'split_pay', 'expire'],
             'message' => 'Hi {name}, your {product} renews in {time}. Your next payment of {amount} will be charged on {date}. Want to change or cancel? Do it before then.'],
-        'd3' => ['label' => '3 days before expiry', 'hours' => 72, 'tone' => 'nudge', 'reminder' => true, 'choices' => [],
+        'd3' => ['label' => '3 days before expiry', 'hours' => 72, 'tone' => 'nudge', 'reminder' => true, 'choices' => ['renew', 'split_pay', 'expire'],
             'message' => '{name}, 3 days left. {amount} will be charged for your next {product} period on {date}. If you no longer need it, cancel now.'],
-        'h48' => ['label' => '48 hours before expiry', 'hours' => 48, 'tone' => 'urgent', 'reminder' => true, 'choices' => [],
+        'h48' => ['label' => '48 hours before expiry', 'hours' => 48, 'tone' => 'urgent', 'reminder' => true, 'choices' => ['renew', 'split_pay', 'expire'],
             'message' => '{name}, only {time} until your {product} renews and {amount} is charged. This is your 48 hour reminder.'],
-        'h6' => ['label' => '6 hours before expiry', 'hours' => 6, 'tone' => 'critical', 'reminder' => true, 'choices' => [],
+        'h6' => ['label' => '6 hours before expiry', 'hours' => 6, 'tone' => 'critical', 'reminder' => true, 'choices' => ['renew', 'split_pay', 'expire'],
             'message' => 'Last reminder, {name}: {time} until {amount} is charged for your next {product} period.'],
         'lapsed' => ['label' => 'Expired, payment failed', 'hours' => -1, 'tone' => 'critical', 'reminder' => true, 'choices' => [],
             'message' => '{name}, your {product} renewal payment of {amount} did not go through. We keep retrying; your recovery options unlock {time} from now.'],
@@ -91,6 +92,26 @@ return [
         'active_subscribers' => (int) env('DEMO_PROJECT_SUBSCRIBERS', 0),
     ],
 
+    // AI Smart-Convert (hero flow). See docs/AI_NEGOTIATION_EVIDENCE.md
+    'smart_convert' => [
+        // strict = if the live model is unavailable the run FAILS LOUDLY (HTTP 502) instead of silently using a canned split.
+        // Set SMART_CONVERT_STRICT=false only for offline development; fallback runs are always labelled on every surface.
+        'strict' => filter_var(env('SMART_CONVERT_STRICT', true), FILTER_VALIDATE_BOOLEAN),
+        // auto = AI decides and PayPal executes at once; propose = merchant approves (and may lower charity) before PayPal moves money
+        'default_mode' => env('SMART_CONVERT_MODE', 'auto'),
+        // Guardrails applied to whatever the model proposes (basis points of the unused value)
+        'max_fee_bps' => (int) env('SMART_CONVERT_MAX_FEE_BPS', 1500),
+        'max_charity_bps' => (int) env('SMART_CONVERT_MAX_CHARITY_BPS', 5000),
+        // Ask the endpoint to emit its native reasoning trace (slower, needs a larger NEBIUS_MAX_TOKENS). Rationale steps are always requested.
+        'request_reasoning' => filter_var(env('SMART_CONVERT_REQUEST_REASONING', false), FILTER_VALIDATE_BOOLEAN),
+        // Confirm the batch with GET /v1/payments/payouts/{id} after creating it
+        'verify_batch' => filter_var(env('SMART_CONVERT_VERIFY_BATCH', true), FILTER_VALIDATE_BOOLEAN),
+        // The donation step is an EXAMPLE: the recipient is illustrative and PayPal Sandbox only moves test money.
+        // Every surface (dashboard, evidence page, JSON) labels it that way while SMART_CONVERT_CHARITY_EXAMPLE=true.
+        'charity_example' => filter_var(env('SMART_CONVERT_CHARITY_EXAMPLE', true), FILTER_VALIDATE_BOOLEAN),
+        'charity_label' => env('SMART_CONVERT_CHARITY_LABEL', 'Example Charity (sandbox)'),
+    ],
+
     'marketplace' => [
         'reservation_minutes' => (int) env('MARKETPLACE_RESERVATION_MINUTES', 15),
         // Seller must click a signed link emailed to them before the listing is public.
@@ -100,6 +121,10 @@ return [
         'currencies' => ['USD'],
         // Share of the buyer's payment owed to the seller; the rest is the platform fee. Reuses the resale split.
         'seller_bps' => (int) env('MARKETPLACE_SELLER_BPS', 9000),
+        // After a sale the seller is paid automatically via PayPal Payouts (SettleMarketplaceSaleJob).
+        'auto_payout' => filter_var(env('MARKETPLACE_AUTO_PAYOUT', true), FILTER_VALIDATE_BOOLEAN),
+        // Money only moves to an address whose owner clicked the signed link. Unverified sellers get the link by email and the payout is held until they do.
+        'require_verified_for_payout' => filter_var(env('MARKETPLACE_REQUIRE_VERIFIED_FOR_PAYOUT', true), FILTER_VALIDATE_BOOLEAN),
     ],
 
     'webhooks' => [

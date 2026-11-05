@@ -22,9 +22,9 @@ use Throwable;
  */
 class NebiusClient implements NebiusAIContract
 {
-    public function chatJson(string $featureType, array $messages, ?string $merchantId = null): array
+    public function chatJson(string $featureType, array $messages, ?string $merchantId = null, array $options = []): array
     {
-        $result = $this->complete($featureType, $messages, $merchantId, jsonMode: true);
+        $result = $this->complete($featureType, $messages, $merchantId, jsonMode: true, options: $options);
         $data = $this->extractJson($result['content']);
 
         if ($data === null) {
@@ -32,8 +32,7 @@ class NebiusClient implements NebiusAIContract
             throw new RuntimeException('Nebius returned output that is not valid JSON: '.Str::limit($result['content'], 160));
         }
 
-        unset($result['log_id']);
-
+        // log_id stays in the result so callers can link their own evidence to ai_request_logs
         return ['content' => json_encode($data), 'data' => $data] + $result;
     }
 
@@ -45,8 +44,8 @@ class NebiusClient implements NebiusAIContract
         return $result;
     }
 
-    /** @return array{content:string, tokens_used:int|null, model:string|null, latency_ms:int, raw:array, log_id:string} */
-    private function complete(string $featureType, array $messages, ?string $merchantId, bool $jsonMode): array
+    /** @return array{content:string, tokens_used:int|null, model:string|null, latency_ms:int, raw:array, log_id:string, reasoning:string|null} */
+    private function complete(string $featureType, array $messages, ?string $merchantId, bool $jsonMode, array $options = []): array
     {
         if (! config('nebius.enabled')) {
             throw new RuntimeException('Nebius AI is disabled (NEBIUS_ENABLED=false)');
@@ -61,13 +60,16 @@ class NebiusClient implements NebiusAIContract
             'model' => config('nebius.model'),
             'messages' => $messages,
             'temperature' => (float) config('nebius.temperature', 0.2),
-            'max_tokens' => (int) config('nebius.max_tokens', 2048),
+            'max_tokens' => (int) ($options['max_tokens'] ?? config('nebius.max_tokens', 2048)),
         ];
         $payload = $plain;
         if ($jsonMode && config('nebius.json_mode')) {
             $payload['response_format'] = ['type' => 'json_object'];
         }
-        if (config('nebius.disable_thinking')) {
+        // A caller may explicitly ask for the native reasoning trace (Smart-Convert evidence); otherwise thinking stays off.
+        if (! empty($options['thinking'])) {
+            $payload['chat_template_kwargs'] = ['enable_thinking' => true];
+        } elseif (config('nebius.disable_thinking')) {
             $payload['chat_template_kwargs'] = ['enable_thinking' => false];
         }
 
@@ -93,7 +95,9 @@ class NebiusClient implements NebiusAIContract
 
                 if ($response->successful()) {
                     $json = $response->json() ?? [];
-                    $content = $this->cleanContent(data_get($json, 'choices.0.message.content'));
+                    $rawContent = data_get($json, 'choices.0.message.content');
+                    $content = $this->cleanContent($rawContent);
+                    $reasoning = $this->extractReasoning($json, $rawContent);
                     if ($content === '') {
                         $lastError = 'Empty completion (finish_reason: '.(string) data_get($json, 'choices.0.finish_reason', 'unknown').'). Raise NEBIUS_MAX_TOKENS';
                         break;
@@ -110,6 +114,7 @@ class NebiusClient implements NebiusAIContract
                         'latency_ms' => $latency,
                         'raw' => $json,
                         'log_id' => $logId,
+                        'reasoning' => $reasoning,
                     ];
                 }
 
@@ -144,6 +149,22 @@ class NebiusClient implements NebiusAIContract
             ->asJson()
             ->timeout((int) config('nebius.timeout', 45))
             ->post('/chat/completions', $payload);
+    }
+
+    /**
+     * Reasoning the PROVIDER returned (reasoning_content / reasoning field, or an inline <think> block). Null when none was sent;
+     * we never invent a trace. Truncated: it is evidence, not a transcript.
+     */
+    private function extractReasoning(array $json, mixed $rawContent): ?string
+    {
+        $r = data_get($json, 'choices.0.message.reasoning_content') ?? data_get($json, 'choices.0.message.reasoning');
+        if (! is_string($r) || trim($r) === '') {
+            $text = is_array($rawContent) ? collect($rawContent)->pluck('text')->filter()->implode('') : (string) $rawContent;
+            $r = preg_match('#<think>(.*?)</think>#si', $text, $m) ? $m[1] : (preg_match('#^(.*?)</think>#si', $text, $m2) ? $m2[1] : null);
+        }
+        $r = is_string($r) ? trim($r) : '';
+
+        return $r === '' ? null : Str::limit($r, 1500, '…');
     }
 
     /** Removes <think> blocks and markdown fences that reasoning models sometimes add */

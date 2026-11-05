@@ -29,7 +29,13 @@ class ResaleMaintenanceCommand extends Command
 
         $marketReleased = $market->releaseExpired();
 
-        $this->info("Released {$released} reservation(s), expired {$expired} listing(s), released {$marketReleased} marketplace reservation(s).");
+        $retried = 0;
+        foreach ($market->stuckPayoutIds() as $listingId) {
+            \App\Jobs\SettleMarketplaceSaleJob::dispatch($listingId);
+            $retried++;
+        }
+
+        $this->info("Released {$released} reservation(s), expired {$expired} listing(s), released {$marketReleased} marketplace reservation(s), re-queued {$retried} seller payout(s).");
 
         return self::SUCCESS;
     }

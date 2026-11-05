@@ -1,16 +1,1517 @@
 {
   "info": {
-    "name": "LuvuPay API",
-    "description": "Merchant & platform API for LuvuPay \u2014 subscriptions, second-chance, resale, dashboard, webhooks.\n\nSet collection variables: base_url, api_key.",
+    "name": "LuvuPay · Hero flow + API tests",
+    "description": "Import this file AND LuvuPay.postman_environment.json, pick the environment, then press Run on the collection.\n\n1) Hero flow (console session): sign in → AI proposes → human lowers the donation → PayPal Payouts → evidence → ledger. Folder order matters.\n2) Merchant API (API key): idempotency, auth and AI endpoints.\n3) Security checks: forged webhook, no-session access, unguessable evidence ids.\n\nThe donation recipient is an EXAMPLE and PayPal Sandbox moves test money only. Set the variable require_real=false to run against the mock driver.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
-  "variable": [
+  "item": [
     {
-      "key": "base_url",
-      "value": "http://localhost:8000"
+      "name": "1 · Hero flow (console session)",
+      "item": [
+        {
+          "name": "0 · App is up",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/up",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "up"
+              ]
+            },
+            "description": "Liveness. If this fails, check base_url in the environment.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('GET /up answers 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "1 · Open login page (get CSRF token)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "login"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('login page loads', () => pm.response.to.have.status(200));",
+                  "const m = pm.response.text().match(/name=\"_token\"\\s+value=\"([^\"]+)\"/) || pm.response.text().match(/name=\"csrf-token\"\\s+content=\"([^\"]+)\"/);",
+                  "pm.test('CSRF token found', () => pm.expect(m, 'no _token field on /login').to.not.be.null);",
+                  "if (m) pm.collectionVariables.set('csrf', m[1]);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2 · Sign in (session cookie)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "login"
+              ]
+            },
+            "description": "Postman keeps the session cookie automatically. The seeded demo account is owner@demomerchant.test / SecurePass1.",
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "_token",
+                  "value": "{{csrf}}",
+                  "type": "text"
+                },
+                {
+                  "key": "email",
+                  "value": "{{email}}",
+                  "type": "text"
+                },
+                {
+                  "key": "password",
+                  "value": "{{password}}",
+                  "type": "text"
+                }
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const html = pm.response.text();",
+                  "pm.test('signed in (no login form, no error)', () => {",
+                  "  pm.expect(html).to.not.include('Invalid credentials');",
+                  "  pm.expect(html).to.not.include('name=\"password\"');",
+                  "});",
+                  "pm.test('no 2FA prompt (use an account without MFA for this collection)', () => pm.expect(html).to.not.include('mfa/challenge'));",
+                  "const m = html.match(/name=\"csrf-token\"\\s+content=\"([^\"]+)\"/);",
+                  "if (m) pm.collectionVariables.set('csrf', m[1]);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3 · Refresh CSRF from the dashboard",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/dashboard",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "dashboard"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('dashboard opens', () => pm.response.to.have.status(200));",
+                  "const m = pm.response.text().match(/name=\"csrf-token\"\\s+content=\"([^\"]+)\"/);",
+                  "pm.test('CSRF meta present', () => pm.expect(m).to.not.be.null);",
+                  "if (m) pm.collectionVariables.set('csrf', m[1]);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4 · Preflight: is the real flow ready? (live AI ping)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/dashboard/demo/smart-convert/preflight?ping=1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "dashboard",
+                "demo",
+                "smart-convert",
+                "preflight"
+              ],
+              "query": [
+                {
+                  "key": "ping",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "Set collection variable require_real=false to run the whole collection against the mock driver (payout is then labelled SIMULATED).",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const REAL = pm.collectionVariables.get('require_real') !== 'false';",
+                  "const json = () => pm.response.json();",
+                  "",
+                  "pm.test('preflight answers 200', () => pm.response.to.have.status(200));",
+                  "const j = json();",
+                  "console.log('preflight checks', JSON.stringify(j.checks));",
+                  "pm.test('Nebius key present', () => pm.expect(j.checks.nebius_key_present).to.be.true);",
+                  "pm.test('live AI ping answered by the model (no fallback)', () => pm.expect(j.live_ai_ping && j.live_ai_ping.ok, JSON.stringify(j.live_ai_ping)).to.be.true);",
+                  "pm.test('PayPal driver + sandbox credentials present' + (REAL ? '' : ' (skipped: require_real=false)'), () => {",
+                  "  if (REAL) { pm.expect(j.checks.payment_driver_is_paypal).to.be.true; pm.expect(j.checks.paypal_credentials_present).to.be.true; }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5 · AI proposes the split (no money moves yet)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-TOKEN",
+                "value": "{{csrf}}"
+              },
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/dashboard/demo/smart-convert",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "dashboard",
+                "demo",
+                "smart-convert"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mode\": \"propose\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const REAL = pm.collectionVariables.get('require_real') !== 'false';",
+                  "const json = () => pm.response.json();",
+                  "",
+                  "pm.test('proposal accepted (202)', () => pm.response.to.have.status(202));",
+                  "const j = json(), c = j.conversion;",
+                  "pm.test('status is proposed', () => pm.expect(j.status).to.eql('proposed'));",
+                  "pm.test('split adds up to the unused value', () => pm.expect(c.store_credit_minor + c.charity_minor + c.fee_minor).to.eql(c.unused_value_minor));",
+                  "pm.test('charity share respects the 50% guardrail', () => pm.expect(c.charity_minor).to.be.at.most(Math.floor(c.unused_value_minor * 0.5)));",
+                  "pm.test('produced by the live model' + (REAL ? '' : ' (skipped)'), () => { if (REAL) pm.expect(j.path).to.eql('ai'); });",
+                  "pm.test('donation stage is visible and labelled EXAMPLE', () => {",
+                  "  pm.expect(j.donation.status).to.eql('awaiting_approval');",
+                  "  pm.expect(j.donation.example_only).to.be.true;",
+                  "  pm.expect(j.donation.recipient).to.be.a('string').and.not.empty;",
+                  "});",
+                  "pm.collectionVariables.set('run_id', j.run_id);",
+                  "pm.collectionVariables.set('charity_proposed', c.charity_minor);",
+                  "pm.collectionVariables.set('charity_lowered', Math.floor(c.charity_minor / 2));",
+                  "pm.collectionVariables.set('unused_value', c.unused_value_minor);",
+                  "console.log('Evidence page:', pm.collectionVariables.get('base_url') + '/evidence/smart-convert/' + j.run_id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "6 · Public evidence BEFORE approval (nothing paid)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/evidence/smart-convert/{{run_id}}.json",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "evidence",
+                "smart-convert",
+                "{{run_id}}.json"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "pm.test('public JSON, no login needed', () => pm.response.to.have.status(200));",
+                  "pm.test('proposal is still waiting', () => pm.expect(j.status).to.eql('proposed'));",
+                  "pm.test('model_raw is stored next to the final split', () => pm.expect(j.split.model_raw).to.be.an('object'));",
+                  "pm.test('no PayPal payout exists yet', () => pm.expect(j.paypal.payout_batch_id).to.be.null);",
+                  "pm.test('human can intervene', () => pm.expect(j.audit.human_can_intervene).to.be.true);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "7 · Human lowers the donation by half and approves",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-TOKEN",
+                "value": "{{csrf}}"
+              },
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/dashboard/demo/smart-convert/{{run_id}}/approve",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "dashboard",
+                "demo",
+                "smart-convert",
+                "{{run_id}}",
+                "approve"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"charity_minor\": {{charity_lowered}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const REAL = pm.collectionVariables.get('require_real') !== 'false';",
+                  "const json = () => pm.response.json();",
+                  "",
+                  "pm.test('approved (200)', () => pm.response.to.have.status(200));",
+                  "const j = json();",
+                  "pm.test('executed', () => pm.expect(j.status).to.eql('executed'));",
+                  "pm.test('donation was lowered, never raised', () => pm.expect(j.conversion.charity_minor).to.eql(parseInt(pm.collectionVariables.get('charity_lowered'))));",
+                  "pm.test('the difference moved to store credit and the change is on the audit trail', () => {",
+                  "  if (parseInt(pm.collectionVariables.get('charity_proposed')) > 0) pm.expect(j.conversion.guardrail_adjustments.join(' ')).to.include('Merchant lowered the donation');",
+                  "});",
+                  "pm.test('PayPal Payouts batch ' + (REAL ? 'is REAL (batch id present)' : 'is simulated'), () => {",
+                  "  if (REAL) { pm.expect(j.paypal.real).to.be.true; pm.expect(j.paypal.payout_batch_id).to.be.a('string').and.not.empty; }",
+                  "  else pm.expect(j.paypal.simulated).to.be.true;",
+                  "});",
+                  "pm.test('donation stage reports sent / simulated with a receipt', () => {",
+                  "  pm.expect(['sent', 'simulated']).to.include(j.donation.status);",
+                  "  pm.expect(j.donation.receipt_id).to.match(/^DON-/);",
+                  "});",
+                  "if (j.paypal.payout_batch_id) pm.collectionVariables.set('payout_batch_id', j.paypal.payout_batch_id);",
+                  "if (j.row && j.row.id) pm.collectionVariables.set('tx_id', j.row.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "8 · Approve again is refused (409)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-TOKEN",
+                "value": "{{csrf}}"
+              },
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/dashboard/demo/smart-convert/{{run_id}}/approve",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "dashboard",
+                "demo",
+                "smart-convert",
+                "{{run_id}}",
+                "approve"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('a second approval can never pay twice', () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "9 · Reject after execution is refused (409)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-TOKEN",
+                "value": "{{csrf}}"
+              },
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/dashboard/demo/smart-convert/{{run_id}}/reject",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "dashboard",
+                "demo",
+                "smart-convert",
+                "{{run_id}}",
+                "reject"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('an executed run cannot be rejected', () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "10 · Public evidence AFTER approval (audit trail)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/evidence/smart-convert/{{run_id}}.json",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "evidence",
+                "smart-convert",
+                "{{run_id}}.json"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const REAL = pm.collectionVariables.get('require_real') !== 'false';",
+                  "const json = () => pm.response.json();",
+                  "",
+                  "const j = pm.response.json(), s = j.split;",
+                  "pm.test('executed', () => pm.expect(j.status).to.eql('executed'));",
+                  "pm.test('final split adds up', () => pm.expect(s.store_credit_minor + s.charity_minor + s.fee_minor).to.eql(s.unused_value_minor));",
+                  "pm.test('model_raw vs final are both on record', () => { pm.expect(s.model_raw).to.be.an('object'); pm.expect(s.guardrail_adjustments).to.be.an('array'); });",
+                  "pm.test('PayPal batch id on the evidence' + (REAL ? '' : ' (skipped)'), () => { if (REAL) pm.expect(j.paypal.payout_batch_id).to.eql(pm.collectionVariables.get('payout_batch_id')); });",
+                  "pm.test('decider identity is masked', () => pm.expect(j.audit.decided_by).to.include('***'));",
+                  "pm.test('no email leaks into the public document', () => pm.expect(JSON.stringify(j)).to.not.include(pm.environment.get('email') || '@@none@@'));",
+                  "pm.test('donation block is on the evidence and says EXAMPLE', () => { pm.expect(j.donation.example_only).to.be.true; pm.expect(j.donation.amount_minor).to.eql(s.charity_minor); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "11 · Public evidence PAGE (what you screenshot)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/evidence/smart-convert/{{run_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "evidence",
+                "smart-convert",
+                "{{run_id}}"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const html = pm.response.text();",
+                  "pm.test('page opens without login', () => pm.response.to.have.status(200));",
+                  "pm.test('shows the five-step flow incl. Donation', () => { pm.expect(html).to.include('AI Negotiation Evidence'); pm.expect(html).to.include('5 · Donation'); });",
+                  "pm.test('donation is labelled EXAMPLE · SANDBOX', () => pm.expect(html).to.include('EXAMPLE'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "12 · Ledger shows the parent charge and the donation row",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/dashboard/transactions",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "dashboard",
+                "transactions"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('ledger loads', () => pm.response.to.have.status(200));",
+                  "const rows = pm.response.json().data, run = pm.collectionVariables.get('run_id');",
+                  "const parent = rows.find(r => r.smart_convert && r.smart_convert.run_id === run);",
+                  "pm.test('parent row is SMART-CONVERTED and links the evidence', () => { pm.expect(parent, 'parent row').to.exist; pm.expect(parent.smart_convert.evidence_url).to.include(run); });",
+                  "const lowered = parseInt(pm.collectionVariables.get('charity_lowered'));",
+                  "pm.test('donation row exists with the lowered amount (example recipient)', () => {",
+                  "  if (lowered > 0) {",
+                  "    const d = rows.find(r => r.type === 'Payout' && r.amount_minor === lowered && /example charity/i.test(r.email));",
+                  "    pm.expect(d, 'charity_payout row').to.exist;",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "13 · Negative path: AI proposes again…",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-TOKEN",
+                "value": "{{csrf}}"
+              },
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/dashboard/demo/smart-convert",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "dashboard",
+                "demo",
+                "smart-convert"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mode\": \"propose\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('second proposal (202)', () => pm.response.to.have.status(202));",
+                  "pm.collectionVariables.set('run_id_2', pm.response.json().run_id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "14 · …and the merchant rejects: no money moves",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-TOKEN",
+                "value": "{{csrf}}"
+              },
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/dashboard/demo/smart-convert/{{run_id_2}}/reject",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "dashboard",
+                "demo",
+                "smart-convert",
+                "{{run_id_2}}",
+                "reject"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "pm.test('rejected (200)', () => pm.response.to.have.status(200));",
+                  "pm.test('status is rejected and the donation is NOT sent', () => { pm.expect(j.status).to.eql('rejected'); pm.expect(j.donation.status).to.eql('not_sent'); });",
+                  "pm.test('says no money moved', () => pm.expect(j.message).to.include('No money moved'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "15 · (optional) One-click auto mode",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-TOKEN",
+                "value": "{{csrf}}"
+              },
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/dashboard/demo/smart-convert",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "dashboard",
+                "demo",
+                "smart-convert"
+              ]
+            },
+            "description": "AI decides and PayPal Payouts executes immediately (a second sandbox payout). Skip this request if you only want one.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mode\": \"auto\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const REAL = pm.collectionVariables.get('require_real') !== 'false';",
+                  "const json = () => pm.response.json();",
+                  "",
+                  "pm.test('auto mode executes in one request', () => pm.response.to.have.status(200));",
+                  "const j = json();",
+                  "pm.test('executed with a donation stage', () => { pm.expect(j.status).to.eql('executed'); pm.expect(['sent', 'simulated']).to.include(j.donation.status); });"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "description": "Cookie-based session + CSRF. Needs LUVUPAY_DEMO_SIMULATOR=true on the server and an account without 2FA."
     },
     {
-      "key": "api_key",
+      "name": "2 · Merchant API (API key)",
+      "item": [
+        {
+          "name": "A1 · Create subscription (Idempotency-Key)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{idem_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/subscriptions",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "subscriptions"
+              ]
+            },
+            "description": "With the paypal driver, paypal_plan_id must be a real sandbox plan id (P-…). With the mock driver any string works.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"merchant_user_id\": \"postman-user-1\",\n  \"email\": \"postman.buyer@example.com\",\n  \"plan_id\": \"{{paypal_plan_id}}\",\n  \"amount_minor\": 2000,\n  \"currency\": \"USD\",\n  \"billing_interval\": \"month\",\n  \"return_url\": \"https://example.com/return\",\n  \"cancel_url\": \"https://example.com/cancel\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{api_key}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get('idem_key')) pm.collectionVariables.set('idem_key', 'pm-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('created (201)', () => pm.response.to.have.status(201));",
+                  "const j = pm.response.json();",
+                  "pm.test('returns id, PENDING status and a PayPal approval_url', () => { pm.expect(j.id).to.be.a('string'); pm.expect(j.approval_url).to.be.a('string'); });",
+                  "pm.collectionVariables.set('subscription_id', j.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "A2 · Same key + same body replays the first answer",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{idem_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/subscriptions",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "subscriptions"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"merchant_user_id\": \"postman-user-1\",\n  \"email\": \"postman.buyer@example.com\",\n  \"plan_id\": \"{{paypal_plan_id}}\",\n  \"amount_minor\": 2000,\n  \"currency\": \"USD\",\n  \"billing_interval\": \"month\",\n  \"return_url\": \"https://example.com/return\",\n  \"cancel_url\": \"https://example.com/cancel\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{api_key}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('replayed, not created twice', () => pm.expect(pm.response.json().id).to.eql(pm.collectionVariables.get('subscription_id')));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "A3 · Same key + different body is refused (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{idem_key}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/subscriptions",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "subscriptions"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"merchant_user_id\": \"postman-user-1\",\n  \"email\": \"postman.buyer@example.com\",\n  \"plan_id\": \"{{paypal_plan_id}}\",\n  \"amount_minor\": 9999,\n  \"currency\": \"USD\",\n  \"billing_interval\": \"month\",\n  \"return_url\": \"https://example.com/return\",\n  \"cancel_url\": \"https://example.com/cancel\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{api_key}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('422 idempotency_key_reused', () => { pm.response.to.have.status(422); pm.expect(pm.response.json().error).to.eql('idempotency_key_reused'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "A4 · Missing Idempotency-Key is refused (400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/subscriptions",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "subscriptions"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"merchant_user_id\": \"postman-user-1\",\n  \"email\": \"postman.buyer@example.com\",\n  \"plan_id\": \"{{paypal_plan_id}}\",\n  \"amount_minor\": 2000,\n  \"currency\": \"USD\",\n  \"billing_interval\": \"month\",\n  \"return_url\": \"https://example.com/return\",\n  \"cancel_url\": \"https://example.com/cancel\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{api_key}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 idempotency_key_required', () => { pm.response.to.have.status(400); pm.expect(pm.response.json().error).to.eql('idempotency_key_required'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "A5 · List resale listings",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/resale-listings",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "resale-listings"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{api_key}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 + JSON', () => { pm.response.to.have.status(200); pm.response.to.be.json; });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "A6 · AI subscription health report (queued job)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/ai/subscription-health-report",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "ai",
+                "subscription-health-report"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{api_key}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 or 202 (queued)', () => pm.expect([200, 202]).to.include(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "A7 · Export merchant data",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/export",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "export"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{api_key}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "A8 · Wrong API key is refused (401)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/resale-listings",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "resale-listings"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "lp_live_THIS_IS_NOT_A_REAL_KEY",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('401 unauthorized', () => { pm.response.to.have.status(401); pm.expect(pm.response.json().error).to.eql('unauthorized'); });"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "description": "Authorization: Bearer {{api_key}}. The key is printed ONCE by php artisan db:seed or created in the console."
+    },
+    {
+      "name": "3 · Security checks",
+      "item": [
+        {
+          "name": "S1 · Unsigned PayPal webhook is rejected",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/webhooks/paypal",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "webhooks",
+                "paypal"
+              ]
+            },
+            "description": "Webhooks are verified with PayPal verify-webhook-signature. A forged body must not be accepted.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"id\":\"WH-FAKE-1\",\"event_type\":\"PAYMENT.CAPTURE.COMPLETED\",\"resource\":{\"id\":\"FAKE\"}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('forged webhook never returns 2xx', () => pm.expect(pm.response.code).to.be.within(400, 599));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "S2 · Console API without a session is refused",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/dashboard/summary",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "dashboard",
+                "summary"
+              ]
+            },
+            "description": "Run this folder BEFORE signing in (or in a fresh cookie jar), because it expects no session.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('not 200 without a session', () => pm.expect(pm.response.code).to.be.oneOf([401, 302, 403]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "S3 · Evidence for a random id returns 404",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/evidence/smart-convert/00000000-0000-4000-8000-000000000000.json",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "evidence",
+                "smart-convert",
+                "00000000-0000-4000-8000-000000000000.json"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('unknown run is 404 (ids are unguessable)', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "require_real",
+      "value": "true"
+    },
+    {
+      "key": "csrf",
+      "value": ""
+    },
+    {
+      "key": "run_id",
+      "value": ""
+    },
+    {
+      "key": "run_id_2",
+      "value": ""
+    },
+    {
+      "key": "charity_proposed",
+      "value": ""
+    },
+    {
+      "key": "charity_lowered",
+      "value": ""
+    },
+    {
+      "key": "unused_value",
+      "value": ""
+    },
+    {
+      "key": "payout_batch_id",
+      "value": ""
+    },
+    {
+      "key": "tx_id",
       "value": ""
     },
     {
@@ -18,260 +1519,8 @@
       "value": ""
     },
     {
-      "key": "listing_id",
+      "key": "idem_key",
       "value": ""
-    },
-    {
-      "key": "transaction_id",
-      "value": ""
-    }
-  ],
-  "event": [
-    {
-      "listen": "prerequest",
-      "script": {
-        "type": "text/javascript",
-        "exec": [
-          "function uuidv4(){return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,function(c){var r=Math.random()*16|0,v=c==='x'?r:(r&0x3|0x8);return v.toString(16);});}",
-          "if (['POST','PUT','PATCH','DELETE'].includes(pm.request.method)) {",
-          "  pm.request.headers.upsert({key:'Idempotency-Key', value: uuidv4()});",
-          "}",
-          "const key = pm.collectionVariables.get('api_key');",
-          "if (key && !pm.request.url.getPath().includes('/webhooks/paypal') && !pm.request.url.getPath().includes('/health')) {",
-          "  pm.request.headers.upsert({key:'Authorization', value: 'Bearer ' + key});",
-          "}"
-        ]
-      }
-    }
-  ],
-  "item": [
-    {
-      "name": "Health",
-      "item": [
-        {
-          "name": "Health check",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": "{{base_url}}/api/v1/health"
-          }
-        },
-        {
-          "name": "Liveness /up",
-          "request": {
-            "method": "GET",
-            "url": "{{base_url}}/up"
-          }
-        }
-      ]
-    },
-    {
-      "name": "Dashboard (session cookie)",
-      "item": [
-        {
-          "name": "Summary",
-          "request": {
-            "method": "GET",
-            "url": "{{base_url}}/api/v1/dashboard/summary"
-          }
-        },
-        {
-          "name": "Transactions",
-          "request": {
-            "method": "GET",
-            "url": "{{base_url}}/api/v1/dashboard/transactions"
-          }
-        },
-        {
-          "name": "Set project",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"My Product\",\n  \"plan\": \"Premium\",\n  \"environment\": \"sandbox\",\n  \"description\": \"Demo project\"\n}"
-            },
-            "url": "{{base_url}}/api/v1/dashboard/project"
-          }
-        },
-        {
-          "name": "Resale listings",
-          "request": {
-            "method": "GET",
-            "url": "{{base_url}}/api/v1/dashboard/resale-listings"
-          }
-        }
-      ]
-    },
-    {
-      "name": "Demo simulator",
-      "item": [
-        {
-          "name": "Simulate checkout",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"display_name\": \"Sarah Johnson\",\n  \"email\": \"sarah@example.com\"\n}"
-            },
-            "url": "{{base_url}}/api/v1/dashboard/demo/checkout"
-          }
-        },
-        {
-          "name": "Missed-cancel decision",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"choice\": \"renew\"\n}"
-            },
-            "url": "{{base_url}}/api/v1/dashboard/demo/decision"
-          }
-        },
-        {
-          "name": "Webhook logs",
-          "request": {
-            "method": "GET",
-            "url": "{{base_url}}/api/v1/dashboard/demo/webhook-logs"
-          }
-        }
-      ]
-    },
-    {
-      "name": "Subscriptions",
-      "item": [
-        {
-          "name": "Create subscription",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"customer_email\": \"user@example.com\",\n  \"plan\": \"premium\",\n  \"amount_minor\": 2000,\n  \"currency\": \"USD\"\n}"
-            },
-            "url": "{{base_url}}/api/v1/subscriptions"
-          }
-        },
-        {
-          "name": "Get subscription",
-          "request": {
-            "method": "GET",
-            "url": "{{base_url}}/api/v1/subscriptions/{{subscription_id}}"
-          }
-        }
-      ]
-    },
-    {
-      "name": "Second Chance",
-      "item": [
-        {
-          "name": "Trigger second chance",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{}"
-            },
-            "url": "{{base_url}}/api/v1/transactions/{{transaction_id}}/second-chance"
-          }
-        }
-      ]
-    },
-    {
-      "name": "Resale / Marketplace",
-      "item": [
-        {
-          "name": "List listings",
-          "request": {
-            "method": "GET",
-            "url": "{{base_url}}/api/v1/resale/listings"
-          }
-        },
-        {
-          "name": "Create listing",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"subscription_id\": \"{{subscription_id}}\",\n  \"price_minor\": 1500,\n  \"currency\": \"USD\"\n}"
-            },
-            "url": "{{base_url}}/api/v1/resale/listings"
-          }
-        },
-        {
-          "name": "Checkout listing",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"buyer_email\": \"buyer@example.com\"\n}"
-            },
-            "url": "{{base_url}}/api/v1/resale/listings/{{listing_id}}/checkout"
-          }
-        }
-      ]
-    },
-    {
-      "name": "Webhooks",
-      "item": [
-        {
-          "name": "PayPal webhook (unsigned sample)",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"event_type\": \"PAYMENT.CAPTURE.COMPLETED\",\n  \"resource\": {}\n}"
-            },
-            "url": "{{base_url}}/api/v1/webhooks/paypal"
-          }
-        }
-      ]
     }
   ]
 }

@@ -12,19 +12,12 @@
         <div class="stack">
             <section class="c-card">
                 <div class="c-head"><div><h2 class="c-title">Members</h2><p class="c-sub" id="member-count">Loading members</p></div></div>
-                <div style="overflow-x:auto">
-                    <table class="c-table">
-                        <thead><tr><th>Member</th><th>Role</th><th>Two-factor</th><th>Status</th><th></th></tr></thead>
-                        <tbody id="member-rows"></tbody>
-                    </table>
-                </div>
+                <div id="grid-members" style="width:100%"></div>
             </section>
 
             <section class="c-card" id="invite-card" hidden>
                 <div class="c-head"><div><h2 class="c-title">Pending invitations</h2><p class="c-sub" id="invite-count"></p></div></div>
-                <div style="overflow-x:auto">
-                    <table class="c-table"><tbody id="invite-rows"></tbody></table>
-                </div>
+                <div id="grid-invites" style="width:100%"></div>
             </section>
         </div>
 

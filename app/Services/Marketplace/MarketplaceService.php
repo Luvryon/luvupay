@@ -27,6 +27,44 @@ final class MarketplaceService
         return DB::table('marketplace_listings');
     }
 
+    /** Short, non-reversible tag of the seller address. Goes into signed links so a link cannot be reused if the address on the row changes. */
+    public static function emailFingerprint(string $email): string
+    {
+        return substr(hash_hmac('sha256', strtolower(trim($email)), (string) config('app.key')), 0, 16);
+    }
+
+    /**
+     * Record that the owner of the seller address clicked the signed link. This is the ONLY place ownership is granted.
+     * Evidence keeps hashes only (no raw IP / user agent). Returns true when this call granted it.
+     */
+    public function grantOwnership(string $id, ?string $ip, ?string $userAgent): bool
+    {
+        $key = (string) config('app.key');
+
+        return $this->listings()->where('id', $id)->whereNull('ownership_level')->update([
+            'ownership_level' => 'email_signed_link',
+            'verified_at' => now(),
+            'ownership_evidence' => json_encode([
+                'method' => 'signed_link_sent_to_seller_email',
+                'verified_at' => now()->toIso8601String(),
+                'ip_hash' => $ip ? substr(hash_hmac('sha256', $ip, $key), 0, 16) : null,
+                'ua_hash' => $userAgent ? substr(hash_hmac('sha256', $userAgent, $key), 0, 16) : null,
+                'proves' => 'control of the payout email inbox at verification time',
+                'does_not_prove' => 'ownership of the underlying third-party subscription account',
+            ]),
+            'updated_at' => now(),
+        ]) === 1;
+    }
+
+    /** Sold listings whose seller payout never completed (worker down, PayPal outage). Used by resale:maintain to re-dispatch. */
+    public function stuckPayoutIds(int $olderThanMinutes = 2): array
+    {
+        return $this->listings()->where('status', 'sold')
+            ->where(fn ($q) => $q->whereNull('payout_status')->orWhere('payout_status', 'failed'))
+            ->where('sold_at', '<', now()->subMinutes($olderThanMinutes))
+            ->limit(100)->pluck('id')->all();
+    }
+
     public function reservationMinutes(): int
     {
         return max(1, (int) config('luvupay.marketplace.reservation_minutes', 15));

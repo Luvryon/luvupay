@@ -266,9 +266,54 @@
       { field: 'seller_email', headerName: 'Seller', flex: 1 },
       { field: 'price_minor', headerName: 'Ask', width: 110,
         valueFormatter: function (p) { return money(p.value, (p.data && p.data.currency) || 'USD'); } },
-      { field: 'status', headerName: 'Status', width: 120 },
+      { field: 'status', headerName: 'Status', width: 130, cellRenderer: function (p) { return global.LuvuGrid ? global.LuvuGrid.badge()(p) : p.value; } },
       { field: 'created_at', headerName: 'Listed', width: 140,
         valueFormatter: function (p) { return (p.value || '').replace('T', ' ').slice(0, 16); } },
+    ];
+  }
+
+  function deliveryColumns(self) {
+    return [
+      { field: 'created_at', headerName: 'Time', width: 190,
+        valueFormatter: function (p) { return String(p.value || '').replace('T', ' ').slice(0, 19); },
+        cellClass: 'lg-mono' },
+      { field: 'event_type', headerName: 'Event', flex: 1, minWidth: 170,
+        valueGetter: function (p) { return (p.data && (p.data.event_type || p.data.event)) || ''; } },
+      { field: 'response_code', headerName: 'Code', width: 100, cellClass: 'lg-mono',
+        valueFormatter: function (p) { return p.value || '-'; } },
+      { field: 'attempts', headerName: 'Attempts', width: 110,
+        valueFormatter: function (p) { return p.value == null ? '-' : p.value; } },
+      { field: 'status', headerName: 'Status', width: 130, cellRenderer: function (p) { return global.LuvuGrid.badge()(p); } },
+      { headerName: '', field: 'id', width: 110, sortable: false, filter: false, resizable: false,
+        cellStyle: { justifyContent: 'flex-end' },
+        cellRenderer: function (p) {
+          var d = p.data || {};
+          if (d.status !== 'failed') return h('span');
+          var b = h('button', 'c-btn c-btn-sm', 'Retry', { type: 'button' });
+          b.addEventListener('click', function () { self.retryDelivery(d.id); });
+          return b;
+        } },
+    ];
+  }
+
+  function webhookColumns() {
+    return [
+      { field: 'timestamp', headerName: 'Time', width: 190, cellClass: 'lg-mono',
+        valueFormatter: function (p) { return String(p.value || '').replace('T', ' ').slice(0, 19); } },
+      { field: 'event_type', headerName: 'Event', flex: 1, minWidth: 200, autoHeight: true,
+        cellRenderer: function (p) {
+          var d = p.data || {};
+          var wrap = h('div', 'flex flex-col leading-tight');
+          wrap.appendChild(h('span', 'font-medium text-brand-soft', d.event_type || '-'));
+          wrap.appendChild(h('span', 'text-xs text-faint', d.provider || ''));
+          return wrap;
+        } },
+      { field: 'http_hint', headerName: 'Status', width: 120,
+        cellRenderer: function (p) {
+          var v = p.value == null ? '' : String(p.value);
+          return h('span', 'lg-badge ' + (v.indexOf('200') !== -1 ? 'lg-ok' : 'lg-bad'), v || '-');
+        } },
+      { field: 'payload_preview', headerName: 'Payload', flex: 2, minWidth: 220, cellClass: 'lg-mono' },
     ];
   }
 
@@ -407,6 +452,8 @@
       },
 
       init: function () {
+        var self = this;
+        this.$watch('webhookLogs', function (rows) { if (self.webhookOpen && self.grids.wh) global.LuvuGrid.setRows(self.grids.wh, rows); });
         this.load();
         if (this.demoEnabled) this.loadDeliveries();
         this.handlePayPalReturn();
@@ -622,6 +669,17 @@
       mountGrids: function () {
         this.mountGrid('tx', 'grid-tx', ledgerColumns(), this.rowData, true);
         this.mountGrid('rs', 'grid-rs', resaleColumns(), this.resaleRows, false);
+        this.syncGrid('dl', 'grid-dl', deliveryColumns(this), this.deliveries, { rowId: 'id', noRowsText: 'No deliveries yet' });
+      },
+
+      /** Create a LuvuGrid once, then only swap its rows (keeps sort / filter / scroll). */
+      syncGrid: function (key, elId, columns, rows, opts) {
+        var node = document.getElementById(elId);
+        if (!node || !global.LuvuGrid) return;
+        var existing = this.grids[key];
+        if (existing && node.__lg === existing) { global.LuvuGrid.setRows(existing, rows || []); return; }
+        var o = Object.assign({ columns: columns, rows: rows || [], rowId: 'id', floatingFilter: true }, opts || {});
+        this.grids[key] = global.LuvuGrid.create(node, o);
       },
 
       mountGrid: function (key, elId, columns, rows, selectable) {
@@ -646,6 +704,7 @@
           },
           animateRows: true,
           suppressCellFocus: true,
+          statusBar: (global.LuvuGrid && global.LuvuGrid.enterprise) ? { statusPanels: [{ statusPanel: 'agTotalAndFilteredRowCountComponent', align: 'left' }] } : undefined,
           rowHeight: 44,
           headerHeight: 42,
           overlayNoRowsTemplate: '<span class="text-sm text-muted">No rows yet</span>',
@@ -1266,30 +1325,11 @@ pushToast: function (message, icon) {
 
       openDecision: async function () {
         if (this.decisionBusy || this.decisionOpen) return;
-        var UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
         var row = null, i;
         var sel = this.selectedRow;
-        // API lifecycle is normalized to "Settled" for ACTIVE — never require raw "ACTIVE"
-        var isEligible = function (r) {
-          if (!r || !UUID.test(String(r.id))) return false;
-          var type = String(r.type || '').toLowerCase();
-          if (type !== 'charge' && type !== 'payment' && type.indexOf('charge') === -1) return false;
-          if (Number(r.amount_minor) <= 0) return false;
-          var st = String(r.status || '').toLowerCase();
-          if (!(st === 'completed' || st === 'succeeded' || st === 'captured' || st === 'active')) return false;
-          var life = String(normalizeLifecycle(r.lifecycle) || r.lifecycle || '').toLowerCase();
-          if (life.indexOf('settled') !== -1 || life.indexOf('active') !== -1) return true;
-          if (life.indexOf('grace') !== -1 || life.indexOf('retain') !== -1) return true;
-          if (String(r.lifecycle || '').toUpperCase() === 'ACTIVE') return true;
-          return false;
-        };
-        if (sel && isEligible(sel)) row = sel;
-        if (!row) {
-          for (i = 0; i < this.rowData.length; i++) {
-            var r = this.rowData[i];
-            if (isEligible(r)) { row = r; break; }
-          }
-        }
+        var eligible = this.journeyEligibleRows;
+        if (sel && eligible.some(function (r) { return r.id === sel.id; })) row = sel;
+        if (!row && eligible.length) row = eligible[0];
         if (!row) {
           this.pushToast('No active subscription charge yet. Finish a checkout (PayPal as BUYER) or run Simulate 30 days first', 'err');
           return;
@@ -1297,7 +1337,7 @@ pushToast: function (message, icon) {
 
         // Step 1: choose WHO and WHEN on the missed-cancellation timeline, then start.
         var self0 = this;
-        var rowsForPick = (this.rowData || []).filter(isEligible).slice(0, 50);
+        var rowsForPick = eligible.slice(0, 50);
         var cur0 = row.currency || PROJECT.currency || 'USD';
         this.journeySetup = {
           rowId: row.id, hours: 48,
@@ -1411,8 +1451,8 @@ pushToast: function (message, icon) {
         this.journey.nudge = g.ai_nudge || '';
         this.journey.stage = j.stage || null;
 
-        this.logDecision('[Timeline · ' + (stg0.label || '') + '] Next charge ' + this.journey.amount + ' · current period ends ' + (stg0.expires_at ? new Date(stg0.expires_at).toLocaleString() : '') + '. [Webhook] subscription.renewal_scheduled', 'warn');
-        this.journeyEvents(j.recent_events, seen, 'warn');
+        this.logDecision('[Timeline · ' + (stg0.label || '') + '] Next charge ' + this.journey.amount + ' · current period ends ' + (stg0.expires_at ? new Date(stg0.expires_at).toLocaleString() : '') + '. [Webhook] subscription.renewal_scheduled', 'gold');
+        this.journeyEvents(j.recent_events, seen, 'blue');
         await sleep(350);
         var rem = stg0.reminder;
         var emailNote = { sent: 'Reminder email sent to ', skipped_demo_address: 'Email not sent: demo address ', throttled: 'Email held back (hourly limit) for ', failed: 'Email could not be sent to ', disabled: 'Email is turned off for ' };
@@ -1443,7 +1483,9 @@ pushToast: function (message, icon) {
       choose: async function (choice) {
         if (!this.decisionRow || !this.decisionReady || this.decisionBusy) return;
         var labels = { renew: 'Retry Payment', split_pay: 'Split pay', partial_refund: 'Partial Refund', resale: 'Resell Remaining Access', donate: 'Donate to Charity', cancel: 'Let it expire' };
-        var label = labels[choice] || choice;
+        var st0 = this.journey && this.journey.stage;
+        var opt0 = st0 && st0.options && st0.options.find(function (o) { return o.id === (choice === 'cancel' ? 'expire' : choice); });
+        var label = (opt0 && opt0.label) || labels[choice] || choice;
         this.selectedAction = label;
         this.decisionBusy = true;
         this.logDecision('[User Action] ' + this.journey.name + ' selected: ' + label, 'blue');
@@ -1474,6 +1516,99 @@ pushToast: function (message, icon) {
       },
 
 
+      /** A paid subscription charge the renewal journey can start from. Reactive: recomputed whenever rows change. */
+      isJourneyEligible: function (r) {
+        var UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (!r || !UUID.test(String(r.id))) return false;
+        var type = String(r.type || '').toLowerCase();
+        if (type !== 'charge' && type !== 'payment' && type.indexOf('charge') === -1) return false;
+        if (Number(r.amount_minor) <= 0) return false;
+        var st = String(r.status || '').toLowerCase();
+        if (!(st === 'completed' || st === 'succeeded' || st === 'captured' || st === 'active')) return false;
+        var life = String(normalizeLifecycle(r.lifecycle) || r.lifecycle || '').toLowerCase();
+        return life.indexOf('settled') !== -1 || life.indexOf('active') !== -1 || life.indexOf('retain') !== -1 || String(r.lifecycle || '').toUpperCase() === 'ACTIVE';
+      },
+
+      get journeyEligibleRows() {
+        var self = this;
+        var rows = this.rowData || [];
+        // a paid charge whose renewal is already resolved cannot start another journey; the renewal itself can
+        var resolved = {};
+        rows.forEach(function (r) { if (r && r.renewal_of && ['pending', 'held'].indexOf(String(r.status)) === -1) resolved[r.renewal_of] = true; });
+        return rows.filter(function (r) { return self.isJourneyEligible(r) && !resolved[r.id]; });
+      },
+
+      get canStartJourney() { return this.journeyEligibleRows.length > 0; },
+
+      get timelineStations() {
+        return [
+          { h: 168, l: '7d', long: '7 days before' }, { h: 72, l: '3d', long: '3 days before' }, { h: 48, l: '48h', long: '48 hours before' },
+          { h: 6, l: '6h', long: '6 hours before' }, { h: -25, l: '+1 day', long: '1 day after expiry' }, { h: -49, l: 'Close', long: 'Window closed' }
+        ];
+      },
+
+      stationState: function (h) {
+        var st = this.journey && this.journey.stage ? this.journey.stage.stage : null;
+        if (!st) return '';
+        var order = [168, 72, 48, 6, -25, -49];
+        var active = { d7: 0, d3: 1, h48: 2, h6: 3, lapsed: 3.5, grace_open: 4, expired: 5 }[st];
+        var i = order.indexOf(h);
+        if (active === undefined || i < 0) return '';
+        return i === active ? 'is-on' : (i < active ? 'is-past' : '');
+      },
+
+      fmtMinor: function (m) { return money(Number(m) || 0, (this.journey && this.journey.currency) || PROJECT.currency || 'USD'); },
+
+      optHint: function (o) {
+        var e = o.effect || {};
+        switch (o.id) {
+          case 'renew': return (this.journey.stage && this.journey.stage.is_reminder && this.journey.stage.stage !== 'grace_open' ? 'Pay ' : 'Retry ') + this.fmtMinor(this.journey.amountMinor) + ' now';
+          case 'split_pay': return this.fmtMinor(e.wallet_delta_minor) + ' now · ' + this.fmtMinor(e.later_minor) + ' later';
+          case 'partial_refund': return 'Get ' + this.fmtMinor(e.refund_minor) + ' back';
+          case 'resale': return e.asking_minor ? 'List access for ' + this.fmtMinor(e.asking_minor) : 'List the remaining access';
+          case 'donate': return 'Donate ' + this.fmtMinor(e.donation_minor);
+          case 'expire': return e.subscription === 'cancelled' ? 'No charge · access until period end' : 'No charge · subscription ends';
+          default: return o.description || '';
+        }
+      },
+
+      optIcon: function (id) {
+        return {
+          renew: 'M3 7.5A2.5 2.5 0 0 1 5.5 5h13A2.5 2.5 0 0 1 21 7.5v9a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 16.5z M3 10h18 M7 15h3',
+          split_pay: 'M12 3a9 9 0 1 0 9 9h-9z M15.5 3.6A9 9 0 0 1 20.4 8.5H15.5z',
+          partial_refund: 'M4 4v5h5 M4.6 9A8 8 0 1 1 4 12',
+          resale: 'M4 8h13l-3-3 M20 16H7l3 3',
+          donate: 'M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z',
+          expire: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M9 9l6 6 M15 9l-6 6'
+        }[id] || 'M12 5v14 M5 12h14';
+      },
+
+      reminderEmailText: function () {
+        var r = this.journey && this.journey.stage && this.journey.stage.reminder;
+        if (!r || !r.email) return { text: '', ok: false };
+        var map = { sent: '✉ Emailed to ' + (r.email.to || 'subscriber'), skipped_demo_address: 'Email skipped (demo address)', throttled: 'Email held back (hourly limit)', failed: 'Email could not be sent', disabled: 'Email turned off' };
+        return { text: map[r.email.status] || r.email.status, ok: r.email.status === 'sent' };
+      },
+
+      renewalLine: function () {
+        var st = this.journey && this.journey.stage;
+        if (!st) return '';
+        var d = st.expires_at ? new Date(st.expires_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+        if (st.stage === 'lapsed') return 'Renewal payment failed · we are retrying';
+        if (st.stage === 'grace_open') return 'Expired ' + d + ' · choose how to continue';
+        if (st.stage === 'expired') return 'Window closed';
+        return 'Renews ' + d;
+      },
+
+      lockNote: function () {
+        var st = this.journey && this.journey.stage;
+        if (!st) return '';
+        if (st.stage === 'lapsed') return 'We are retrying your payment. Recovery options unlock 1 day after your subscription expires.';
+        if (st.stage === 'expired') return 'The window has closed.';
+        if (st.stage !== 'grace_open') return 'Refund, resale and donation unlock 1 day after your subscription expires.';
+        return '';
+      },
+
       /** Is this option open at the current point of the timeline? (the server enforces the same rule) */
       optOk: function (id) {
         var st = this.journey && this.journey.stage;
@@ -1497,7 +1632,7 @@ pushToast: function (message, icon) {
         this.decisionBusy = false;
         if (!j) { this.logDecision('[Error] ' + (this.simMsg || 'Could not move the timeline'), 'warn'); return; }
         if (j.row) this.applyRow(j.row, false);
-        this.journeyEvents(j.recent_events, this._journeySeen || {}, 'warn');
+        this.journeyEvents(j.recent_events, this._journeySeen || {}, 'blue');
         if (j.stage && j.stage.reminder && j.stage.reminder.email) this.logDecision('[Email] ' + (j.stage.reminder.email.status === 'sent' ? 'Reminder emailed to ' + (j.stage.reminder.email.to || '') : 'Email ' + j.stage.reminder.email.status), j.stage.reminder.email.status === 'sent' ? 'green' : 'warn');
         if (j.closed) {
           this.logDecision('[Timeline · Window closed] ' + (j.message || 'Subscription expired'), 'warn');
@@ -1683,12 +1818,17 @@ pushToast: function (message, icon) {
         this.receiptOpen = true;
       },
 
-      openWebhookLogs: function () { this.webhookOpen = true; },
+      openWebhookLogs: function () {
+        this.webhookOpen = true;
+        var self = this;
+        this.$nextTick(function () { self.syncGrid('wh', 'grid-wh', webhookColumns(), self.webhookLogs, { rowId: null, height: 420, floatingFilter: true, noRowsText: 'No events yet - run a sandbox test' }); });
+      },
 
       loadDeliveries: async function () {
         var res = await request('GET', 'webhook-deliveries').catch(function () { return { ok: false, data: {} }; });
         this.deliveries = (res.ok && res.data.data) ? res.data.data : [];
         this.deliveriesLoaded = true;
+        this.syncGrid('dl', 'grid-dl', deliveryColumns(this), this.deliveries, { rowId: 'id', noRowsText: 'No deliveries yet' });
       },
 
       retryDelivery: async function (id) {

@@ -61,8 +61,8 @@ final class GraceStagePlanner
         $h = self::hoursToExpiry($sub->current_period_end ?? null, $now);
         $key = $h === null ? 'grace_open' : self::keyForHoursToExpiry($h);
         $cfg = (array) config('luvupay.grace_stages.'.$key);
-        $held = $renewal->status === 'held';
-        $allowed = $held ? (array) ($cfg['choices'] ?? []) : [];
+        $allowed = in_array($renewal->status, ['pending', 'held'], true) ? (array) ($cfg['choices'] ?? []) : [];
+        $before = in_array($key, ['d7', 'd3', 'h48', 'h6'], true);
         $amount = (int) $renewal->amount_minor;
         $cur = trim((string) $renewal->currency) ?: 'USD';
         $fmt = fn (int $m) => (strtoupper($cur) === 'USD' ? '$' : '').number_format($m / 100, 2).(strtoupper($cur) === 'USD' ? '' : ' '.$cur);
@@ -117,12 +117,12 @@ final class GraceStagePlanner
         }
 
         $options = [
-            $opt('renew', 'Retry payment', 'Collect the renewal and extend the subscription by one period.', ['wallet_delta_minor' => $amount, 'subscription' => 'active']),
-            $opt('split_pay', 'Split pay', 'Down payment now, the rest later; access continues while the plan is current.', ['wallet_delta_minor' => $split['now_minor'] ?? 0, 'later_minor' => $split['later_minor'] ?? 0, 'next_due_at' => $split['next_due_at'] ?? null, 'subscription' => 'active'], $split !== null, $splitWhy),
+            $opt('renew', $before ? 'Pay now' : 'Retry payment', $before ? 'Pay the next period now and keep your access without interruption.' : 'Collect the renewal and extend the subscription by one period.', ['wallet_delta_minor' => $amount, 'subscription' => 'active']),
+            $opt('split_pay', 'Split pay', $before ? 'Pay part of the next period now and the rest later.' : 'Down payment now, the rest later; access continues while the plan is current.', ['wallet_delta_minor' => $split['now_minor'] ?? 0, 'later_minor' => $split['later_minor'] ?? 0, 'next_due_at' => $split['next_due_at'] ?? null, 'subscription' => 'active'], $split !== null, $splitWhy),
             $opt('partial_refund', 'Partial refund ('.(int) round($project->partialRefundBps / 100).'%)', 'Subscriber cancels and gets part of the renewal back.', ['wallet_delta_minor' => $amount - $refund, 'refund_minor' => $refund, 'subscription' => 'cancelled']),
             $opt('resale', 'Resell remaining', 'List the next period\'s access; the renewal is released to you when it sells.', ['wallet_delta_minor' => $amount, 'asking_minor' => $ask, 'wallet_when' => 'on_sale', 'subscription' => 'resold'], $ask !== null, $askWhy),
             $opt('donate', 'Donate residual', 'Subscriber cancels; a share of the renewal is donated.', ['wallet_delta_minor' => $amount - $donate, 'donation_minor' => $donate, 'subscription' => 'cancelled'], $project->charitySplit, 'Charity Split is off in Settings'),
-            $opt('expire', 'Let it expire', 'Nothing is collected and the subscription ends.', ['wallet_delta_minor' => 0, 'subscription' => 'expired']),
+            $opt('expire', $before ? 'Cancel renewal' : 'Let it expire', $before ? 'Cancel before it renews: nothing is charged and access continues until the current period ends.' : 'Nothing is collected and the subscription ends.', ['wallet_delta_minor' => 0, 'subscription' => $before ? 'cancelled' : 'expired']),
         ];
 
         $reminder = $meta['reminders'][$key] ?? null;

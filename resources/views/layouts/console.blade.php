@@ -51,6 +51,7 @@
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; form-action 'self'; base-uri 'self'; object-src 'none'">
     <title>@yield('title', 'Console') · LuvuPay</title>
     <link rel="stylesheet" href="/css/ui.css?v={{ @filemtime(public_path('css/ui.css')) }}">
+    @include('partials.ag-grid-head')
     @stack('head')
     <link rel="stylesheet" href="/css/console.css?v={{ @filemtime(public_path('css/console.css')) }}">
     <link rel="stylesheet" href="/css/loader.css?v={{ @filemtime(public_path('css/loader.css')) }}">
@@ -117,6 +118,7 @@
 
 
 
+@include('partials.ag-grid-scripts')
 @stack('scripts')
 
 

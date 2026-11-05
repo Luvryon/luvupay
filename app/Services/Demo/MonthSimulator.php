@@ -227,7 +227,7 @@ final class MonthSimulator
     {
         $id = (string) Str::uuid();
         $receiptId = (string) Str::uuid();
-        $charityName = DB::table('charity_wallets')->where('is_active', true)->value('name') ?: 'Ocean Cleanup Alliance';
+        $charityName = DB::table('charity_wallets')->where('is_active', true)->value('name') ?: (string) config('luvupay.smart_convert.charity_label', 'Example Charity (sandbox)');
         $ref = 'PAYPAL-CHARITY-'.strtoupper(Str::random(8));
         DB::table('transactions')->insert([
             'id' => $id, 'merchant_id' => $m, 'subscription_id' => $subId, 'parent_transaction_id' => $parent, 'type' => 'charity_payout',

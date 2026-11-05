@@ -28,6 +28,11 @@ Route::get('/marketplace/listings/{id}/verify', [MarketplaceController::class, '
 Route::get('/marketplace/paypal/return', [MarketplaceController::class, 'paypalReturn'])->name('marketplace.paypal.return');
 Route::get('/marketplace/paypal/cancel', [MarketplaceController::class, 'paypalCancel'])->name('marketplace.paypal.cancel');
 
+// AI Negotiation Evidence: public, read-only, unguessable UUID, no PII (see EvidenceController)
+Route::get('/evidence/latest', [\App\Http\Controllers\EvidenceController::class, 'latest'])->middleware('throttle:30,1,evidence0')->name('evidence.latest');
+Route::get('/evidence/smart-convert/{run}.json', [\App\Http\Controllers\EvidenceController::class, 'smartConvertJson'])->whereUuid('run')->middleware('throttle:60,1,evidence1')->name('evidence.smart-convert.json');
+Route::get('/evidence/smart-convert/{run}', [\App\Http\Controllers\EvidenceController::class, 'smartConvert'])->whereUuid('run')->middleware('throttle:60,1,evidence2')->name('evidence.smart-convert');
+
 Route::middleware('guest:merchant_web')->group(function () {
     Route::get('/login', [MerchantAuthController::class, 'showLogin'])->name('login');
     Route::post('/login', [MerchantAuthController::class, 'login'])->middleware('throttle:20,1,web32');

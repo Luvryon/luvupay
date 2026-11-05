@@ -85,3 +85,18 @@ Wallet = charges − partial refunds − charity − withdrawals + resale fees.
 - `phpunit.xml` now carries a valid test env (sqlite in memory, APP_KEY, mock driver). New `tests/Feature/CheckoutFlowTest.php` (6 tests): mock checkout, webhook-vs-return race, vanished checkout, tenant isolation, cancel, paypal-without-credentials.
 
 No migration needed. After deploy: `php artisan config:clear && php artisan route:clear`.
+
+## AG Grid everywhere (tables)
+- Every table now renders with AG Grid (Team, Wallet, Resale, Analytics, Subscriptions, Dashboard ledger / resale / webhook deliveries / webhook debugger, Invoice, Smart Convert evidence, all docs tables).
+- Shared wrapper: `public/js/ag-grid-luvu.js` (`LuvuGrid.create`, `LuvuGrid.fromTable`) + `public/css/ag-grid-luvu.css`.
+- Layouts `console` and `docs` load the grid assets through `partials/ag-grid-head` / `partials/ag-grid-scripts`; the per-page includes were removed.
+- Licence key: set `AG_GRID_LICENSE_KEY="..."` in `.env` (read via `config('services.ag_grid.license_key')`, rendered as `<meta name="ag-grid-license">`).
+- Enterprise bundle added at `public/assets/ag-grid-32.3.3/ag-grid-enterprise.min.noStyle.js` (same 32.3.3 version). If that file is missing the pages fall back to Community automatically.
+- Removed the unused `x-ui.table` Blade component.
+
+## Hero story: donation stage, Postman, docs
+- New visible **Donation** stage: stepper + card in the Smart-Convert panel, `5 · Donation` section on the evidence page, `donation` block in the run JSON and API response.
+- The recipient is an example: `SMART_CONVERT_CHARITY_LABEL` (default *Example Charity (sandbox)*), `SMART_CONVERT_CHARITY_EXAMPLE=true`. Removed the hard-coded "Ocean Cleanup Alliance" name.
+- New Postman collection (27 requests with assertions) + environment in `postman/` and `public/postman/`; guide in `docs/POSTMAN.md`.
+- README, DEMO.md, DEMO_FLOW.md, runbook, Devpost draft and evidence doc now tell one story.
+- Tests: `SmartConvertEvidenceTest` covers the donation stage (example label, awaiting approval, not sent when rejected).

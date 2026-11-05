@@ -187,8 +187,7 @@
                         <button type="button" class="c-btn c-btn-brand" x-on:click="save()" x-bind:disabled="saving || !name.trim()">
                             <span x-text="saving ? 'Saving…' : (isSet ? 'Save project' : 'Create project')"></span>
                         </button>
-                        <span x-show="saved" x-cloak class="dim" style="color:#0f8f5f">Saved. Overview and Analytics now use these settings</span>
-                        <span x-show="error" x-cloak style="color:#b4232f;font-size:.85rem" x-text="error"></span>
+                        <span x-show="error" x-cloak role="alert" style="color:#b4232f;font-size:.85rem" x-text="error"></span>
                     </div>
                 </div>
             </section>

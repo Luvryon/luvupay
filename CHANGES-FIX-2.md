@@ -64,3 +64,17 @@ dan hitungannya salah. Sekarang:
 - PayPal "checkout expired": HTTP 404 dari PayPal sandbox untuk checkout yang baru dibuat sekarang dianggap jeda (dicoba lagi),
   baru dianggap kedaluwarsa setelah 20 menit.
 - Baris cicilan sekarang berlabel "Instalment 1 of 2 (paid)", bukan "Split pay (instalments)".
+
+## Ronde berikutnya (tombol journey, phone, toast, aksi di tahap reminder)
+- Tombol "Missed cancellation journey": sebelumnya mati setelah ada baris yang dipilih karena membandingkan
+  `selectedLifecycle !== 'ACTIVE'` (label sudah dinormalisasi, tidak pernah sama), jadi baru aktif setelah reload.
+  Sekarang aktif secara reaktif dari baris yang ada (`journeyEligibleRows`), menampilkan "Loading…" saat data dimuat.
+- Tahap reminder (7d/3d/48h/6h) sekarang bisa diklik di phone: Pay now, Split pay, Cancel renewal (data ledger,
+  wallet, langganan ikut berubah). Refund/resale/donasi tetap terkunci sampai +1 hari setelah expire.
+- Phone didesain ulang (frame titanium, dynamic island, notifikasi ala lock screen yang bisa dibuka, kartu "Next charge",
+  opsi dari data server, AI Concierge). CSS sendiri di `public/css/journey-luxe.css`: class Tailwind yang sebelumnya dipakai
+  (mis. border-amber-300, border-indigo-600) memang tidak ada di CSS hasil build sehingga tampilan "biasa".
+- Simpan/buat project sekarang memakai toast (sebelumnya teks inline). Error validasi juga toast.
+- Log webhook di panel Backend tidak lagi berwarna merah (merah hanya untuk error).
+- Diuji di browser asli (headless Chromium) + jsdom: alur journey, chip timeline, opsi phone, navigasi AJAX antar halaman
+  (dokumen tidak reload, tombol back jalan), toast project.

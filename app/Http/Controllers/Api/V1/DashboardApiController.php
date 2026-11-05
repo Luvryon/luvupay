@@ -250,6 +250,7 @@ final class DashboardApiController
                 'smart_convert' => $meta['smart_convert'] ?? null,
                 'split' => $meta['split'] ?? null,
                 'decision' => $meta['decision'] ?? null,
+                'renewal_of' => $meta['renewal_of'] ?? null,
             ];
         })->values()]);
     }

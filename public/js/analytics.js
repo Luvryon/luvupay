@@ -15,6 +15,37 @@
         var n = (Math.abs(Number(minor) || 0) / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         return cur === 'USD' ? '$' + n : n + ' ' + cur;
       },
+      recentGrid: null,
+      recentRows: function () {
+        return (this.d.recent || []).map(function (r, i) {
+          return {
+            _id: String(i),
+            when: String(r.created_at || r.date || '').replace('T', ' ').slice(0, 16),
+            type: r.type || r.event || '—',
+            customer: r.email || r.display_name || '—',
+            amount_minor: Number(r.amount_minor || r.amount || 0),
+            currency: r.currency,
+            status: r.status || r.lifecycle || '—',
+          };
+        });
+      },
+      syncRecent: function () {
+        var host = document.getElementById('grid-recent');
+        if (!host || !window.LuvuGrid || !this.hasData) return;
+        var self = this, G = window.LuvuGrid, rows = this.recentRows();
+        if (this.recentGrid && host.__lg === this.recentGrid) { G.setRows(this.recentGrid, rows); return; }
+        this.recentGrid = G.create(host, {
+          columns: [
+            { field: 'when', headerName: 'When', width: 170, cellClass: 'lg-mono', sort: 'desc' },
+            { field: 'type', headerName: 'Type', flex: 1, minWidth: 140, cellStyle: { fontWeight: '600' } },
+            { field: 'customer', headerName: 'Customer', flex: 1.2, minWidth: 180 },
+            { field: 'amount_minor', headerName: 'Amount', width: 140, type: 'rightAligned', filter: 'agNumberColumnFilter',
+              valueFormatter: function (p) { return self.money(p.value, p.data && p.data.currency); }, cellStyle: { fontWeight: '700' } },
+            { field: 'status', headerName: 'Status', width: 140, cellRenderer: G.badge(), filter: G.enterprise ? 'agSetColumnFilter' : true },
+          ],
+          rows: rows, rowId: '_id', pageSize: 10, height: 520, noRowsText: 'No recent rows in this range',
+        });
+      },
       load: async function () {
         this.loading = true; this.error = '';
         try {
@@ -22,6 +53,8 @@
           if (!res.ok) throw new Error('Analytics request failed (HTTP ' + res.status + ')');
           this.d = await res.json();
           this.loaded = true;
+          var me = this;
+          this.$nextTick(function () { me.syncRecent(); });
         } catch (e) { this.error = String(e.message || e); this.loaded = true; }
         finally { this.loading = false; }
       },

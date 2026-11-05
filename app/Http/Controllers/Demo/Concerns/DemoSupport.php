@@ -70,6 +70,7 @@ trait DemoSupport
             'ai_nudge' => $meta['ai_nudge'] ?? null,
             'split' => $meta['split'] ?? null,
             'decision' => $meta['decision'] ?? null,
+            'renewal_of' => $meta['renewal_of'] ?? null,
             'display_name' => $meta['display_name'] ?? null,
             'product' => $meta['product'] ?? MerchantProject::current()->product(),
             'invoice_id' => $inv->id ?? null,

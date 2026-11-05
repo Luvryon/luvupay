@@ -235,7 +235,7 @@ class LifecycleMoneyTest extends BaseTestCase
         $this->assertSame($charges + $inst - $charity - $refunds, $k['wallet_balance_minor']);
     }
 
-    public function test_reminder_stages_have_no_options_and_the_renewal_is_not_money(): void
+    public function test_reminder_stages_allow_only_pay_split_or_cancel_and_the_renewal_is_not_money(): void
     {
         [$tx, $sub, $paid] = $this->held();
         $journey = app(\App\Services\Luvu\RenewalJourney::class);
@@ -243,17 +243,53 @@ class LifecycleMoneyTest extends BaseTestCase
             $plan = $journey->moveTo($this->m, $tx, $hours, MerchantProject::forMerchant($this->m))['plan'];
             $this->assertSame($stage, $plan['stage']);
             $this->assertSame('pending', DB::table('transactions')->where('id', $tx)->value('status'));
-            $this->assertSame([], array_values(array_filter($plan['options'], fn ($o) => $o['available'])), $stage.' is reminder only');
+            $this->assertSame(['renew', 'split_pay', 'expire'], array_column(array_filter($plan['options'], fn ($o) => $o['available']), 'id'), $stage.': only pay now, split, cancel');
             $this->assertNotEmpty($plan['reminder']['body'] ?? null, 'a reminder is generated for '.$stage);
-            try {
-                $this->decide($tx, 'renew');
-                $this->fail('options must be locked at '.$stage);
-            } catch (\RuntimeException $e) {
-                $this->assertStringContainsString('not due yet', $e->getMessage());
+            foreach (['partial_refund', 'resale', 'donate'] as $locked) {
+                try {
+                    $this->decide($tx, $locked);
+                    $this->fail($locked.' must be locked at '.$stage);
+                } catch (\RuntimeException $e) {
+                    $this->assertStringContainsString('not available at this stage', $e->getMessage());
+                }
             }
             $this->assertSame(2000, $this->metrics()['wallet_balance_minor'], 'paid period untouched at '.$stage);
         }
         $this->assertSame('completed', DB::table('transactions')->where('id', $paid)->value('status'));
+    }
+
+    public function test_paying_early_extends_the_subscription_and_adds_the_next_period_to_the_wallet(): void
+    {
+        [$tx, $sub] = $this->held();
+        app(\App\Services\Luvu\RenewalJourney::class)->moveTo($this->m, $tx, 72, MerchantProject::forMerchant($this->m));
+        $end = DB::table('subscriptions')->where('id', $sub)->value('current_period_end');
+        $this->decide($tx, 'renew');
+        $this->assertSame(4000, $this->metrics()['wallet_balance_minor']);
+        $this->assertTrue(\Illuminate\Support\Carbon::parse(DB::table('subscriptions')->where('id', $sub)->value('current_period_end'))->gt(\Illuminate\Support\Carbon::parse($end)->addDays(25)));
+        $this->assertSame('active', DB::table('subscriptions')->where('id', $sub)->value('status'));
+    }
+
+    public function test_cancelling_the_renewal_in_time_bills_nothing_and_keeps_access_to_the_end_of_the_period(): void
+    {
+        [$tx, $sub] = $this->held();
+        app(\App\Services\Luvu\RenewalJourney::class)->moveTo($this->m, $tx, 168, MerchantProject::forMerchant($this->m));
+        $end = DB::table('subscriptions')->where('id', $sub)->value('current_period_end');
+        $r = $this->decide($tx, 'expire');
+        $this->assertStringContainsString('Nothing was billed', $r['message']);
+        $this->assertSame('cancelled', DB::table('subscriptions')->where('id', $sub)->value('status'));
+        $this->assertSame($end, DB::table('subscriptions')->where('id', $sub)->value('current_period_end'), 'access runs to the original expiry');
+        $this->assertSame(2000, $this->metrics()['wallet_balance_minor']);
+    }
+
+    public function test_splitting_the_next_payment_before_expiry(): void
+    {
+        [$tx, $sub] = $this->held();
+        app(\App\Services\Luvu\RenewalJourney::class)->moveTo($this->m, $tx, 48, MerchantProject::forMerchant($this->m));
+        $plan = $this->decide($tx, 'split_pay')['plan'];
+        $this->assertSame(2000 + 1000, $this->metrics()['wallet_balance_minor']);
+        $this->assertSame('active', DB::table('subscriptions')->where('id', $sub)->value('status'));
+        $this->assertTrue(app(\App\Services\Luvu\SplitPayService::class)->payInstallment($this->m, $plan['plan_id'], 2)['completed']);
+        $this->assertSame(4000, $this->metrics()['wallet_balance_minor']);
     }
 
     public function test_options_are_locked_until_one_day_after_expiry_then_all_open(): void

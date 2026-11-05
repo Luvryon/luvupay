@@ -47,64 +47,22 @@
         var data = this.filtered();
         var el = document.getElementById('grid-subs');
         if (!el) return;
-        if (typeof agGrid !== 'undefined' && agGrid.createGrid) {
-          if (this.grid) { try { this.grid.destroy(); } catch (e) {} this.grid = null; }
-          this.grid = agGrid.createGrid(el, {
-            rowData: data,
-            defaultColDef: { sortable: true, filter: true, resizable: true },
-            columnDefs: [
-              { field: 'display_name', headerName: 'Name', flex: 1.2, minWidth: 140 },
-              { field: 'email', headerName: 'Email', flex: 1.4, minWidth: 160 },
-              { field: 'project', headerName: 'Project', flex: 1, minWidth: 120 },
-              { field: 'plan', headerName: 'Plan', width: 110 },
-              {
-                field: 'status', headerName: 'Status', width: 130,
-                cellRenderer: function (p) {
-                  var s = p.value || '';
-                  var color = s === 'Active' ? '#0f8f5f' : s === 'At Risk' ? '#b45309' : s === 'AI-Retained' ? '#5b3df5' : '#b4232f';
-                  var span = document.createElement('span');
-                  span.style.cssText = 'font-weight:600;color:' + color;
-                  span.textContent = s;
-                  return span;
-                },
-              },
-              { field: 'ltv_minor', headerName: 'LTV', width: 100, valueFormatter: function (p) { return money(p.value); } },
-            ],
-            animateRows: true,
-            suppressCellFocus: true,
-          });
-        } else {
-          // Safe DOM fallback when AG Grid assets missing (no innerHTML)
-          while (el.firstChild) el.removeChild(el.firstChild);
-          var table = document.createElement('table');
-          table.className = 'w-full text-sm text-left';
-          var thead = document.createElement('thead');
-          var hr = document.createElement('tr');
-          hr.className = 'text-xs text-slate-500 uppercase';
-          ['Name', 'Email', 'Status', 'LTV'].forEach(function (label) {
-            var th = document.createElement('th');
-            th.className = 'p-3';
-            th.textContent = label;
-            hr.appendChild(th);
-          });
-          thead.appendChild(hr);
-          table.appendChild(thead);
-          var tbody = document.createElement('tbody');
-          data.forEach(function (r) {
-            var tr = document.createElement('tr');
-            tr.className = 'border-t border-slate-100';
-            [r.display_name || '—', r.email || '', r.status || '', money(r.ltv_minor)].forEach(function (val, idx) {
-              var td = document.createElement('td');
-              td.className = idx === 0 ? 'p-3 font-medium' : 'p-3';
-              td.textContent = val;
-              tr.appendChild(td);
-            });
-            tbody.appendChild(tr);
-          });
-          table.appendChild(tbody);
-          el.appendChild(table);
-          el.style.height = 'auto';
-        }
+        var G = window.LuvuGrid;
+        if (!G) return;
+        this.grid = G.create(el, {
+          rows: data, rowId: 'id', pageSize: 15, height: 560, floatingFilter: true,
+          noRowsText: 'No subscribers match this filter',
+          columns: [
+            { field: 'display_name', headerName: 'Name', flex: 1.2, minWidth: 140 },
+            { field: 'email', headerName: 'Email', flex: 1.4, minWidth: 160 },
+            { field: 'project', headerName: 'Project', flex: 1, minWidth: 120 },
+            { field: 'plan', headerName: 'Plan', width: 120 },
+            { field: 'status', headerName: 'Status', width: 140, cellRenderer: G.badge({ 'active': 'ok', 'at risk': 'warn', 'ai-retained': 'info', 'churned': 'bad' }),
+              filter: G.enterprise ? 'agSetColumnFilter' : true },
+            { field: 'ltv_minor', headerName: 'LTV', width: 120, type: 'rightAligned', filter: 'agNumberColumnFilter',
+              valueFormatter: function (p) { return money(p.value); } },
+          ],
+        });
       },
     };
   };

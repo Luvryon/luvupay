@@ -8,19 +8,37 @@
 
 ---
 
-## Why LuvuPay?
+## The one story: AI proposes, rules decide, PayPal pays, everything is auditable
 
-Recurring billing is powerful — and easy to abuse by accident. Customers forget to cancel; merchants keep the charge; trust erodes.
+A subscriber forgot to cancel. A refund means a chargeback fee and a lost customer. LuvuPay **Smart-Convert** handles it in six visible steps:
 
-LuvuPay sits between the payment provider and the merchant to:
+```
+1 Subscriber forgot ─► 2 AI proposes ─► 3 Guardrails / you decide ─► 4 PayPal Payouts pays ─► 5 Donation ─► 6 Audit trail
+```
 
-1. **Second Chance (48h)** — intercept a forgotten renewal, offer a fair split (user / charity / merchant), auto-cancel.
-2. **Resale Marketplace** — sell remaining days instead of wasting them.
-3. **Zero-Trust Entitlement Bridge** — transfer access via signed webhooks; no shared DB.
-4. **Adaptive Nudge** — pause serial forgetters 72h before billing.
-5. **Invisible UX** — no end-user LuvuPay accounts; map `merchant_user_id` + email.
+| Step | What happens | Where you see it |
+|---|---|---|
+| 2 · AI proposes | NVIDIA Nemotron (Nebius) splits the unused value into **store credit / charity / fee** and states why | result card, `ai.rationale` |
+| 3 · Guardrails / you decide | Deterministic policy caps fee and charity share. In approval mode the merchant approves, **lowers the donation**, or rejects. The model never touches money | `split.model_raw` vs final split, `guardrail_adjustments` |
+| 4 · PayPal pays | PayPal Payouts (sandbox) executes the charity share; the batch is read back from PayPal | `paypal.payout_batch_id` |
+| 5 · Donation | A visible stage with amount, share of the unused value, receipt id and status | donation card, `donation` block |
+| 6 · Audit trail | Public read-only evidence page + JSON, ledger rows, webhook event | `/evidence/smart-convert/{run}` |
 
-Built for international judges, auditors, and external developers — with Stripe-grade docs, idempotency, and hash-chained audit logs.
+> **The donation is an example.** The recipient is shown as *Example Charity (sandbox)* with an **EXAMPLE · SANDBOX** tag on every surface, and PayPal Sandbox moves test money only. No real organisation is named or paid. Change the label with `SMART_CONVERT_CHARITY_LABEL`; set `SMART_CONVERT_CHARITY_EXAMPLE=false` only when you really configured a recipient.
+
+**Run it in two minutes** (needs `LUVUPAY_DEMO_SIMULATOR=true`, `NEBIUS_API_KEY`, and for real payouts `LUVUPAY_PAYMENT_DRIVER=paypal` + sandbox credentials; see [DEMO.md](DEMO.md)):
+
+1. Sign in at `/dashboard` (`owner@demomerchant.test` / `SecurePass1` after seeding).
+2. Click **Check readiness (live AI ping)**, tick **Require my approval**, then **Run AI Smart-Convert Protocol**.
+3. Lower the donation, **Approve**, then open the **AI Negotiation Evidence** page.
+
+**Test it for real in Postman** (no code): import `postman/LuvuPay.postman_collection.json` and `postman/LuvuPay.postman_environment.json`, pick the *LuvuPay · Local / Render* environment, set `base_url`, then **Run collection**. Folder 1 walks the whole story above with assertions (split adds up, donation lowered never raised, double-approve refused with 409, evidence matches the PayPal batch id, no email leaks). Folder 2 covers the API-key endpoints (idempotency, auth); folder 3 covers security checks. Set the variable `require_real=false` to run it against the mock driver. Details: [docs/POSTMAN.md](docs/POSTMAN.md).
+
+### Supporting features (not needed for the story above)
+
+Second Chance (48h refund split), Resale Marketplace, Zero-Trust Entitlement Bridge, Adaptive Nudge, and an invisible-UX integration model (no end-user LuvuPay accounts; map `merchant_user_id` + email). They share the same ledger, audit chain and PayPal layer; see sections 1 and 9-11 below.
+
+Built for judges, auditors and external developers: idempotency on every money request, a double-entry ledger, hash-chained audit logs, and AG Grid tables across the console.
 
 ---
 
@@ -33,7 +51,7 @@ Built for international judges, auditors, and external developers — with Strip
 | Queue / Cache | `sync`/`file` locally · Redis + Horizon in production |
 | Payments | Abstracted provider (Mock / PayPal) |
 | Observability | JSON Monolog, `/api/v1/health`, Telescope (dev), Horizon (prod) |
-| Dashboard | Blade · Tailwind · Chart.js · AG Grid |
+| Dashboard | Blade · Tailwind · Chart.js · AG Grid Enterprise (every table; set `AG_GRID_LICENSE_KEY`) |
 
 ---
 

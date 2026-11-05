@@ -2,7 +2,7 @@
 @section('title', 'Wallet & Transactions')
 @section('heading', 'Wallet & Transactions')
 @section('content')
-<div class="stack" x-data="walletPage()" x-init="load()">
+<div class="stack" x-data="walletPage()">
     <div class="flex flex-wrap items-end justify-between gap-3">
         <div>
             <h1 class="page-title">Wallet &amp; Transactions</h1>
@@ -10,6 +10,7 @@
         </div>
         <div class="flex flex-wrap gap-2">
             <button type="button" class="c-btn c-btn-sm" x-on:click="exportCsv()" x-bind:disabled="!filteredRows.length">Export CSV</button>
+            <button type="button" class="c-btn c-btn-sm" x-on:click="exportExcel()" x-bind:disabled="!filteredRows.length">Export Excel</button>
             <button type="button" class="c-btn c-btn-sm" x-bind:class="loading ? 'is-busy' : ''" x-on:click="load()">Refresh</button>
         </div>
     </div>
@@ -46,51 +47,21 @@
         <div class="c-pad" style="display:flex;flex-wrap:wrap;gap:12px;align-items:end;border-bottom:1px solid var(--line)">
             <div class="field" style="margin:0;min-width:140px">
                 <label class="label" for="w-from">From</label>
-                <input id="w-from" type="date" class="input" x-model="fromDate" x-on:change="page = 1">
+                <input id="w-from" type="date" class="input" x-model="fromDate" >
             </div>
             <div class="field" style="margin:0;min-width:140px">
                 <label class="label" for="w-to">To</label>
-                <input id="w-to" type="date" class="input" x-model="toDate" x-on:change="page = 1">
+                <input id="w-to" type="date" class="input" x-model="toDate" >
             </div>
             <div class="field" style="margin:0;flex:1;min-width:200px">
                 <label class="label" for="w-q">Search</label>
-                <input id="w-q" type="search" class="input" placeholder="ID, email, reference…" x-model="q" x-on:input.debounce.200ms="page = 1">
+                <input id="w-q" type="search" class="input" placeholder="ID, email, reference…" x-model="q" >
             </div>
         </div>
-        <div class="c-pad" style="padding-top:0;overflow-x:auto" x-bind:class="loading && loaded ? 'lp-loading' : ''">
-            <table class="w-full border-collapse text-left text-sm">
-                <thead>
-                    <tr class="bg-slate-50 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                        <th class="px-3 py-2">When</th>
-                        <th class="px-3 py-2">Description</th>
-                        <th class="px-3 py-2">Status</th>
-                        <th class="px-3 py-2">Reference</th>
-                        <th class="px-3 py-2 text-right">Amount</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr x-show="!loaded"><td colspan="5" style="padding:0"><x-ui.loading show="true" title="Loading transactions" hint="Reading your ledger" /></td></tr>
-                    <tr x-show="loaded && failed"><td colspan="5" style="padding:0"><x-ui.load-error show="true" title="Could not load transactions" /></td></tr>
-                    <tr x-show="loaded && !failed && !pageRows.length"><td colspan="5" style="padding:0"><div class="lp-state"><div><strong>No transactions found</strong>Try a different date range or search term</div></div></td></tr>
-                    <template x-for="row in pageRows" :key="row.id">
-                        <tr class="border-b border-slate-100">
-                            <td class="px-3 py-2 text-slate-600 whitespace-nowrap" x-text="row.when"></td>
-                            <td class="px-3 py-2 font-medium text-slate-900" x-text="row.type"></td>
-                            <td class="px-3 py-2" x-text="row.status"></td>
-                            <td class="px-3 py-2 text-xs text-slate-500 font-mono" x-text="row.ref"></td>
-                            <td class="px-3 py-2 text-right font-semibold tabular-nums" x-text="row.amount"></td>
-                        </tr>
-                    </template>
-                </tbody>
-            </table>
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:16px;flex-wrap:wrap">
-                <p class="dim" style="margin:0;font-size:.8rem" x-show="loaded" x-text="countLabel"></p>
-                <div style="display:flex;gap:6px;align-items:center">
-                    <button type="button" class="c-btn c-btn-sm" x-on:click="page = Math.max(1, page - 1)" x-bind:disabled="page <= 1">Prev</button>
-                    <span class="dim" style="font-size:.8rem" x-text="'Page ' + page + ' / ' + totalPages"></span>
-                    <button type="button" class="c-btn c-btn-sm" x-on:click="page = Math.min(totalPages, page + 1)" x-bind:disabled="page >= totalPages">Next</button>
-                </div>
-            </div>
+        <div style="padding:0" x-bind:class="loading && loaded ? 'lp-loading' : ''">
+            <x-ui.loading show="!loaded" title="Loading transactions" hint="Reading your ledger" />
+            <x-ui.load-error show="loaded && failed" title="Could not load transactions" />
+            <div id="grid-wallet" style="width:100%" x-show="loaded && !failed" x-cloak></div>
         </div>
     </section>
 </div>

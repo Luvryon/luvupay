@@ -1,0 +1,14 @@
+/* LuvuPay look for AG Grid (loaded on every page that shows a grid) */
+.ag-theme-quartz{--ag-background-color:#fff;--ag-foreground-color:#16171d;--ag-header-background-color:#f5f5f8;--ag-header-foreground-color:#5d6272;--ag-odd-row-background-color:#fff;--ag-border-color:#e6e7ed;--ag-secondary-border-color:#eef0f4;--ag-row-hover-color:#f0edff;--ag-selected-row-background-color:#e5dfff;--ag-font-size:13px;--ag-wrapper-border-radius:12px;--ag-cell-horizontal-padding:16px}
+.lg-table{width:100%;margin:16px 0}
+.lg-empty{color:#5d6272;font-size:.85rem}
+.lg-dim{color:#8e93a3}
+.lg-mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.78rem}
+.lg-badge{display:inline-flex;align-items:center;border-radius:999px;padding:2px 10px;font-size:.72rem;font-weight:700;line-height:1.5}
+.lg-ok{background:#d1fae5;color:#047857}.lg-warn{background:#fef3c7;color:#b45309}.lg-bad{background:#ffe4e6;color:#be123c}.lg-info{background:#e0e7ff;color:#4338ca}.lg-neutral{background:#f1f5f9;color:#64748b}
+.lg-link{font-weight:600;background:none;border:0;padding:0;cursor:pointer;color:#07015f;text-decoration:none}
+.lg-link:hover{text-decoration:underline}.lg-link.bad{color:#be123c}
+.ag-theme-quartz .ag-cell{display:flex;align-items:center}
+.ag-theme-quartz .ag-cell.ag-cell-wrap-text{display:block;line-height:1.5;padding-top:10px;padding-bottom:10px}
+.ag-theme-quartz .ag-right-aligned-cell{justify-content:flex-end}
+@media print{.lg-table{break-inside:avoid}.ag-theme-quartz .ag-header,.ag-theme-quartz .ag-row{-webkit-print-color-adjust:exact;print-color-adjust:exact}}

@@ -161,37 +161,7 @@
                 <p class="text-xs text-slate-500">Latest ledger events in this window</p>
             </div>
         </div>
-        <div class="overflow-x-auto">
-            <table class="w-full text-sm text-left">
-                <thead>
-                    <tr class="text-[11px] uppercase tracking-wider text-slate-400 border-b border-slate-100">
-                        <th class="px-5 py-3 font-semibold">When</th>
-                        <th class="px-5 py-3 font-semibold">Type</th>
-                        <th class="px-5 py-3 font-semibold">Customer</th>
-                        <th class="px-5 py-3 font-semibold text-right">Amount</th>
-                        <th class="px-5 py-3 font-semibold">Status</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <template x-for="(r, i) in (d.recent || [])" :key="i">
-                        <tr class="border-b border-slate-50 hover:bg-slate-50/80">
-                            <td class="px-5 py-3 text-xs text-slate-500 whitespace-nowrap font-mono" x-text="(r.created_at || r.date || '').replace('T',' ').slice(0,16)"></td>
-                            <td class="px-5 py-3 font-medium text-slate-800" x-text="r.type || r.event || '—'"></td>
-                            <td class="px-5 py-3 text-slate-600" x-text="r.email || r.display_name || '—'"></td>
-                            <td class="px-5 py-3 text-right font-semibold text-slate-900" x-text="money(r.amount_minor || r.amount || 0, r.currency)"></td>
-                            <td class="px-5 py-3">
-                                <span class="inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
-                                      x-bind:class="String(r.status || r.lifecycle || '').toLowerCase().indexOf('active') !== -1 || String(r.status).toLowerCase() === 'completed' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'"
-                                      x-text="r.status || r.lifecycle || '—'"></span>
-                            </td>
-                        </tr>
-                    </template>
-                    <tr x-show="!(d.recent && d.recent.length)">
-                        <td colspan="5" class="px-5 py-10 text-center text-sm text-slate-400">No recent rows in this range</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
+        <div id="grid-recent" style="width:100%"></div>
     </section>
     </div>
 </div>

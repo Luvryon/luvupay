@@ -56,10 +56,8 @@ final class GraceDecisionService
             $isRenewal = ! empty($meta['renewal_of']);
             $subId = $tx->subscription_id;
             $sub = $subId ? DB::table('subscriptions')->where('id', $subId)->lockForUpdate()->first() : null;
-            if ($tx->status === 'pending' && $isRenewal) {
-                throw new RuntimeException('This renewal is not due yet. Recovery options open 1 day after the subscription expires; until then the subscriber only receives reminders.');
-            }
-            if ($tx->status !== 'held') {
+            $wasPending = $tx->status === 'pending' && $isRenewal;   // before expiry: the renewal has not been charged yet
+            if (! ($tx->status === 'held' || $wasPending)) {
                 throw new RuntimeException('This charge is already resolved ('.($meta['lifecycle'] ?? $tx->status).'). Nothing was changed.');
             }
             if (($meta['decision'] ?? '') === 'split_pay') {
@@ -141,7 +139,7 @@ final class GraceDecisionService
                 case 'donate':
                     $closeListings();
                     $donate = max(1, min($amount, (int) round($amount * $project->charityBps / 10000)));
-                    $charityName = DB::table('charity_wallets')->where('is_active', true)->value('name') ?: 'Ocean Cleanup Alliance';
+                    $charityName = DB::table('charity_wallets')->where('is_active', true)->value('name') ?: (string) config('luvupay.smart_convert.charity_label', 'Example Charity (sandbox)');
                     $receiptId = (string) Str::uuid();
                     $meta['lifecycle'] = 'AI-RETAINED';
                     $meta['decision'] = 'charity_donate';
@@ -201,12 +199,14 @@ final class GraceDecisionService
                 case 'expire':
                     $closeListings();
                     $meta['lifecycle'] = 'CHURNED';
-                    $meta['decision'] = $source === 'timer' ? 'expired_no_response' : 'expired_by_user';
+                    $meta['decision'] = $source === 'timer' ? 'expired_no_response' : ($wasPending ? 'renewal_cancelled' : 'expired_by_user');
                     $meta['grace'] = ($meta['grace'] ?? []) + ['closed_at' => $now->toIso8601String(), 'outcome' => 'expire'];
                     $setTx('cancelled', $meta);
-                    $setSub('expired');
+                    $setSub($wasPending ? 'cancelled' : 'expired');   // cancelled in time: access runs to the end of the paid period
                     $this->logWebhookEvent('paypal', 'BILLING.SUBSCRIPTION.EXPIRED', ['transaction_id' => $tx->id, 'source' => $source]);
-                    $out['message'] = 'Grace window closed - subscription EXPIRED (churn). No force.';
+                    $out['message'] = $wasPending
+                        ? 'Renewal cancelled before it was charged. Nothing was billed; access continues until '.($sub && $sub->current_period_end ? Carbon::parse($sub->current_period_end)->format('d M Y') : 'the end of the paid period').'.'
+                        : 'Grace window closed - subscription EXPIRED (churn). No force.';
                     break;
             }
 

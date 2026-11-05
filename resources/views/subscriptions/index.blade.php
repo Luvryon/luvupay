@@ -30,11 +30,6 @@
 </div>
 @endsection
 
-@push('head')
-<link rel="stylesheet" href="/assets/ag-grid-32.3.3/ag-grid.min.css">
-<link rel="stylesheet" href="/assets/ag-grid-32.3.3/ag-theme-quartz.min.css">
-@endpush
 @push('scripts')
-<script src="/assets/ag-grid-32.3.3/ag-grid-community.min.noStyle.js" defer></script>
 <script src="/js/subscriptions.js" defer></script>
 @endpush

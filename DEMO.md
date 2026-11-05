@@ -1,28 +1,39 @@
-# LuvuPay — Judge Demo Pack (90s + 3min)
+# LuvuPay: Judge Demo Pack (one story, 3 minutes)
 
 ## One-liner
-**LuvuPay Smart-Convert** turns unused subscription time into store credit + matched charity via **Nebius (NVIDIA Nemotron)** negotiation and **PayPal Sandbox** payouts — so users keep value, merchants keep revenue, and chargebacks die.
+A subscriber forgot to cancel. **AI proposes** how the unused value is split (store credit / charity / fee), **rules and a human decide**, **PayPal Payouts pays**, and every step is **auditable**.
+
+```
+1 Subscriber forgot -> 2 AI proposes -> 3 Guardrails / you decide -> 4 PayPal pays -> 5 Donation -> 6 Audit trail
+```
+
+Everything else in the repo (Second Chance, Resale, Marketplace, Entitlement Bridge, Adaptive Nudge) is supporting infrastructure. Do not demo it in the 3-minute video.
 
 ## Stack proof (say this out loud)
-- **AI:** Nebius Token Factory · NVIDIA Nemotron — live model name, tokens, latency on the evidence strip
-- **Money movement:** PayPal REST **Sandbox** Payouts API (`PAYPAL_MODE=sandbox`)
-- **Reliability:** webhook delivery center + retry job, idempotent ledger
+- **AI:** Nebius Token Factory, NVIDIA Nemotron. Model name, tokens and latency are on the evidence page
+- **Money movement:** PayPal REST **Sandbox** Payouts API (`PAYPAL_MODE=sandbox`), batch read back from PayPal
+- **Accountability:** `model_raw` vs final split, guardrail adjustments, masked decider, public evidence page
+- **Tables:** AG Grid Enterprise on every console table (ledger, wallet, resale, analytics, team, webhooks)
 
-## 90-second live script
-1. Login `owner@demomerchant.test` / `SecurePass1` → Merchant Console  
-2. Point at KPI **Chargebacks Prevented** + API usage meter  
-3. Click **🧪 Run AI Smart-Convert Protocol**  
-4. Narrate the log lines (Nebius → split → PayPal Payouts)  
-5. Show **AI & PayPal evidence** strip: LIVE vs fallback, batch id  
-6. Ledger row → lifecycle **SMART-CONVERTED** + Convert split column  
-7. Optional: Webhook Deliveries → red row → **Retry**
+## The donation is an example
+The recipient is *Example Charity (sandbox)* with an **EXAMPLE · SANDBOX** tag on the dashboard card, the evidence page and the JSON. PayPal Sandbox moves test money only; no real organisation is named or paid. Say so on camera.
 
-## Win-win-win (one sentence each)
-| Party | Win |
-|-------|-----|
-| **User** | Keeps $15 store credit instead of fighting for cash refund |
-| **Merchant** | Retains ecosystem revenue; avoids chargeback + full cash-out |
-| **LuvuPay** | $5 success fee + proven ethical retention infrastructure |
+## 3-minute script
+| Time | Screen | Say |
+|---|---|---|
+| 0:00 | Ledger, a charge never used | "A subscriber forgot to cancel. A refund means a chargeback fee and a lost customer." |
+| 0:20 | **Check readiness (live AI ping)**, tick **Require my approval**, **Run AI Smart-Convert Protocol** | "An AI agent negotiates the settlement instead." |
+| 0:40 | Result card: model, tokens, latency, rationale, split | "Nemotron proposes the split and says why. Policy guardrails cap fee and charity." |
+| 1:10 | Lower the donation, **Approve** | "I stay in control. I can lower the donation or reject. The model never touches money." |
+| 1:30 | Stepper: PayPal pays, then the **Donation** card | "PayPal Payouts executes. The donation is a visible stage: amount, receipt, status. The recipient is an example." |
+| 1:55 | **AI Negotiation Evidence** page | "Every run leaves a public, read-only evidence page: raw model split vs final split." |
+| 2:20 | Ledger row (AG Grid) + PayPal Developer Dashboard API call | "Same batch id on PayPal's side." |
+| 2:45 | Postman run, all green | "Everything I showed is also an automated test." |
+
+## Before recording
+1. Import `postman/` files, run the collection, everything green (`docs/POSTMAN.md`).
+2. `php artisan luvupay:demo-check --live` prints GO.
+3. Full rehearsal list: `docs/DEMO_RUNBOOK_90S.md`.
 
 ## Env for real integrations
 ```bash
@@ -31,32 +42,10 @@ LUVUPAY_PAYMENT_DRIVER=paypal
 PAYPAL_MODE=sandbox
 PAYPAL_CLIENT_ID=...
 PAYPAL_SECRET=...
+PAYPAL_CHARITY_SANDBOX_EMAIL=...      # a sandbox account that receives the example donation
 NEBIUS_ENABLED=true
 NEBIUS_API_KEY=...
 NEBIUS_MODEL=nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B
+AG_GRID_LICENSE_KEY="..."
+SMART_CONVERT_CHARITY_LABEL="Example Charity (sandbox)"
 ```
-
-## `make demo`
-```bash
-make demo
-php artisan serve
-```
-
-## Architecture (one slide)
-```
-User churn signal → LuvuPay Smart-Convert
-        ↓
- Nebius Token Factory (Nemotron negotiate split)
-        ↓
- Merchant Store Credit API  +  PayPal Sandbox Payout (charity)
-        ↓
- Ledger + webhook_deliveries + invoice
-```
-
-## Video outline (2–3 min)
-0:00 Problem (forgot-to-cancel → chargeback)  
-0:30 Dashboard overview  
-1:00 Smart-Convert protocol full run  
-1:45 Evidence strip + SMART-CONVERTED row  
-2:15 Webhook retry + invoice  
-2:45 Close win-win-win

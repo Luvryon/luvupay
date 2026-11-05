@@ -121,7 +121,7 @@ class ConsoleSmokeTest extends BaseTestCase
         $this->assertSame('completed', DB::table('transactions')->where('id', $paid)->value('status'));
         $this->assertNotEmpty($r->json('stage.reminder.body'));
 
-        $post('decision', ['transaction_id' => $renewal, 'choice' => 'renew'])->assertStatus(409);            // reminders only
+        $post('decision', ['transaction_id' => $renewal, 'choice' => 'partial_refund'])->assertStatus(409);     // refund is locked before expiry
         $post('grace/stage', ['transaction_id' => $renewal, 'hours_before' => 48])->assertOk()->assertJsonPath('stage.stage', 'h48');
         $post('grace/stage', ['transaction_id' => $renewal, 'hours_before' => -25])->assertOk()->assertJsonPath('stage.stage', 'grace_open');
         $post('decision', ['transaction_id' => $renewal, 'choice' => 'resale'])->assertOk();

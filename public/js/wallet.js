@@ -25,6 +25,39 @@
       toDate: '',
       page: 1,
       perPage: 15,
+      grid: null,
+      init: function () {
+        var self = this;
+        this.load();
+        this.$watch('filteredRows', function () { self.syncGrid(); });
+      },
+      columns: function () {
+        var G = window.LuvuGrid;
+        return [
+          { field: 'ts', headerName: 'When', width: 190, filter: 'agDateColumnFilter',
+            valueFormatter: function (p) { return p.data ? p.data.when : ''; },
+            filterValueGetter: function (p) { return p.data && p.data.ts ? new Date(p.data.ts.getFullYear(), p.data.ts.getMonth(), p.data.ts.getDate()) : null; },
+            filterParams: { comparator: function (filterDate, cellValue) {
+              if (!cellValue) return -1;
+              return cellValue < filterDate ? -1 : cellValue > filterDate ? 1 : 0;
+            } },
+            sort: 'desc' },
+          { field: 'type', headerName: 'Description', flex: 1, minWidth: 160, cellStyle: { fontWeight: '600' } },
+          { field: 'status', headerName: 'Status', width: 140, cellRenderer: G.badge(), filter: window.LuvuGrid.enterprise ? 'agSetColumnFilter' : true },
+          { field: 'ref', headerName: 'Reference', flex: 1, minWidth: 180, cellClass: 'lg-mono' },
+          { field: 'amount_minor', headerName: 'Amount', width: 150, type: 'rightAligned', filter: 'agNumberColumnFilter',
+            valueFormatter: function (p) { return p.data ? p.data.amount : ''; }, cellStyle: { fontWeight: '700' } },
+        ];
+      },
+      syncGrid: function () {
+        var host = document.getElementById('grid-wallet');
+        if (!host || !window.LuvuGrid || !this.loaded || this.failed) return;
+        if (this.grid && host.__lg === this.grid) { window.LuvuGrid.setRows(this.grid, this.filteredRows); return; }
+        this.grid = window.LuvuGrid.create(host, {
+          columns: this.columns(), rows: this.filteredRows, rowId: 'id', pageSize: 15, height: 640,
+          noRowsText: 'No transactions found. Try a different date range or search term',
+        });
+      },
       get breakdown() {
         var w = this.wallet || {}; var c = this.currency;
         return [
@@ -96,6 +129,8 @@
             };
           });
           this.page = 1;
+          var self = this;
+          this.$nextTick(function () { self.syncGrid(); });
         } catch (e) {
           this.rows = [];
           this.failed = true;
@@ -103,7 +138,12 @@
         } finally {
           this.loading = false;
           this.loaded = true;
+          var me = this;
+          this.$nextTick(function () { me.syncGrid(); });
         }
+      },
+      exportExcel() {
+        window.LuvuGrid.exportExcel(this.grid, 'luvupay-ledger.xlsx');
       },
       exportCsv() {
         var lines = ['id,when,type,status,reference,amount_minor'];

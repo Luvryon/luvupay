@@ -42,6 +42,8 @@
         this.saving = true;
         this.saved = false;
         this.error = '';
+        var creating = !this.isSet;
+        var toast = function (type, title, message) { if (window.LuvuToast && window.LuvuToast[type]) window.LuvuToast[type](title, message, { id: 'project-save' }); };
         var pct = Number(this.refundPct);
         if (isNaN(pct)) pct = 20;
         try {
@@ -71,14 +73,18 @@
           if (!res.ok) {
             var errs = j.errors ? Object.values(j.errors).flat().join(' ') : '';
             this.error = errs || j.message || j.error || ('HTTP ' + res.status);
+            toast('error', creating ? 'Could not create the project' : 'Could not save the project', this.error);
             return;
           }
           this.isSet = true;
           this.saved = true;
+          toast('success', creating ? 'Project created' : 'Project saved', 'Overview, Analytics and the journey now use these settings.');
+          try { window.dispatchEvent(new CustomEvent('luvu:project-saved', { detail: j })); } catch (e) { /* ignore */ }
           var self = this;
           setTimeout(function () { self.saved = false; }, 3500);
         } catch (e) {
           this.error = 'Network error';
+          toast('error', 'Network error', 'Could not reach the server. Check your connection and try again.');
         } finally {
           this.saving = false;
         }

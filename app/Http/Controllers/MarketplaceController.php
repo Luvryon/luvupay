@@ -127,7 +127,7 @@ final class MarketplaceController extends Controller
             'price_minor' => (int) $data['price_minor'],
             'currency' => $currency,
             'status' => $needsVerification ? 'pending' : 'active',
-            'verified_at' => $needsVerification ? null : $now,
+            'verified_at' => null,          // set only by a real signed-link click (MarketplaceService::grantOwnership), never assumed
             'emoji' => $data['emoji'] ?? '🍿',
             'metadata' => json_encode(['source' => 'connect_and_sell', 'ai_generated' => true]),
             'created_at' => $now,
@@ -139,7 +139,7 @@ final class MarketplaceController extends Controller
                 $link = URL::temporarySignedRoute(
                     'marketplace.verify',
                     now()->addHours((int) config('luvupay.marketplace.verification_ttl_hours', 24)),
-                    ['id' => $id],
+                    ['id' => $id, 'e' => MarketplaceService::emailFingerprint($data['seller_email'])],
                 );
                 Mail::to($data['seller_email'])->sendNow(new PlainHtmlMail(
                     'Confirm your LuvuPay marketplace listing',
@@ -169,11 +169,23 @@ final class MarketplaceController extends Controller
         ], $needsVerification ? 202 : 201);
     }
 
-    /** GET /marketplace/listings/{id}/verify (signed URL emailed to the seller) */
-    public function verify(string $id): RedirectResponse
+    /**
+     * GET /marketplace/listings/{id}/verify (signed URL emailed to the seller).
+     * Proves control of the seller inbox: publishes a pending listing, and releases a payout that was held for verification.
+     */
+    public function verify(Request $request, string $id): RedirectResponse
     {
-        DB::table('marketplace_listings')->where('id', $id)->where('status', 'pending')
-            ->update(['status' => 'active', 'verified_at' => now(), 'updated_at' => now()]);
+        $listing = DB::table('marketplace_listings')->where('id', $id)->first();
+        if (! $listing || ! hash_equals(MarketplaceService::emailFingerprint((string) $listing->seller_email), (string) $request->query('e', ''))) {
+            return redirect('/marketplace?failed=1');            // link was issued for a different address
+        }
+
+        $this->market->grantOwnership($id, $request->ip(), $request->userAgent());
+        DB::table('marketplace_listings')->where('id', $id)->where('status', 'pending')->update(['status' => 'active', 'updated_at' => now()]);
+
+        if ($listing->status === 'sold') {
+            \App\Jobs\SettleMarketplaceSaleJob::dispatch($id);   // payout was held until now
+        }
 
         return redirect('/marketplace?verified=1');
     }
@@ -284,10 +296,17 @@ final class MarketplaceController extends Controller
 
         $this->market->finalizeSale($id, $verified['id'], $verified['money']);
 
+        // Pay the seller automatically (PayPal Payouts). Held until the seller's address is verified; retried by resale:maintain if it stalls.
+        try {
+            \App\Jobs\SettleMarketplaceSaleJob::dispatch($id);
+        } catch (Throwable $e) {
+            Log::error('marketplace.payout_dispatch_failed', ['listing' => $id, 'err' => $e->getMessage()]);
+        }
+
         try {
             Mail::to($listing->seller_email)->sendNow(new PlainHtmlMail(
                 'Your marketplace listing was sold',
-                '<p>Your listing <strong>'.e($listing->title).'</strong> was sold. Your payout is recorded and will be settled by LuvuPay.</p>'
+                '<p>Your listing <strong>'.e($listing->title).'</strong> was sold. Your payout to PayPal starts automatically; you will get a second email with the payout reference.</p>'
             ));
         } catch (Throwable $e) {
             Log::warning('marketplace.sold_email_failed', ['err' => $e->getMessage()]);

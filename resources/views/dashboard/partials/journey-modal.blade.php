@@ -1,233 +1,213 @@
-{{-- Missed Cancellation Journey — DUAL-VIEW + AI features (thinking, safe refund, micro-pay, negotiator chat) --}}
-<link rel="stylesheet" href="/css/journey.css?v={{ @filemtime(public_path('css/journey.css')) }}">
+{{-- Missed Cancellation Journey: timeline of the NEXT subscription charge + backend console + the subscriber's phone.
+     Styling lives in journey-luxe.css (self-contained). All options are data-driven from journey.stage (server rules). --}}
+<link rel="stylesheet" href="/css/journey-luxe.css?v={{ @filemtime(public_path('css/journey-luxe.css')) }}">
 
 <x-ui.modal show="decisionOpen" title="Missed Cancellation Journey" size="xl">
-    <div class="journey-scope space-y-4 text-slate-900 px-6 pt-4 pb-6"
-         x-data
-         x-effect="if (decisionOpen && journeyStep === 'loading') { /* parent drives timers */ }">
+    <div class="jx" style="padding:16px 24px 24px" x-data>
 
-        <div class="flex flex-wrap items-center justify-between gap-2">
-            <p class="text-sm text-slate-500">
-                Live on your real ledger for <strong class="text-slate-900" x-text="journey.name"></strong>
-                · <span x-text="journey.email"></span>
-            </p>
-            <div class="flex flex-wrap items-center gap-2 text-[11px] font-semibold">
-                <span class="rounded-full px-2.5 py-1"
-                      x-bind:class="journey.sandbox ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'"
-                      x-text="journey.sandbox ? 'PayPal Sandbox connected' : 'Mock ledger (no PayPal keys)'"></span>
-                <span class="rounded-full px-2.5 py-1"
-                      x-bind:class="journey.nebius ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600'"
-                      x-text="journey.nebius ? 'Nebius AI live' : 'AI: local template'"></span>
+        <div class="jx-head">
+            <p>Live on your real ledger for <strong x-text="journey.name"></strong> · <span x-text="journey.email"></span></p>
+            <div class="jx-tags">
+                <span class="jx-tag" x-bind:class="journey.sandbox ? 'is-blue' : 'is-amber'" x-text="journey.sandbox ? 'PayPal Sandbox connected' : 'Mock ledger (no PayPal keys)'"></span>
+                <span class="jx-tag" x-bind:class="journey.nebius ? 'is-indigo' : ''" x-text="journey.nebius ? 'Nebius AI live' : 'AI: local template'"></span>
             </div>
         </div>
 
-        {{-- Step 1: choose WHO and WHEN on the missed-cancellation timeline --}}
-        <div x-show="journeyStep === 'setup'" x-cloak class="rounded-xl border border-slate-200 bg-slate-50 p-5 space-y-4">
+        {{-- Step 1: who and where on the timeline --}}
+        <div x-show="journeyStep === 'setup'" x-cloak class="jx-panel">
             <div>
-                <p class="text-sm font-semibold text-slate-800">1. Choose the subscriber</p>
-                <select class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
-                        x-bind:value="journeySetup && journeySetup.rowId" x-on:change="pickJourneyUser($event.target.value)" aria-label="Subscriber">
+                <p class="jx-label">1. Choose the subscriber</p>
+                <select class="jx-select" aria-label="Subscriber" x-on:change="pickJourneyUser($event.target.value)">
                     <template x-for="r in (journeySetup ? journeySetup.rows : [])" x-bind:key="r.id">
                         <option x-bind:value="r.id" x-bind:selected="journeySetup.rowId === r.id" x-text="r.label"></option>
                     </template>
                 </select>
             </div>
             <div>
-                <p class="text-sm font-semibold text-slate-800">2. Where are we on the timeline of the NEXT subscription charge?</p>
-                <div class="mt-2 flex flex-wrap gap-2" role="radiogroup" aria-label="Time before expiry">
-                    <template x-for="o in [{h:168,l:'7 days before'},{h:72,l:'3 days before'},{h:48,l:'48 hours before'},{h:6,l:'6 hours before'},{h:-25,l:'+1 day after expiry'}]" x-bind:key="o.h">
-                        <button type="button" role="radio" x-bind:aria-checked="journeySetup && journeySetup.hours === o.h"
-                                x-on:click="journeySetup.hours = o.h"
-                                class="rounded-full border px-4 py-1.5 text-xs font-semibold"
-                                x-bind:class="journeySetup && journeySetup.hours === o.h ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'"
-                                x-text="o.l"></button>
+                <p class="jx-label">2. Where are we on the timeline of the NEXT subscription charge?</p>
+                <div class="jx-chips" role="radiogroup" aria-label="Position on the timeline">
+                    <template x-for="o in timelineStations.slice(0, 5)" x-bind:key="o.h">
+                        <button type="button" role="radio" class="jx-chip" x-bind:aria-checked="journeySetup && journeySetup.hours === o.h"
+                                x-bind:class="journeySetup && journeySetup.hours === o.h ? 'is-on' : ''"
+                                x-on:click="journeySetup.hours = o.h" x-text="o.long"></button>
                     </template>
                 </div>
-                <p class="mt-2 text-xs text-slate-500">The current period stays paid and stays in your wallet. Before expiry the subscriber gets reminders (email and phone, written by Nebius AI). One day after expiry all recovery options open. You can move along the timeline afterwards.</p>
+                <p class="jx-help">The current period stays paid and stays in your wallet. Before expiry the subscriber gets reminders by email and on the phone (written by Nebius AI) and can already pay, split or cancel. One day after expiry every recovery option opens. You can move along the timeline afterwards.</p>
             </div>
-            <div class="flex justify-end">
-                <button type="button" class="rounded-lg bg-slate-900 px-5 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-40" x-on:click="startJourney()" x-bind:disabled="decisionBusy">Start simulation</button>
+            <div class="jx-row-end">
+                <button type="button" class="jx-btn" x-on:click="startJourney()" x-bind:disabled="decisionBusy" x-text="decisionBusy ? 'Starting…' : 'Start simulation'"></button>
             </div>
         </div>
 
-        {{-- Feature 1: AI Processing Animation --}}
-        <div x-show="journeyStep === 'loading'" x-cloak
-             class="bg-slate-50 rounded-xl p-8 flex flex-col items-center justify-center h-64 border border-slate-100">
-            <div class="relative mb-5">
-                <div class="w-14 h-14 rounded-2xl bg-indigo-100 flex items-center justify-center animate-pulse">
-                    <svg class="w-7 h-7 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z"/>
-                    </svg>
+        {{-- Thinking --}}
+        <div x-show="journeyStep === 'loading'" x-cloak class="jx-think" role="status">
+            <div class="jx-think-orb" aria-hidden="true"></div>
+            <b x-text="aiThinkingLabel">Analyzing…</b>
+            <span>Nebius AI is preparing the renewal journey for this subscriber</span>
+            <div class="jx-bar"><i x-bind:style="'width:' + aiThinkingProgress + '%'"></i></div>
+        </div>
+
+        {{-- Timeline --}}
+        <div x-show="journeyStep === 'ready' && journey.stage" x-cloak class="jx-tl" x-bind:class="'jx-tone-' + (journey.stage ? journey.stage.tone : 'calm')">
+            <div class="jx-tl-top">
+                <div>
+                    <p class="jx-eyebrow">Timeline of the next charge</p>
+                    <p class="jx-tl-title" x-text="journey.stage && journey.stage.label"></p>
+                    <p class="jx-tl-sub" x-text="journey.stage && journey.stage.expires_at ? 'Current period ends ' + new Date(journey.stage.expires_at).toLocaleString() : ''"></p>
                 </div>
-                <span class="absolute -top-1 -right-1 flex h-3 w-3">
-                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-                    <span class="relative inline-flex rounded-full h-3 w-3 bg-indigo-500"></span>
-                </span>
+                <div class="jx-tl-amt"><b x-text="journey.amount"></b><span x-text="'next charge · ' + (journey.stage ? journey.stage.renewal_status : '')"></span></div>
             </div>
-            <p class="text-sm font-semibold text-slate-800 mb-1" x-text="aiThinkingLabel">Analyzing LTV…</p>
-            <p class="text-xs text-slate-500 mb-5">Nebius AI is scoring retention options for this subscriber</p>
-            <div class="w-48 h-1.5 bg-slate-200 rounded-full overflow-hidden">
-                <div class="h-full bg-indigo-500 rounded-full transition-all duration-500 ease-out"
-                     x-bind:style="'width:' + aiThinkingProgress + '%'"></div>
-            </div>
+            <ol class="jx-track" role="group" aria-label="Move along the timeline">
+                <template x-for="o in timelineStations" x-bind:key="o.h">
+                    <li>
+                        <button type="button" class="jx-node" x-bind:class="stationState(o.h)" x-bind:title="o.long" x-bind:aria-label="o.long"
+                                x-bind:aria-current="stationState(o.h) === 'is-on' ? 'step' : null"
+                                x-on:click="setJourneyStage(o.h)" x-bind:disabled="decisionBusy || phoneView === 'done'">
+                            <span class="jx-dot"></span><span x-text="o.l"></span>
+                        </button>
+                    </li>
+                </template>
+            </ol>
+            <p class="jx-tl-msg" x-text="journey.stage && journey.stage.message"></p>
         </div>
 
-        {{-- Dual view (after thinking) --}}
-        {{-- Timeline: where this charge is, and the ability to move along it --}}
-        <div x-show="journeyStep === 'ready' && journey.stage" x-cloak class="rounded-xl border p-3 space-y-2"
-             x-bind:class="{'border-emerald-200 bg-emerald-50': journey.stage && journey.stage.tone === 'calm', 'border-sky-200 bg-sky-50': journey.stage && journey.stage.tone === 'nudge', 'border-amber-300 bg-amber-50': journey.stage && journey.stage.tone === 'urgent', 'border-rose-300 bg-rose-50': journey.stage && journey.stage.tone === 'critical'}">
-            <div class="flex flex-wrap items-center justify-between gap-2">
-                <p class="text-sm font-semibold text-slate-900"><span x-text="journey.stage && journey.stage.label"></span>
-                    <span class="font-normal text-slate-600" x-text="journey.stage && journey.stage.expires_at ? ' · expires ' + new Date(journey.stage.expires_at).toLocaleString() : ''"></span></p>
-                <div class="flex flex-wrap gap-1.5" role="group" aria-label="Move along the timeline">
-                    <template x-for="o in [{h:168,l:'7d'},{h:72,l:'3d'},{h:48,l:'48h'},{h:6,l:'6h'},{h:-25,l:'+1 day after expiry'},{h:-49,l:'Close window'}]" x-bind:key="o.h">
-                        <button type="button" x-on:click="setJourneyStage(o.h)" x-bind:disabled="decisionBusy || phoneView === 'done'"
-                                class="rounded-full border border-slate-300 bg-white px-3 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-40" x-text="o.l"></button>
-                    </template>
-                </div>
-            </div>
-            <p class="text-xs text-slate-700" x-text="journey.stage && journey.stage.message"></p>
-        </div>
-
-        <div x-show="journeyStep === 'ready'" x-cloak class="grid grid-cols-2 gap-6 max-md:grid-cols-1">
-            {{-- LEFT: backend logs --}}
+        <div x-show="journeyStep === 'ready'" x-cloak class="jx-grid">
+            {{-- Backend --}}
             <section aria-label="Backend logs">
-                <p class="mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">Backend</p>
-                <div class="bg-slate-50 rounded-lg p-4 font-mono text-xs space-y-2 h-96 overflow-y-auto" role="log" aria-live="polite" x-ref="journeyLog">
+                <p class="jx-col-t">Backend</p>
+                <div class="jx-console" role="log" aria-live="polite" x-ref="journeyLog">
                     <template x-for="(l, i) in decisionLogs" x-bind:key="i">
-                        <p class="leading-relaxed break-words"
-                           x-bind:class="{
-                               'text-emerald-600': l.tone === 'green',
-                               'text-rose-600': l.tone === 'warn',
-                               'text-indigo-600': l.tone === 'gold',
-                               'text-blue-600': l.tone === 'blue',
-                               'text-purple-600': l.tone === 'purple',
-                               'text-slate-500': !l.tone
-                           }" x-text="l.text"></p>
+                        <p x-bind:class="l.tone ? 't-' + l.tone : ''" x-text="l.text"></p>
                     </template>
-                    <p x-show="decisionBusy" x-cloak class="text-slate-400">⏳ working…</p>
+                    <p x-show="decisionBusy" x-cloak>⏳ working…</p>
                 </div>
             </section>
 
-            {{-- RIGHT: user's phone --}}
-            <section aria-label="User phone preview">
-                <p class="mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">User's phone</p>
-                <div class="bg-slate-900 rounded-3xl p-4 sm:p-6 h-96 flex flex-col shadow-2xl border border-slate-700">
-                    <div class="bg-white rounded-2xl w-full max-w-xs mx-auto flex flex-col h-full shadow-xl overflow-hidden">
-                        <div class="px-4 pt-3 pb-2 border-b border-slate-100">
-                            <h3 class="font-bold text-slate-900 text-center text-sm mb-2" x-text="journey.brand"></h3>
-                            {{-- Feature 4: Options vs Chat toggle --}}
-                            <div class="flex rounded-lg bg-slate-100 p-0.5 text-[11px] font-semibold">
-                                <button type="button"
-                                        class="flex-1 rounded-md py-1.5 transition-colors"
-                                        x-bind:class="phoneTab === 'options' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
-                                        x-on:click="phoneTab = 'options'">Options</button>
-                                <button type="button"
-                                        class="flex-1 rounded-md py-1.5 transition-colors"
-                                        x-bind:class="phoneTab === 'chat' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
-                                        x-on:click="phoneTab = 'chat'">Chat with AI</button>
+            {{-- The subscriber's phone --}}
+            <section aria-label="Subscriber phone preview">
+                <p class="jx-col-t">Subscriber's phone</p>
+                <div class="jx-phone-wrap">
+                    <div class="jx-device">
+                        <div class="jx-screen" x-bind:class="'jx-tone-' + (journey.stage ? journey.stage.tone : 'calm')">
+                            <div class="jx-island" aria-hidden="true"></div>
+                            <div class="jx-status" aria-hidden="true">
+                                <span>9:41</span>
+                                <span style="display:flex;align-items:center">
+                                    <svg viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5" width="3" height="7" rx="1"/><rect x="10" y="2.5" width="3" height="9.5" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg>
+                                    <svg viewBox="0 0 26 12"><rect x="0" y="0.5" width="22" height="11" rx="3.2" fill="none" stroke="#fff" stroke-width="1" opacity=".5"/><rect x="2" y="2.5" width="16" height="7" rx="1.8"/><rect x="23.2" y="4" width="1.8" height="4" rx=".9" opacity=".5"/></svg>
+                                </span>
                             </div>
-                        </div>
-
-                        <div class="flex-1 overflow-y-auto p-3">
-                            {{-- Options view --}}
-                            <div x-show="phoneTab === 'options' && phoneView === 'options'">
-                                {{-- Push notification for the current stage (same text that was emailed; written by Nebius AI, template fallback) --}}
-                                <div class="rounded-xl border p-3 mb-3 shadow-sm"
-                                     x-bind:class="{'bg-emerald-50 border-emerald-200': journey.stage && journey.stage.tone === 'calm', 'bg-sky-50 border-sky-200': journey.stage && journey.stage.tone === 'nudge', 'bg-amber-50 border-amber-300': !journey.stage || journey.stage.tone === 'urgent', 'bg-rose-50 border-rose-300': journey.stage && journey.stage.tone === 'critical'}">
-                                    <div class="flex items-center justify-between mb-1">
-                                        <p class="text-[10px] font-bold uppercase tracking-wide text-slate-500"><span aria-hidden="true">🔔</span> <span x-text="(journey.brand || 'LuvuPay') + ' · now'"></span></p>
-                                        <span class="text-[10px] font-semibold rounded-full px-2 py-0.5"
-                                              x-bind:class="journey.stage && journey.stage.message_source === 'nebius' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600'"
-                                              x-text="journey.stage && journey.stage.message_source === 'nebius' ? 'Nebius AI' : 'Template'"></span>
-                                    </div>
-                                    <p class="text-xs font-semibold text-slate-900" x-text="journey.stage && journey.stage.reminder ? journey.stage.reminder.subject : (journey.stage ? journey.stage.label : '')"></p>
-                                    <p class="text-xs text-slate-700 leading-relaxed mt-1" x-text="journey.stage ? journey.stage.message : ('Hi ' + journey.first + ', loading your renewal…')"></p>
-                                    <p class="text-[10px] text-slate-500 mt-2" x-show="journey.stage && journey.stage.reminder && journey.stage.reminder.email"
-                                       x-text="'Email: ' + (journey.stage && journey.stage.reminder && journey.stage.reminder.email ? ({sent:'sent to ' + (journey.stage.reminder.email.to || ''), skipped_demo_address:'not sent (demo address)', throttled:'held back (hourly limit)', failed:'could not be sent', disabled:'turned off'}[journey.stage.reminder.email.status] || journey.stage.reminder.email.status) : '')"></p>
+                            <div class="jx-app">
+                                <header class="jx-app-h">
+                                    <span class="jx-mono" x-text="String(journey.brand || 'L').charAt(0).toUpperCase()"></span>
+                                    <div><p class="jx-brand" x-text="journey.brand"></p><p class="jx-sub" x-text="'Member · ' + journey.name"></p></div>
+                                </header>
+                                <div class="jx-seg" role="tablist">
+                                    <button type="button" role="tab" x-bind:class="phoneTab === 'options' ? 'is-on' : ''" x-on:click="phoneTab = 'options'">Your plan</button>
+                                    <button type="button" role="tab" x-bind:class="phoneTab === 'chat' ? 'is-on' : ''" x-on:click="phoneTab = 'chat'">AI Concierge</button>
                                 </div>
-                                <p class="text-[11px] text-slate-500 mb-2 px-1" x-show="journey.stage && !journey.stage.options.some(function (o) { return o.available; })"
-                                   x-text="journey.stage && journey.stage.is_reminder ? 'Reminder only. Recovery options open 1 day after the subscription expires.' : 'Recovery options are locked at this stage.'"></p>
-                                <div class="flex flex-col gap-2">
-                                    <button type="button" x-on:click="choose('renew')" x-bind:title="optWhy('renew')" x-bind:disabled="!optOk('renew') || !decisionReady || decisionBusy"
-                                            class="bg-slate-900 text-white py-2 rounded-lg text-xs font-medium hover:bg-slate-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                                            x-text="'Retry Payment (' + journey.amount + ')'"></button>
-                                    <button type="button" x-on:click="choose('split_pay')" x-bind:title="optWhy('split_pay')" x-bind:disabled="!optOk('split_pay') || !decisionReady || decisionBusy"
-                                            class="bg-emerald-600 text-white py-2 rounded-lg text-xs font-medium hover:bg-emerald-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                                            x-text="'Split pay (' + journey.splitFirst + ' now, rest in 7 days)'"></button>
-                                    <button type="button" x-on:click="choose('partial_refund')" x-bind:title="optWhy('partial_refund')" x-bind:disabled="!optOk('partial_refund') || !decisionReady || decisionBusy"
-                                            class="bg-sky-600 text-white py-2 rounded-lg text-xs font-medium hover:bg-sky-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                                            x-text="'Partial refund (' + journey.refundPct + '%)'"></button>
-                                    <button type="button" x-on:click="choose('resale')" x-bind:title="optWhy('resale')" x-bind:disabled="!optOk('resale') || !decisionReady || decisionBusy || !journey.features.resale"
-                                            x-bind:title="journey.features.resale ? '' : 'Enable Marketplace Resale in Settings'"
-                                            class="bg-purple-600 text-white py-2 rounded-lg text-xs font-medium hover:bg-purple-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">Resell Remaining Access</button>
-                                    <button type="button" x-on:click="choose('donate')" x-bind:title="optWhy('donate')" x-bind:disabled="!optOk('donate') || !decisionReady || decisionBusy || !journey.features.charity"
-                                            class="bg-pink-500 text-white py-2 rounded-lg text-xs font-medium hover:bg-pink-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">Donate residual</button>
-                                    <button type="button" x-on:click="choose('cancel')" x-bind:title="optWhy('expire')" x-bind:disabled="!optOk('expire') || !decisionReady || decisionBusy"
-                                            class="border border-slate-300 bg-white text-slate-700 py-2 rounded-lg text-xs font-medium hover:bg-slate-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">Let it expire</button>
-                                </div>
-                            </div>
 
-                            {{-- Feature 4: AI Negotiator Chat --}}
-                            <div x-show="phoneTab === 'chat' && phoneView !== 'done'" x-cloak class="flex flex-col gap-2 h-full min-h-[200px]">
-                                <div class="flex-1 space-y-2 overflow-y-auto pr-1 max-h-52">
-                                    <template x-for="(m, i) in journeyChatMessages" :key="i">
-                                        <div class="flex" x-bind:class="m.role === 'user' ? 'justify-end' : 'justify-start'">
-                                            <div class="rounded-lg p-2 text-xs max-w-[85%] leading-relaxed"
-                                                 x-bind:class="m.role === 'user' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-700'"
-                                                 x-text="m.content"></div>
+                                <div class="jx-scroll">
+                                    {{-- Plan --}}
+                                    <div x-show="phoneTab === 'options' && phoneView === 'options'">
+                                        <div class="jx-notif" x-data="{ open: false }" x-bind:class="open ? 'is-open' : ''" role="button" tabindex="0" x-bind:aria-expanded="open ? 'true' : 'false'"
+                                             x-on:click="open = !open" x-on:keydown.enter.prevent="open = !open" title="Tap to read the whole message">
+                                            <div class="jx-notif-top">
+                                                <span class="jx-notif-ic" x-text="String(journey.brand || 'L').charAt(0).toUpperCase()"></span>
+                                                <span class="jx-notif-app" x-text="journey.brand"></span>
+                                                <span class="jx-notif-now">now</span>
+                                                <span class="jx-notif-more" x-text="open ? 'Less' : 'More'"></span>
+                                            </div>
+                                            <h4 x-text="journey.stage && journey.stage.reminder ? journey.stage.reminder.subject : (journey.stage ? journey.stage.label : 'Loading your plan…')"></h4>
+                                            <p x-text="journey.stage ? journey.stage.message : ''"></p>
+                                            <div class="jx-notif-meta">
+                                                <span class="jx-badge" x-bind:class="journey.stage && journey.stage.message_source === 'nebius' ? 'is-ai' : ''" x-text="journey.stage && journey.stage.message_source === 'nebius' ? '✦ Nebius AI' : 'Template'"></span>
+                                                <span class="jx-badge" x-bind:class="reminderEmailText().ok ? 'is-ok' : ''" x-show="reminderEmailText().text" x-text="reminderEmailText().text"></span>
+                                            </div>
                                         </div>
-                                    </template>
-                                    <div x-show="journeyChatThinking" class="text-[10px] text-slate-400">AI is thinking…</div>
-                                </div>
-                                <div class="flex flex-wrap gap-1 pt-1">
-                                    <button type="button" class="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] text-slate-600" x-on:click="sendJourneyChat('[option:split_half] Pay half now, half next week')">Split</button>
-                                    <button type="button" class="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] text-slate-600" x-on:click="sendJourneyChat('[option:resale] Resale')">Resale</button>
-                                    <button type="button" class="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] text-slate-600" x-on:click="sendJourneyChat('[option:safe_refund] Safe refund')">Refund</button>
-                                    <button type="button" class="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] text-slate-600" x-on:click="sendJourneyChat('[option:pay_full] Pay full')">Pay full</button>
-                                </div>
-                                <form class="pt-1 border-t border-slate-100 mt-auto flex gap-1" x-on:submit.prevent="sendJourneyChat(journeyChatInput)">
-                                    <input type="text"
-                                           x-model="journeyChatInput"
-                                           placeholder="Type a message…"
-                                           class="flex-1 bg-white border border-slate-200 rounded-full px-3 py-1.5 text-[10px] text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                                           x-bind:disabled="journeyChatThinking"
-                                           aria-label="Chat with AI">
-                                    <button type="submit" class="rounded-full bg-indigo-600 text-white px-3 py-1 text-[10px] font-semibold disabled:opacity-40" x-bind:disabled="journeyChatThinking || !(journeyChatInput || '').trim()">Send</button>
-                                </form>
-                            </div>
 
-                            {{-- Done state --}}
-                            <div x-show="phoneView === 'done'" x-cloak class="text-center py-6">
-                                <div class="mx-auto w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-xl font-bold" aria-hidden="true">✓</div>
-                                <p class="mt-3 text-sm font-bold text-slate-900">Action Completed</p>
-                                <p class="mt-1 text-xs font-semibold text-indigo-600" x-text="selectedAction"></p>
-                                <p class="mt-2 text-xs text-slate-500 leading-relaxed" x-text="journey.doneMessage"></p>
-                                <a x-show="journey.listingUrl" x-cloak x-bind:href="journey.listingUrl" target="_blank" rel="noopener"
-                                   class="mt-3 inline-block text-xs font-semibold text-purple-600 hover:text-purple-700 underline">View on marketplace ↗</a>
+                                        <div class="jx-card">
+                                            <div>
+                                                <p class="jx-card-k" x-text="journey.stage && journey.stage.stage === 'grace_open' ? 'Needs attention' : 'Next charge'"></p>
+                                                <p class="jx-card-amt" x-text="journey.amount"></p>
+                                            </div>
+                                            <div class="jx-card-r">
+                                                <p class="jx-card-d" x-text="renewalLine()"></p>
+                                                <span class="jx-pips" aria-hidden="true">
+                                                    <template x-for="o in timelineStations" x-bind:key="o.h"><i x-bind:class="stationState(o.h)"></i></template>
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        <p class="jx-note" x-show="lockNote()" x-text="lockNote()"></p>
+                                        <ul class="jx-opts">
+                                            <template x-for="o in (journey.stage ? journey.stage.options : [])" x-bind:key="o.id">
+                                                <li>
+                                                    <button type="button" class="jx-opt" x-bind:class="o.id === 'renew' ? 'is-primary' : ''"
+                                                            x-bind:title="o.available ? '' : o.reason"
+                                                            x-on:click="choose(o.id === 'expire' ? 'cancel' : o.id)"
+                                                            x-bind:disabled="!o.available || !decisionReady || decisionBusy">
+                                                        <span class="jx-opt-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path x-bind:d="optIcon(o.id)"/></svg></span>
+                                                        <span class="jx-opt-b">
+                                                            <span class="jx-opt-t" x-text="o.label"></span>
+                                                            <span class="jx-opt-h" x-text="o.available ? optHint(o) : (o.reason || '')"></span>
+                                                        </span>
+                                                        <span class="jx-opt-go" aria-hidden="true">›</span>
+                                                    </button>
+                                                </li>
+                                            </template>
+                                        </ul>
+                                    </div>
+
+                                    {{-- Concierge chat --}}
+                                    <div x-show="phoneTab === 'chat' && phoneView !== 'done'" x-cloak class="jx-chat">
+                                        <div class="jx-msgs">
+                                            <template x-for="(m, i) in journeyChatMessages" x-bind:key="i">
+                                                <div class="jx-m" x-bind:class="m.role === 'user' ? 'is-me' : 'is-ai'" x-text="m.content"></div>
+                                            </template>
+                                            <div class="jx-typing" x-show="journeyChatThinking">Concierge is typing…</div>
+                                        </div>
+                                        <div class="jx-quick">
+                                            <button type="button" x-on:click="sendJourneyChat('[option:split_half] Pay half now, half next week')">Split</button>
+                                            <button type="button" x-on:click="sendJourneyChat('[option:resale] Resale')">Resale</button>
+                                            <button type="button" x-on:click="sendJourneyChat('[option:safe_refund] Safe refund')">Refund</button>
+                                            <button type="button" x-on:click="sendJourneyChat('[option:pay_full] Pay full')">Pay full</button>
+                                        </div>
+                                        <form class="jx-form" x-on:submit.prevent="sendJourneyChat(journeyChatInput)">
+                                            <input type="text" x-model="journeyChatInput" placeholder="Ask your concierge…" aria-label="Message the AI concierge" x-bind:disabled="journeyChatThinking">
+                                            <button type="submit" x-bind:disabled="journeyChatThinking || !String(journeyChatInput || '').trim()">Send</button>
+                                        </form>
+                                    </div>
+
+                                    {{-- Done --}}
+                                    <div x-show="phoneView === 'done'" x-cloak class="jx-done">
+                                        <div class="jx-ring" aria-hidden="true">✓</div>
+                                        <h4>All set</h4>
+                                        <p class="a" x-text="selectedAction"></p>
+                                        <p class="m" x-text="journey.doneMessage"></p>
+                                        <a x-show="journey.listingUrl" x-cloak x-bind:href="journey.listingUrl" target="_blank" rel="noopener">View on marketplace ↗</a>
+                                    </div>
+                                </div>
+                                <p class="jx-foot">Secure · LuvuPay AI</p>
                             </div>
                         </div>
-
-                        <p class="text-[10px] text-slate-400 text-center py-2 border-t border-slate-50">Secure options powered by LuvuPay AI</p>
                     </div>
                 </div>
             </section>
         </div>
 
-        {{-- bottom actions --}}
-        <div x-show="journeyStep === 'ready'" x-cloak>
-            <div class="flex flex-wrap items-center justify-between gap-3 pt-1">
-                <p class="text-xs text-slate-500" x-show="phoneView === 'options'">Pick what the user chose — from the phone or from here. Both views stay in sync</p>
-                <p class="text-xs font-semibold text-emerald-600" x-show="phoneView === 'done'" x-cloak>✓ Completed — ledger, KPIs and wallet are updated</p>
-            </div>
-            <div class="flex flex-wrap gap-2 mt-2">
-                <button type="button" x-on:click="choose('renew')" x-bind:title="optWhy('renew')" x-bind:disabled="!optOk('renew') || !decisionReady || decisionBusy || phoneView === 'done'" class="rounded-lg bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed">Retry payment</button>
-                <button type="button" x-on:click="choose('split_pay')" x-bind:title="optWhy('split_pay')" x-bind:disabled="!optOk('split_pay') || !decisionReady || decisionBusy || phoneView === 'done'" class="rounded-lg bg-emerald-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed">Split pay</button>
-                <button type="button" x-on:click="choose('partial_refund')" x-bind:title="optWhy('partial_refund')" x-bind:disabled="!optOk('partial_refund') || !decisionReady || decisionBusy || phoneView === 'done'" class="rounded-lg bg-sky-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-sky-700 disabled:opacity-40 disabled:cursor-not-allowed" x-text="'Partial refund (' + journey.refundPct + '%)'"></button>
-                <button type="button" x-on:click="choose('resale')" x-bind:title="optWhy('resale')" x-bind:disabled="!optOk('resale') || !decisionReady || decisionBusy || phoneView === 'done' || !journey.features.resale" class="rounded-lg bg-purple-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-purple-700 disabled:opacity-40 disabled:cursor-not-allowed">Resell remaining</button>
-                <button type="button" x-on:click="choose('donate')" x-bind:title="optWhy('donate')" x-bind:disabled="!optOk('donate') || !decisionReady || decisionBusy || phoneView === 'done' || !journey.features.charity" class="rounded-lg bg-pink-500 px-3.5 py-2 text-xs font-semibold text-white hover:bg-pink-600 disabled:opacity-40 disabled:cursor-not-allowed">Donate residual</button>
-                <button type="button" x-on:click="choose('cancel')" x-bind:title="optWhy('expire')" x-bind:disabled="!optOk('expire') || !decisionReady || decisionBusy || phoneView === 'done'" class="rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed">Let it expire</button>
-                <button type="button" x-show="journey.splitPlan && journey.splitPlan.status === 'active'" x-cloak x-on:click="collectInstallment(decisionRow)" x-bind:disabled="decisionBusy" class="rounded-lg bg-emerald-700 px-3.5 py-2 text-xs font-semibold text-white hover:bg-emerald-800 disabled:opacity-40">Subscriber pays next instalment now</button>
+        {{-- Host-side actions (same options, same rules) --}}
+        <div x-show="journeyStep === 'ready'" x-cloak class="jx-foot-row">
+            <p class="jx-foot-note" x-show="phoneView === 'options'">Pick what the subscriber chose, from the phone or from here. Both stay in sync.</p>
+            <p class="jx-foot-note is-ok" x-show="phoneView === 'done'" x-cloak>✓ Completed. Ledger, KPIs and wallet are updated.</p>
+            <div class="jx-pills">
+                <template x-for="o in (journey.stage ? journey.stage.options : [])" x-bind:key="o.id">
+                    <button type="button" class="jx-pill" x-bind:class="o.id === 'renew' ? 'is-gold' : ''" x-bind:title="o.available ? o.description : o.reason"
+                            x-on:click="choose(o.id === 'expire' ? 'cancel' : o.id)"
+                            x-bind:disabled="!o.available || !decisionReady || decisionBusy || phoneView === 'done'" x-text="o.label"></button>
+                </template>
+                <button type="button" class="jx-pill is-gold" x-show="journey.splitPlan && journey.splitPlan.status === 'active'" x-cloak
+                        x-on:click="collectInstallment(decisionRow)" x-bind:disabled="decisionBusy">Subscriber pays next instalment now</button>
             </div>
         </div>
     </div>

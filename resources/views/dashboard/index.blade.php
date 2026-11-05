@@ -4,8 +4,6 @@
 @section('csp_style', "'self' 'unsafe-inline'")
 
 @push('head')
-    <link rel="stylesheet" href="/assets/ag-grid-32.3.3/ag-grid.min.css">
-    <link rel="stylesheet" href="/assets/ag-grid-32.3.3/ag-theme-quartz.min.css">
 @endpush
 
 @section('content')
@@ -212,18 +210,7 @@
 
         <div x-show="tab === 'deliveries'" x-cloak class="c-card">
             <div class="c-head"><div><h2 class="c-title">Webhook deliveries</h2><p class="c-sub">Outbound signed events</p></div><button type="button" class="c-btn c-btn-sm" x-on:click="loadDeliveries()">Refresh</button></div>
-            <div style="overflow-x:auto"><table class="c-table">
-                <thead><tr>@foreach(['Time','Event','Code','Attempts','Status',''] as $h)<th>{{ $h }}</th>@endforeach</tr></thead>
-                <tbody>
-                <template x-for="d in deliveries" :key="d.id"><tr>
-                    <td class="mono" style="white-space:nowrap;color:var(--muted)" x-text="(d.created_at || '').replace('T', ' ').slice(0, 19)"></td>
-                    <td x-text="d.event_type || d.event"></td><td class="mono" x-text="d.response_code || '-'"></td><td x-text="d.attempts ?? '-'"></td><td x-text="d.status"></td>
-                    <td style="text-align:right"><button type="button" class="c-btn c-btn-sm" x-show="d.status === 'failed'" x-on:click="retryDelivery(d.id)">Retry</button></td>
-                </tr></template>
-                <tr x-show="!deliveriesLoaded"><td colspan="6" style="padding:0"><x-ui.loading show="true" title="Loading deliveries" compact /></td></tr>
-                <tr x-show="deliveriesLoaded && !deliveries.length"><td colspan="6" class="c-empty">No deliveries yet</td></tr>
-                </tbody>
-            </table></div>
+            <div id="grid-dl" class="ag-theme-quartz h-rs" style="width:100%"></div>
         </div>
 
 @if(config('luvupay.demo_simulator'))
@@ -258,14 +245,16 @@
                 New subscription checkout
             </button>
 
-            {{-- Secondary: retention flow / Dual-View Simulator --}}
+            {{-- Secondary: retention flow / Dual-View Simulator. Enabled reactively from the live rows (no reload needed). --}}
             <button
                 type="button"
                 class="bg-white border border-slate-300 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-50 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 x-on:click="openDecision()"
-                x-bind:disabled="simBusy || decisionOpen || (selectedLifecycle && selectedLifecycle !== 'ACTIVE')"
+                x-bind:disabled="simBusy || decisionOpen || loading || !canStartJourney"
+                x-bind:title="loading ? 'Loading your subscriptions…' : (!canStartJourney ? 'Needs a paid subscription: finish a checkout or simulate 30 days first' : 'Simulate the reminders and recovery options for the next subscription charge')"
+                x-bind:aria-busy="loading ? 'true' : 'false'"
             >
-                Missed cancellation journey
+                <span x-text="loading ? 'Loading…' : 'Missed cancellation journey'"></span>
             </button>
 
             <button
@@ -306,6 +295,8 @@
         ></p>
     </section>
 
+        @include('dashboard.partials.smart-convert-panel')
+
         </div>{{-- hasData --}}
 
     @include('dashboard.partials.checkout-modal')
@@ -335,18 +326,7 @@
     <x-ui.modal show="webhookOpen" title="Webhook debugger" size="xl">
         <div class="p-5">
             <p class="mb-3 text-xs text-muted">Last provider and platform events · proves the durable inbox and processing state</p>
-            <x-ui.table>
-                <x-slot:head><tr><th class="px-4 py-3">Time</th><th class="px-4 py-3">Event</th><th class="px-4 py-3">Status</th><th class="px-4 py-3">Payload</th></tr></x-slot:head>
-                <template x-for="w in webhookLogs" x-bind:key="w.id">
-                    <tr>
-                        <td class="whitespace-nowrap px-4 py-2.5 font-mono text-xs text-muted" x-text="(w.timestamp || '').replace('T', ' ').slice(0, 19)"></td>
-                        <td class="px-4 py-2.5"><span class="font-medium text-brand-soft" x-text="w.event_type"></span><span class="block text-xs text-faint" x-text="w.provider"></span></td>
-                        <td class="px-4 py-2.5"><span class="rounded-full px-2 py-0.5 text-[10px] font-bold" x-bind:class="String(w.http_hint).includes('200') ? 'bg-ok/15 text-ok' : 'bg-bad/15 text-bad'" x-text="w.http_hint"></span></td>
-                        <td class="max-w-xs truncate px-4 py-2.5 font-mono text-xs text-muted" x-text="w.payload_preview"></td>
-                    </tr>
-                </template>
-                <tr x-show="!webhookLogs.length"><td colspan="4" class="px-4 py-10 text-center text-muted">No events yet - run a sandbox test</td></tr>
-            </x-ui.table>
+            <div id="grid-wh" class="ag-theme-quartz" style="width:100%;height:420px"></div>
         </div>
     </x-ui.modal>
 
@@ -372,7 +352,7 @@
         ];
     @endphp
     <script type="application/json" id="lp-config">@json($lpConfig)</script>
-    <script src="/assets/ag-grid-32.3.3/ag-grid-community.min.noStyle.js" defer></script>
     <script src="/js/campaign-studio.js?v={{ @filemtime(public_path('js/campaign-studio.js')) }}" defer></script>
     <script src="/js/dashboard.js?v={{ @filemtime(public_path('js/dashboard.js')) }}" defer></script>
+    <script src="/js/smart-convert.js?v={{ @filemtime(public_path('js/smart-convert.js')) }}" defer></script>
 @endpush

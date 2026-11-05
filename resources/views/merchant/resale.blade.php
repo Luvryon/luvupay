@@ -3,7 +3,7 @@
 @section('heading', 'Resale')
 
 @section('content')
-<div class="stack" x-data="resalePage()" x-init="load()">
+<div class="stack" x-data="resalePage()">
     <div class="row">
         <div>
             <h1 class="page-title">Resale marketplace</h1>
@@ -26,28 +26,11 @@
 
     <section class="c-card">
         <div class="c-head"><div><h2 class="c-title">Listings</h2><p class="c-sub">Created when a subscriber picks Marketplace Resale during the grace period</p></div></div>
-        <div class="c-pad" style="overflow-x:auto">
+        <div class="c-pad">
             <x-ui.loading show="!loaded" title="Loading listings" hint="Checking your public merchant page" />
             <x-ui.load-error show="loaded && failed" title="Could not load listings" />
             <div x-show="loaded && !failed && !(d.listings||[]).length" x-cloak class="lp-state"><div><strong>No listings yet</strong>Listings appear when a subscriber picks Marketplace Resale during the grace period</div></div>
-            <table x-show="(d.listings||[]).length" style="width:100%;border-collapse:collapse;font-size:.86rem">
-                <thead><tr class="dim" style="text-align:left"><th style="padding:6px 8px">Seller</th><th style="padding:6px 8px">Access</th><th style="padding:6px 8px">Price</th><th style="padding:6px 8px">Status</th><th style="padding:6px 8px">Buyer</th><th style="padding:6px 8px">Link</th></tr></thead>
-                <tbody>
-                    <template x-for="l in d.listings" :key="l.id">
-                        <tr style="border-top:1px solid var(--line)">
-                            <td style="padding:8px" x-text="l.seller"></td>
-                            <td style="padding:8px" x-text="l.days ? l.days + ' days' : '—'"></td>
-                            <td style="padding:8px;font-weight:600" x-text="money(l.price_minor, l.currency)"></td>
-                            <td style="padding:8px"><span style="border-radius:999px;padding:2px 10px;font-size:.75rem;font-weight:700" x-bind:style="l.status==='active' ? 'background:#d1fae5;color:#047857' : (l.status==='sold' ? 'background:#e0e7ff;color:#4338ca' : 'background:#f1f5f9;color:#64748b')" x-text="l.status"></span></td>
-                            <td style="padding:8px" x-text="l.buyer || '—'"></td>
-                            <td style="padding:8px">
-                                <template x-if="l.link && l.status === 'active'"><span><a x-bind:href="l.link" target="_blank" rel="noopener" style="font-weight:600">Open</a> · <a href="#" x-on:click.prevent="copy(l.link)">Copy</a></span></template>
-                                <template x-if="!(l.link && l.status === 'active')"><span class="dim">—</span></template>
-                            </td>
-                        </tr>
-                    </template>
-                </tbody>
-            </table>
+            <div id="grid-resale" style="width:100%" x-show="loaded && !failed && (d.listings||[]).length" x-cloak></div>
         </div>
     </section>
 </div>
