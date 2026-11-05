@@ -31,7 +31,25 @@
         <env name="SESSION_DRIVER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="MAIL_MAILER" value="array"/>
-        <env name="LUVUPAY_PAYMENT_DRIVER" value="mock"/>
+        <!-- The suite must never see real credentials from .env: with them present the marketplace tests would call
+             the real PayPal Sandbox (mockPayments() is only true when the keys are empty). Tests set what they need via config(). -->
+        <env name="LUVUPAY_PAYMENT_DRIVER" value="mock" force="true"/>
+        <env name="PAYPAL_MODE" value="sandbox" force="true"/>
+        <env name="PAYPAL_CLIENT_ID" value="" force="true"/>
+        <env name="PAYPAL_SANDBOX_CLIENT_ID" value="" force="true"/>
+        <env name="PAYPAL_LIVE_CLIENT_ID" value="" force="true"/>
+        <env name="PAYPAL_SECRET" value="" force="true"/>
+        <env name="PAYPAL_SANDBOX_SECRET" value="" force="true"/>
+        <env name="PAYPAL_LIVE_SECRET" value="" force="true"/>
+        <env name="PAYPAL_WEBHOOK_ID" value="" force="true"/>
+        <env name="PAYPAL_PLAN_ID" value="" force="true"/>
+        <env name="PAYPAL_SANDBOX_BUSINESS_EMAIL" value="" force="true"/>
+        <env name="PAYPAL_SANDBOX_BUSINESS_PASSWORD" value="" force="true"/>
+        <env name="PAYPAL_SANDBOX_BUYER_EMAIL" value="" force="true"/>
+        <env name="PAYPAL_SANDBOX_BUYER_PASSWORD" value="" force="true"/>
+        <env name="PAYPAL_MERCHANT_SANDBOX_EMAIL" value="" force="true"/>
+        <env name="PAYPAL_CHARITY_SANDBOX_EMAIL" value="" force="true"/>
+        <env name="NEBIUS_API_KEY" value="" force="true"/>
         <env name="LUVUPAY_DEMO_SIMULATOR" value="true"/>
     </php>
 </phpunit>

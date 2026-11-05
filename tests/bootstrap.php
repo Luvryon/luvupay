@@ -12,6 +12,12 @@ $connection = (string) (getenv('DB_CONNECTION') ?: '');
 $database = (string) (getenv('DB_DATABASE') ?: '');
 $url = (string) (getenv('DB_URL') ?: getenv('DATABASE_URL') ?: '');
 
+// A cached config freezes the values of .env and ignores phpunit.xml, so the guard below would be meaningless.
+if (is_file(__DIR__.'/../bootstrap/cache/config.php')) {
+    fwrite(STDERR, "\nRefusing to run the test suite: bootstrap/cache/config.php exists (config:cache).\nRun `php artisan config:clear` first.\n\n");
+    exit(1);
+}
+
 $safe = $connection === 'sqlite'
     ? $database === ':memory:'
     : ($url === '' && preg_match('/_test$/', $database) === 1);

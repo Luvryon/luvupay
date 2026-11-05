@@ -111,3 +111,5 @@ No migration needed. After deploy: `php artisan config:clear && php artisan rout
 - New `tests/bootstrap.php` safety net: refuses to run unless the database name ends in `_test` and `DB_URL` is empty.
 - GitHub Actions workflow now starts a PostgreSQL 16 service.
 - Not yet executed by the author of this change: first run may reveal PostgreSQL-specific differences.
+- Tests no longer inherit real credentials: `phpunit.xml` forces every PayPal/Nebius credential empty and the payment driver to `mock`. Before this, the marketplace tests called the real PayPal Sandbox when `.env` held keys, and received a sandbox.paypal.com approval link (404 in the test client).
+- `tests/bootstrap.php` also refuses to run when `bootstrap/cache/config.php` exists (a cached config would bypass phpunit.xml).
