@@ -9,6 +9,8 @@
     @include('partials.favicon', ['faviconUrl' => $brand['logo'] ?? null])
     <link rel="stylesheet" href="/css/hosted.css?v={{ @filemtime(public_path('css/hosted.css')) }}">
     <style>[x-cloak]{display:none!important}</style>
+<meta name="color-scheme" content="light">
+<style>:root{color-scheme:light}</style>
 </head>
 <body class="bg-slate-50 min-h-screen flex items-center justify-center p-4 font-sans text-slate-900 antialiased">
 <main x-data="hostedPage()" x-cloak data-cfg='@json($cfg, JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_TAG | JSON_HEX_QUOT)'

@@ -173,7 +173,10 @@
         if (rich) {
           def.cellRenderer = function (p) {
             var wrap = el('span');
-            ((p.data && p.data['n' + i]) || []).forEach(function (x) { wrap.appendChild(x.cloneNode(true)); });
+            var nodes = p.data && p.data['n' + i];
+            // rows whose cell has no child elements keep their plain text (otherwise they render blank)
+            if (!nodes) { wrap.textContent = p.value == null ? '' : String(p.value); return wrap; }
+            nodes.forEach(function (x) { wrap.appendChild(x.cloneNode(true)); });
             return wrap;
           };
         }

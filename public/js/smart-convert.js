@@ -37,16 +37,25 @@
         return 'sc-ok';
       },
 
-      run: async function () {
+      // Called from the Missed Cancellation Journey with the renewal being recovered
+      announce: function (r) {
+        if (r && r.status === 'executed' && w.dispatchEvent) {
+          w.dispatchEvent(new CustomEvent('smart-convert-done', { detail: { row: r.row || null, message: r.message || 'AI Smart-Convert completed' } }));
+        }
+      },
+
+      run: async function (txId) {
         if (this.busy) return;
+        if (!txId) { this.error = { stage: 'journey', error: 'Open the Missed Cancellation Journey and choose a subscriber first.', evidence_url: null }; return; }
         this.busy = true; this.error = null; this.result = null;
         if (w.LuvuLoader && w.LuvuLoader.begin) w.LuvuLoader.begin();
         try {
-          var r = await call('POST', '/api/v1/dashboard/demo/smart-convert', { mode: this.approvalMode ? 'propose' : 'auto' });
+          var r = await call('POST', '/api/v1/dashboard/demo/smart-convert', { transaction_id: txId, mode: this.approvalMode ? 'propose' : 'auto' });
           if (r.ok && r.data.ok) {
             this.result = r.data;
             this.charityEdit = r.data.conversion ? r.data.conversion.charity_minor : null;
             this.toast(r.data.status === 'proposed' ? 'info' : 'success', r.data.message);
+            this.announce(r.data);
           } else {
             this.error = { stage: r.data.stage || 'request', error: r.data.error || r.data.message || ('HTTP ' + r.status), evidence_url: r.data.evidence_url || null };
             this.toast('error', this.error.error);
@@ -66,7 +75,7 @@
           var url = '/api/v1/dashboard/demo/smart-convert/' + encodeURIComponent(this.result.run_id) + '/' + action;
           var body = action === 'approve' && this.charityEdit !== null ? { charity_minor: Number(this.charityEdit) } : null;
           var r = await call('POST', url, body);
-          if (r.ok && r.data.ok) { this.result = r.data; this.toast('success', r.data.message); }
+          if (r.ok && r.data.ok) { this.result = r.data; this.toast('success', r.data.message); this.announce(r.data); }
           else {
             this.error = { stage: r.data.stage || 'request', error: r.data.error || r.data.message || ('HTTP ' + r.status), evidence_url: r.data.evidence_url || null };
             this.toast('error', this.error.error);

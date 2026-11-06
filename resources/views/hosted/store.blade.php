@@ -8,6 +8,8 @@
     <link rel="stylesheet" href="/css/ui.css">
     <link rel="stylesheet" href="/css/loader.css">
     <link rel="stylesheet" href="/css/hosted.css?v={{ @filemtime(public_path('css/hosted.css')) }}">
+<meta name="color-scheme" content="light">
+<style>:root{color-scheme:light}</style>
 </head>
 <body class="bg-slate-50 min-h-screen font-sans text-slate-900 antialiased">
 <main class="mx-auto w-full max-w-2xl px-4 py-10">

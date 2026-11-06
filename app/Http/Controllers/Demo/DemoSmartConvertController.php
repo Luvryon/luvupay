@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Demo;
 use App\Exceptions\SmartConvertException;
 use App\Http\Controllers\Demo\Concerns\DemoSupport;
 use App\Models\SmartConvertRun;
+use App\Services\Luvu\GraceStagePlanner;
 use App\Services\SmartConvert\SmartConvertEngine;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -31,36 +32,53 @@ final class DemoSmartConvertController
     {
         $merchantId = $this->merchantId($request);
         $data = $request->validate([
-            'transaction_id' => ['nullable', 'uuid'],
+            // Smart-Convert is a recovery option of the Missed Cancellation Journey, so it always works on ONE renewal.
+            'transaction_id' => ['required', 'uuid'],
             'mode' => ['nullable', 'in:auto,propose'],
         ]);
         $mode = $data['mode'] ?? (string) config('luvupay.smart_convert.default_mode', 'auto');
         $mode = $mode === 'propose' ? 'propose' : 'auto';
 
-        $tx = null;
-        if (! empty($data['transaction_id'])) {
-            $tx = DB::table('transactions')->where('merchant_id', $merchantId)->where('id', $data['transaction_id'])->first();
+        $tx = DB::table('transactions')->where('merchant_id', $merchantId)->where('id', $data['transaction_id'])->first();
+        if (! $tx) {
+            return response()->json(['ok' => false, 'stage' => 'journey', 'error' => 'not_found', 'message' => 'That renewal was not found.'], 404);
         }
-        $tx ??= DB::table('transactions')->where('merchant_id', $merchantId)->where('type', 'charge')->orderByDesc('created_at')->first();
+        if (! in_array((string) $tx->status, ['pending', 'held'], true)) {
+            return response()->json(['ok' => false, 'stage' => 'journey', 'error' => 'already_resolved', 'message' => 'This renewal is already resolved. Start a new journey to run Smart-Convert again.'], 422);
+        }
 
-        $email = $tx->email ?? 'smartconvert.demo@demo.luvupay.local';
+        // Same stage rule the other recovery options use (enforced here, not only in the UI): opens 1 day after expiry
+        $sub = $tx->subscription_id ? DB::table('subscriptions')->where('id', $tx->subscription_id)->first() : null;
+        $hours = GraceStagePlanner::hoursToExpiry($sub->current_period_end ?? null);
+        $stage = $hours === null ? 'grace_open' : GraceStagePlanner::keyForHoursToExpiry($hours);
+        if ($stage !== 'grace_open') {
+            return response()->json([
+                'ok' => false, 'stage' => 'journey', 'error' => 'locked_until_grace',
+                'message' => 'AI Smart-Convert opens 1 day after the subscription expires. Move the Journey to "+1 day after expiry" first.',
+            ], 422);
+        }
+
+        $email = $tx->email ?: 'subscriber@demo.luvupay.local';
         $currency = trim((string) ($tx->currency ?? $this->merchantCurrency($merchantId))) ?: 'USD';
+        $periodDays = max(1, (int) config('luvupay.resale.period_days', 30));
 
         // 1) AI PROPOSES: no money moves, no DB lock held while the model thinks
         try {
             $plan = $engine->propose($merchantId, [
                 'email' => $email, 'currency' => $currency,
-                'unused_days' => 10, 'unused_value_minor' => 3000, 'inactive_days' => 20,
+                'unused_days' => $periodDays,
+                'unused_value_minor' => max(1, (int) $tx->amount_minor),
+                'inactive_days' => max(1, (int) floor(abs(min(0.0, (float) $hours)) / 24)),
             ]);
         } catch (SmartConvertException $e) {
-            $run = $this->recordFailure($merchantId, $tx->id ?? null, $mode, $currency, $e);
+            $run = $this->recordFailure($merchantId, $tx->id, $mode, $currency, $e);
 
             return $this->failure($run, $e);
         }
 
         $run = SmartConvertRun::create([
             'merchant_id' => $merchantId,
-            'transaction_id' => $tx->id ?? null,
+            'transaction_id' => $tx->id,
             'status' => 'proposed',
             'mode' => $mode,
             'path' => $plan['path'],

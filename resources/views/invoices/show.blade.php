@@ -47,6 +47,8 @@
     </style>
     @include('partials.ag-grid-head')
     <style>.lg-table{margin-top:32px}.ag-theme-quartz{--ag-wrapper-border-radius:8px;--ag-header-background-color:var(--accent);--ag-header-foreground-color:#fff;--ag-header-column-resize-handle-display:none;--ag-font-size:14px;--ag-border-color:transparent;--ag-secondary-border-color:var(--line)}.ag-theme-quartz .ag-header-cell-label{text-transform:uppercase;letter-spacing:.07em;font-size:11px;font-weight:700}</style>
+<meta name="color-scheme" content="light">
+<style>:root{color-scheme:light}</style>
 </head>
 <body>
 <div class="bar">

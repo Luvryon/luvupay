@@ -8,6 +8,8 @@
     <title>@yield('code') · LuvuPay</title>
     @include('partials.favicon')
     <link rel="stylesheet" href="/css/ui.css">
+<meta name="color-scheme" content="light">
+<style>:root{color-scheme:light}</style>
 </head>
 <body class="grid min-h-full place-items-center px-5">
     <main class="w-full max-w-md text-center">

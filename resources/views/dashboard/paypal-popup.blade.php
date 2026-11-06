@@ -23,6 +23,8 @@
         button { margin-top: 18px; border: 0; border-radius: 10px; background: #4f46e5; color: #fff; font-weight: 600;
                  padding: 10px 18px; font-size: 14px; cursor: pointer; }
     </style>
+<meta name="color-scheme" content="light">
+<style>:root{color-scheme:light}</style>
 </head>
 <body>
 @php

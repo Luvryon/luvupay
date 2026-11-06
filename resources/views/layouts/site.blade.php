@@ -11,6 +11,8 @@
     @include('partials.assets')
     <link rel="stylesheet" href="/css/loader.css?v={{ @filemtime(public_path('css/loader.css')) }}">
     @stack('head')
+<meta name="color-scheme" content="light">
+<style>:root{color-scheme:light}</style>
 </head>
 <body class="grid min-h-screen grid-rows-[auto_1fr_auto] bg-white text-ink antialiased" x-data="{ mobile: false }">
 

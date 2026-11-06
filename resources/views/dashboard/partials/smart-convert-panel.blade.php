@@ -1,4 +1,4 @@
-{{-- 🧪 Run AI Smart-Convert Protocol. Logic: public/js/smart-convert.js. Every value shown comes from the server's smart_convert_runs row. --}}
+{{-- 🧪 Run AI Smart-Convert Protocol. Lives INSIDE the Missed Cancellation Journey modal (scope: journey, decisionRow, phoneView come from the parent). Opens at +1 day after expiry. Logic: public/js/smart-convert.js. Every value shown comes from the server's smart_convert_runs row. --}}
 <style>
     .sc-ok { background:#ecfdf5; color:#047857; border-color:#10b981; }
     .sc-warn { background:#fffbeb; color:#b45309; border-color:#f59e0b; }
@@ -17,20 +17,25 @@
     .sc-donate .big { font-size:15px; font-weight:800; color:#065f46; }
     .sc-donate p { margin:8px 0 0; font-size:11px; color:#64748b; }
 </style>
-<section class="bg-white border border-slate-200 rounded-xl p-6 mt-4" x-data="luvuSmartConvert()" x-show="demoEnabled" x-cloak>
+<section class="bg-white border border-slate-200 rounded-xl p-6 mt-4" style="color:#0f172a" x-data="luvuSmartConvert()" x-show="demoEnabled && journeyStep === 'ready'" x-cloak
+         x-on:smart-convert-done.window="if ($event.detail.row) applyRow($event.detail.row, true); journey.doneMessage = $event.detail.message; selectedAction = 'AI Smart-Convert'; decisionOutcome = 'AI Smart-Convert'; logDecision('[AI Smart-Convert] ' + $event.detail.message, 'green'); phoneView = 'done'; load()">
     <div class="flex flex-wrap items-start justify-between gap-3">
         <div class="max-w-xl">
-            <h2 class="text-lg font-bold text-slate-900">AI Smart-Convert</h2>
+            <h2 class="text-lg font-bold text-slate-900">AI Smart-Convert <span class="text-xs font-semibold text-slate-500">· recovery option, opens +1 day after expiry</span></h2>
             <p class="text-sm text-slate-600 mt-1">
                 Instead of a chargeback, NVIDIA Nemotron (via Nebius) proposes how the unused value is settled. PayPal Payouts executes the charity share.
                 <span class="font-semibold">AI proposes → you can intervene → PayPal executes.</span>
+            </p>
+            <p class="text-xs mt-2 font-semibold" style="color:#b45309" x-show="!(journey.stage && journey.stage.stage === 'grace_open') && phoneView !== 'done'" x-cloak>
+                🔒 Locked: move the timeline to "+1 day after expiry" above. Until then the subscriber has not missed anything yet.
             </p>
         </div>
         <div class="flex flex-col items-end gap-2">
             <button type="button" id="run-smart-convert"
                     class="inline-flex items-center justify-center rounded-lg px-4 py-2.5 font-semibold text-white shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                     style="background-color:#0f766e;color:#fff"
-                    x-on:click="run()" x-bind:disabled="busy">
+                    x-on:click="run(decisionRow && decisionRow.id)"
+                    x-bind:disabled="busy || phoneView === 'done' || !(journey.stage && journey.stage.stage === 'grace_open')">
                 <span x-show="!busy">🧪 Run AI Smart-Convert Protocol</span>
                 <span x-show="busy" x-cloak>Negotiating…</span>
             </button>
@@ -66,7 +71,7 @@
 
         {{-- Hero flow: forgot → AI proposes → guardrails → PayPal pays → donation → audit --}}
         <div class="sc-steps" aria-label="Hero flow">
-            <span class="sc-step on">1 · Subscriber forgot</span><span class="sc-arrow">→</span>
+            <span class="sc-step on" x-text="'1 · ' + (journey.name || 'Subscriber') + ' missed the cancellation'">1 · Subscriber missed the cancellation</span><span class="sc-arrow">→</span>
             <span class="sc-step on">2 · AI proposes</span><span class="sc-arrow">→</span>
             <span class="sc-step" x-bind:class="result && result.status === 'proposed' ? 'now' : (result && (result.status === 'rejected' || result.status === 'failed') ? 'stop' : 'on')"
                   x-text="'3 · ' + (result && result.status === 'proposed' ? 'You decide' : 'Guardrails')"></span><span class="sc-arrow">→</span>

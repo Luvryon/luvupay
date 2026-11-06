@@ -21,7 +21,6 @@
 <title>AI Negotiation Evidence · {{ substr($e['run_id'], 0, 8) }} · LuvuPay</title>
 <style>
     :root { --bg:#f6f7fb; --card:#fff; --ink:#0f172a; --muted:#64748b; --line:#e2e8f0; --brand:#4f46e5; --ok:#059669; --okbg:#ecfdf5; --warn:#b45309; --warnbg:#fffbeb; --bad:#b91c1c; --badbg:#fef2f2; --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; color-scheme:light dark; }
-    @media (prefers-color-scheme: dark) { :root { --bg:#0b1020; --card:#131a2e; --ink:#e8ecf8; --muted:#94a3b8; --line:#26304d; --brand:#818cf8; --ok:#34d399; --okbg:#0d2a22; --warn:#fbbf24; --warnbg:#2b2210; --bad:#f87171; --badbg:#2e1417; } }
     * { box-sizing:border-box; }
     body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; padding:24px 16px 56px; }
     .wrap { max-width:960px; margin:0 auto; }
@@ -61,6 +60,8 @@
 </style>
 @include('partials.ag-grid-head')
 <style>.lg-table{margin-top:6px}.ag-theme-quartz{--ag-wrapper-border-radius:8px;--ag-font-size:13px;--ag-font-family:var(--mono)}</style>
+<meta name="color-scheme" content="light">
+<style>:root{color-scheme:light}</style>
 </head>
 <body>
 <div class="wrap">
@@ -79,10 +80,11 @@
     @endphp
     <div class="flow" aria-label="Flow">
         <span class="node on">1 · AI proposes</span> →
-        <span class="node {{ $decided ? 'on' : '' }}">2 · {{ $e['mode'] === 'propose' ? 'Merchant decides' : 'Policy guardrails' }}</span> →
-        <span class="node {{ $e['status'] === 'executed' ? 'on' : '' }}">3 · PayPal Payouts executes</span> →
-        <span class="node {{ in_array($e['donation']['status'], ['sent', 'simulated'], true) ? 'on' : '' }}">4 · Donation</span> →
-        <span class="node {{ $e['status'] === 'executed' ? 'on' : '' }}">5 · Audit trail</span>
+        <span class="node on">2 · Policy guardrails</span> →
+        <span class="node {{ $decided ? 'on' : '' }}">3 · {{ $e['mode'] === 'propose' ? 'Merchant decides' : 'Auto-approved' }}</span> →
+        <span class="node {{ $e['status'] === 'executed' ? 'on' : '' }}">4 · PayPal pays</span> →
+        <span class="node {{ in_array($e['donation']['status'], ['sent', 'simulated'], true) ? 'on' : '' }}">5 · Donation</span> →
+        <span class="node {{ $e['status'] === 'executed' ? 'on' : '' }}">6 · Audit trail</span>
     </div>
 
     <div class="grid">
@@ -123,11 +125,11 @@
                 @if($s['fee_minor'] > 0)<span class="b3" style="width:{{ $pct($s['fee_minor']) }}%">Fee {{ $pct($s['fee_minor']) }}%</span>@endif
             </div>
             <table data-ag-table>
-                <tr><th></th><th>Store credit</th><th>Charity</th><th>Fee</th><th>Total</th></tr>
+                <tr><th>Split</th><th>Store credit</th><th>Charity</th><th>Fee</th><th>Total</th></tr>
                 @if($s['model_raw'])
                 <tr><td>Model proposed (raw)</td><td>{{ $fmt($s['model_raw']['store_credit_minor']) }}</td><td>{{ $fmt($s['model_raw']['charity_minor']) }}</td><td>{{ $fmt($s['model_raw']['fee_minor']) }}</td><td>{{ $fmt(array_sum($s['model_raw'])) }}</td></tr>
                 @endif
-                <tr><td><strong>Final (executed)</strong></td><td><strong>{{ $fmt($s['store_credit_minor']) }}</strong></td><td><strong>{{ $fmt($s['charity_minor']) }}</strong></td><td><strong>{{ $fmt($s['fee_minor']) }}</strong></td><td><strong>{{ $fmt($s['unused_value_minor']) }} {{ $cur }}</strong></td></tr>
+                <tr><td><strong>{{ $e['status'] === 'executed' ? 'Final (executed)' : 'Proposed (not executed yet)' }}</strong></td><td><strong>{{ $fmt($s['store_credit_minor']) }}</strong></td><td><strong>{{ $fmt($s['charity_minor']) }}</strong></td><td><strong>{{ $fmt($s['fee_minor']) }}</strong></td><td><strong>{{ $fmt($s['unused_value_minor']) }} {{ $cur }}</strong></td></tr>
             </table>
             @if(!empty($s['guardrail_adjustments']))
                 <div class="note" style="margin-top:10px"><strong>Policy / merchant adjustments applied to the raw proposal:</strong></div>
@@ -171,7 +173,7 @@
         </section>
 
         <section class="card">
-            <div class="step">5 · Human oversight &amp; audit</div>
+            <div class="step">6 · Human oversight &amp; audit</div>
             <dl>
                 <dt>Mode</dt><dd>{{ $e['mode'] === 'propose' ? 'AI proposes → merchant approves' : 'Auto (one-click demo)' }}</dd>
                 <dt>Decided by</dt><dd>{{ $a['decided_by'] ?? '—' }}</dd>

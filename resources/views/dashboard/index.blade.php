@@ -295,7 +295,6 @@
         ></p>
     </section>
 
-        @include('dashboard.partials.smart-convert-panel')
 
         </div>{{-- hasData --}}
 

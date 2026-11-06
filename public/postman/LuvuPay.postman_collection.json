@@ -76,7 +76,14 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('not 200 without a session', () => pm.expect(pm.response.code).to.be.oneOf([401, 302, 403]));"
+                  "// Postman follows the 302 to /login automatically, so a 200 is fine as long as it is the login page and NOT dashboard JSON.",
+                  "const t = pm.response.text();",
+                  "pm.test('no dashboard data without a session', () => {",
+                  "  if ([401, 302, 403].includes(pm.response.code)) return;",
+                  "  pm.expect(pm.response.code).to.eql(200);",
+                  "  pm.expect(t).to.include('name=\"password\"');",
+                  "  pm.expect(t).to.not.include('\"data\"');",
+                  "});"
                 ]
               }
             }
@@ -947,6 +954,11 @@
             "method": "POST",
             "header": [
               {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}",
+                "type": "text"
+              },
+              {
                 "key": "Accept",
                 "value": "application/json"
               },
@@ -997,7 +1009,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (!pm.collectionVariables.get('idem_key')) pm.collectionVariables.set('idem_key', 'pm-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8));"
+                  "pm.collectionVariables.set('idem_key', 'pm-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8));"
                 ]
               }
             },
@@ -1020,6 +1032,11 @@
           "request": {
             "method": "POST",
             "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}",
+                "type": "text"
+              },
               {
                 "key": "Accept",
                 "value": "application/json"
@@ -1083,6 +1100,11 @@
             "method": "POST",
             "header": [
               {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}",
+                "type": "text"
+              },
+              {
                 "key": "Accept",
                 "value": "application/json"
               },
@@ -1145,6 +1167,11 @@
             "method": "POST",
             "header": [
               {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}",
+                "type": "text"
+              },
+              {
                 "key": "Accept",
                 "value": "application/json"
               },
@@ -1203,6 +1230,11 @@
             "method": "GET",
             "header": [
               {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}",
+                "type": "text"
+              },
+              {
                 "key": "Accept",
                 "value": "application/json"
               }
@@ -1247,6 +1279,11 @@
           "request": {
             "method": "GET",
             "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}",
+                "type": "text"
+              },
               {
                 "key": "Accept",
                 "value": "application/json"
@@ -1294,6 +1331,11 @@
             "method": "GET",
             "header": [
               {
+                "key": "Authorization",
+                "value": "Bearer {{api_key}}",
+                "type": "text"
+              },
+              {
                 "key": "Accept",
                 "value": "application/json"
               }
@@ -1338,6 +1380,11 @@
           "request": {
             "method": "GET",
             "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer lp_live_this_key_is_deliberately_wrong_000000",
+                "type": "text"
+              },
               {
                 "key": "Accept",
                 "value": "application/json"

@@ -56,6 +56,8 @@
     <link rel="stylesheet" href="/css/console.css?v={{ @filemtime(public_path('css/console.css')) }}">
     <link rel="stylesheet" href="/css/loader.css?v={{ @filemtime(public_path('css/loader.css')) }}">
     <link rel="stylesheet" href="/css/toast.css?v={{ @filemtime(public_path('css/toast.css')) }}">
+<meta name="color-scheme" content="light">
+<style>:root{color-scheme:light}</style>
 </head>
 <body class="console-light" x-data="{ drawer: false }" x-on:keydown.escape.window="drawer = false">
 <a href="#main" class="sr-only">Skip to content</a>
