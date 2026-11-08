@@ -8,7 +8,6 @@
     <title>@yield('title', 'LuvuPay')</title>
     @include('partials.assets')
 <meta name="color-scheme" content="light">
-<style>:root{color-scheme:light}</style>
 </head>
 <body class="min-h-full bg-wash text-ink antialiased relative overflow-x-hidden">
 <div class="pointer-events-none absolute inset-x-0 top-0 h-[520px] lp-grid"></div>

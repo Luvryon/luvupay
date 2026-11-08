@@ -24,7 +24,6 @@
                  padding: 10px 18px; font-size: 14px; cursor: pointer; }
     </style>
 <meta name="color-scheme" content="light">
-<style>:root{color-scheme:light}</style>
 </head>
 <body>
 @php

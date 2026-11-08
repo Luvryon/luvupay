@@ -16,7 +16,6 @@
       .pub-main{max-width:720px;margin:0 auto;padding:24px 24px 64px}
     </style>
 <meta name="color-scheme" content="light">
-<style>:root{color-scheme:light}</style>
 </head>
 <body>
 <nav class="pub-nav">

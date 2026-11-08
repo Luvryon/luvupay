@@ -13,7 +13,6 @@
     @include('partials.ag-grid-head')
     @stack('head')
 <meta name="color-scheme" content="light">
-<style>:root{color-scheme:light}</style>
 </head>
 <body class="min-h-screen bg-white text-ink antialiased" x-data="{ mobile: false }">
 {{-- Full-width top nav only --}}

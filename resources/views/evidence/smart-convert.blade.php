@@ -61,7 +61,6 @@
 @include('partials.ag-grid-head')
 <style>.lg-table{margin-top:6px}.ag-theme-quartz{--ag-wrapper-border-radius:8px;--ag-font-size:13px;--ag-font-family:var(--mono)}</style>
 <meta name="color-scheme" content="light">
-<style>:root{color-scheme:light}</style>
 </head>
 <body>
 <div class="wrap">
