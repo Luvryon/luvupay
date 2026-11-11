@@ -3,14 +3,14 @@
 Files (also downloadable from `/docs/postman`):
 
 - `postman/LuvuPay.postman_collection.json`: 27 requests with assertions
-- `postman/LuvuPay.postman_environment.json`: **hosted**, `base_url` = `https://luvupay.domainku.com`
+- `postman/LuvuPay.postman_environment.json`: **hosted**, `base_url` = `https://luvupay.luvryon.com`
 - `postman/LuvuPay.local.postman_environment.json`: same variables, `base_url` = `http://localhost:8000`
 
 Variables: `base_url`, `email`, `password`, `api_key`, `paypal_plan_id`.
 
 ## Setup (2 minutes)
 
-1. Postman → **Import** → the collection and the environment you need. Choose it in the top-right dropdown: **LuvuPay · Hosted (luvupay.domainku.com)** or **LuvuPay · Local**.
+1. Postman → **Import** → the collection and the environment you need. Choose it in the top-right dropdown: **LuvuPay · Hosted (luvupay.luvryon.com)** or **LuvuPay · Local**.
 2. Edit the environment:
    - `base_url`: already set per environment (no trailing slash). Change it if your domain differs
    - `email` / `password`: the seeded demo owner is `owner@demomerchant.test` / `SecurePass1`. The account must **not** have 2FA enabled

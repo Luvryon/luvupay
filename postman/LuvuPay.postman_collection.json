@@ -275,6 +275,118 @@
           ]
         },
         {
+          "name": "4a · Pick three paid charges from the ledger (the subscribers who will 'forget')",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/dashboard/transactions",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "dashboard",
+                "transactions"
+              ]
+            },
+            "description": "Smart-Convert works on ONE renewal of the Missed Cancellation Journey. It needs a paid charge to start from. If this step fails, create a few paid charges first (Dashboard > Subscriber pays through PayPal).",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('ledger loads', () => pm.response.to.have.status(200));",
+                  "const rows = pm.response.json().data || [];",
+                  "const paid = rows.filter(r => /charge|payment/i.test(String(r.type || '')) && !r.smart_convert);",
+                  "pm.test('at least 3 paid charges exist to start journeys from (found ' + paid.length + ')', () => pm.expect(paid.length).to.be.at.least(3));",
+                  "['paid_tx', 'paid_tx_2', 'paid_tx_3'].forEach((k, i) => { if (paid[i]) pm.collectionVariables.set(k, paid[i].id); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4b · Journey: subscriber forgot, move to +1 day after expiry (Smart-Convert unlocks)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-TOKEN",
+                "value": "{{csrf}}"
+              },
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/dashboard/demo/forgot",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "dashboard",
+                "demo",
+                "forgot"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transaction_id\": \"{{paid_tx}}\",\n  \"hours_before\": -25\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('journey started (200)', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('renewal created', () => pm.expect(j.ok).to.be.true);",
+                  "pm.test('moved to +1 day after expiry: recovery options (incl. Smart-Convert) are open', () => pm.expect(JSON.stringify(j.stage)).to.match(/grace_open|after expiry|\\+1/i));",
+                  "pm.collectionVariables.set('renewal_id', j.grace.transaction_id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "5 · AI proposes the split (no money moves yet)",
           "request": {
             "method": "POST",
@@ -312,7 +424,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"mode\": \"propose\"\n}",
+              "raw": "{\n  \"transaction_id\": \"{{renewal_id}}\",\n  \"mode\": \"propose\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -742,6 +854,71 @@
           ]
         },
         {
+          "name": "12b · Journey: a second subscriber forgot, move to +1 day after expiry",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-TOKEN",
+                "value": "{{csrf}}"
+              },
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/dashboard/demo/forgot",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "dashboard",
+                "demo",
+                "forgot"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transaction_id\": \"{{paid_tx_2}}\",\n  \"hours_before\": -25\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('journey started (200)', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('renewal created', () => pm.expect(j.ok).to.be.true);",
+                  "pm.test('moved to +1 day after expiry: recovery options (incl. Smart-Convert) are open', () => pm.expect(JSON.stringify(j.stage)).to.match(/grace_open|after expiry|\\+1/i));",
+                  "pm.collectionVariables.set('renewal_id_2', j.grace.transaction_id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "13 · Negative path: AI proposes again…",
           "request": {
             "method": "POST",
@@ -779,7 +956,7 @@
             "description": "",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"mode\": \"propose\"\n}",
+              "raw": "{\n  \"transaction_id\": \"{{renewal_id_2}}\",\n  \"mode\": \"propose\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -870,6 +1047,71 @@
           ]
         },
         {
+          "name": "14b · Journey: a third subscriber forgot, move to +1 day after expiry",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-TOKEN",
+                "value": "{{csrf}}"
+              },
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/dashboard/demo/forgot",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "dashboard",
+                "demo",
+                "forgot"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"transaction_id\": \"{{paid_tx_3}}\",\n  \"hours_before\": -25\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('journey started (200)', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('renewal created', () => pm.expect(j.ok).to.be.true);",
+                  "pm.test('moved to +1 day after expiry: recovery options (incl. Smart-Convert) are open', () => pm.expect(JSON.stringify(j.stage)).to.match(/grace_open|after expiry|\\+1/i));",
+                  "pm.collectionVariables.set('renewal_id_3', j.grace.transaction_id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "15 · (optional) One-click auto mode",
           "request": {
             "method": "POST",
@@ -907,7 +1149,7 @@
             "description": "AI decides and PayPal Payouts executes immediately (a second sandbox payout). Skip this request if you only want one.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"mode\": \"auto\"\n}",
+              "raw": "{\n  \"transaction_id\": \"{{renewal_id_3}}\",\n  \"mode\": \"auto\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1520,6 +1762,30 @@
     },
     {
       "key": "idem_key",
+      "value": ""
+    },
+    {
+      "key": "paid_tx",
+      "value": ""
+    },
+    {
+      "key": "paid_tx_2",
+      "value": ""
+    },
+    {
+      "key": "paid_tx_3",
+      "value": ""
+    },
+    {
+      "key": "renewal_id",
+      "value": ""
+    },
+    {
+      "key": "renewal_id_2",
+      "value": ""
+    },
+    {
+      "key": "renewal_id_3",
       "value": ""
     }
   ]
